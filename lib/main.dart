@@ -2,14 +2,25 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'viewmodels/wordle_viewmodel.dart';
+import 'viewmodels/duel_viewmodel.dart';
 import 'views/home_page.dart';
 import 'views/wordle_page.dart';
+import 'views/duel_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Firebase'i initialize et
+  await Firebase.initializeApp();
+  
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => WordleViewModel(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => WordleViewModel()),
+        ChangeNotifierProvider(create: (_) => DuelViewModel()),
+      ],
       child: const MyApp(),
     ),
   );
@@ -51,6 +62,7 @@ class _MyAppState extends State<MyApp> {
   home: HomePage(toggleTheme: _toggleTheme),
   routes: {
     '/wordle': (context) => WordlePage(toggleTheme: _toggleTheme),
+    '/duel': (context) => const DuelPage(),
   },
   themeMode: _themeMode,
 );

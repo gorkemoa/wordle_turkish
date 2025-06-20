@@ -107,10 +107,10 @@ class HomePage extends StatelessWidget {
                   const SizedBox(height: 20),
                   _buildFeatureCard(
                     context,
-                    'Duello Modu (Yakında)',
+                    'Duello Modu',
                     'Arkadaşlarınla online rekabet et!',
                     Colors.redAccent,
-                    () => _showFeatureComingSoon(context, 'Duello Modu'),
+                    () => Navigator.pushNamed(context, '/duel'),
                   ),
                   const SizedBox(height: 20),
                   _buildFeatureCard(
