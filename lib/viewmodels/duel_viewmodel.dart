@@ -76,7 +76,7 @@ class DuelViewModel extends ChangeNotifier {
       final List<String> words = jsonWords
           .whereType<String>()
           .map((word) => word.trim().toTurkishUpperCase())
-          .where((word) => word.length == wordLength)
+          .where((word) => word.isNotEmpty && word.length == wordLength)
           .toList();
 
       validWordsSet = words.toSet();
