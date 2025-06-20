@@ -1,0 +1,113 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+enum GameStatus { waiting, active, finished }
+enum PlayerStatus { waiting, playing, won, lost, disconnected }
+
+class DuelGame {
+  final String gameId;
+  final String secretWord;
+  final GameStatus status;
+  final DateTime createdAt;
+  final DateTime? startedAt;
+  final DateTime? finishedAt;
+  final String? winnerId;
+  final Map<String, DuelPlayer> players;
+
+  DuelGame({
+    required this.gameId,
+    required this.secretWord,
+    required this.status,
+    required this.createdAt,
+    this.startedAt,
+    this.finishedAt,
+    this.winnerId,
+    required this.players,
+  });
+
+  factory DuelGame.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    
+    Map<String, DuelPlayer> players = {};
+    if (data['players'] != null) {
+      (data['players'] as Map<String, dynamic>).forEach((key, value) {
+        players[key] = DuelPlayer.fromMap(value);
+      });
+    }
+
+    return DuelGame(
+      gameId: doc.id,
+      secretWord: data['secretWord'] ?? '',
+      status: GameStatus.values.byName(data['status'] ?? 'waiting'),
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      startedAt: data['startedAt'] != null ? (data['startedAt'] as Timestamp).toDate() : null,
+      finishedAt: data['finishedAt'] != null ? (data['finishedAt'] as Timestamp).toDate() : null,
+      winnerId: data['winnerId'],
+      players: players,
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    Map<String, dynamic> playersMap = {};
+    players.forEach((key, value) {
+      playersMap[key] = value.toMap();
+    });
+
+    return {
+      'secretWord': secretWord,
+      'status': status.name,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'startedAt': startedAt != null ? Timestamp.fromDate(startedAt!) : null,
+      'finishedAt': finishedAt != null ? Timestamp.fromDate(finishedAt!) : null,
+      'winnerId': winnerId,
+      'players': playersMap,
+    };
+  }
+}
+
+class DuelPlayer {
+  final String playerId;
+  final String playerName;
+  final PlayerStatus status;
+  final List<List<String>> guesses;
+  final List<List<String>> guessColors; // 'green', 'orange', 'grey'
+  final int currentAttempt;
+  final DateTime? finishedAt;
+  final int score; // Doğru tahmin + kalan süre bonusu
+
+  DuelPlayer({
+    required this.playerId,
+    required this.playerName,
+    required this.status,
+    required this.guesses,
+    required this.guessColors,
+    required this.currentAttempt,
+    this.finishedAt,
+    required this.score,
+  });
+
+  factory DuelPlayer.fromMap(Map<String, dynamic> data) {
+    return DuelPlayer(
+      playerId: data['playerId'] ?? '',
+      playerName: data['playerName'] ?? '',
+      status: PlayerStatus.values.byName(data['status'] ?? 'waiting'),
+      guesses: List<List<String>>.from(data['guesses']?.map((x) => List<String>.from(x)) ?? []),
+      guessColors: List<List<String>>.from(data['guessColors']?.map((x) => List<String>.from(x)) ?? []),
+      currentAttempt: data['currentAttempt'] ?? 0,
+      finishedAt: data['finishedAt'] != null ? (data['finishedAt'] as Timestamp).toDate() : null,
+      score: data['score'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'playerId': playerId,
+      'playerName': playerName,
+      'status': status.name,
+      'guesses': guesses,
+      'guessColors': guessColors,
+      'currentAttempt': currentAttempt,
+      'finishedAt': finishedAt != null ? Timestamp.fromDate(finishedAt!) : null,
+      'score': score,
+    };
+  }
+} 
