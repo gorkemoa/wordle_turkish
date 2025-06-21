@@ -1,0 +1,52 @@
+rules_version='2'
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Kullanıcılar - sadece kendi verilerine erişim
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Kullanıcı istatistikleri - sadece kendi verilerine erişim
+    match /user_stats/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Günlük görevler - sadece kendi verilerine erişim
+    match /daily_tasks/{taskId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.uid;
+    }
+    
+    // Oyun geçmişi - sadece kendi verilerine erişim
+    match /game_history/{gameId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.playerId;
+    }
+    
+    // Arkadaş aktiviteleri - hedef kullanıcı olarak erişim
+    match /friend_activities/{activityId} {
+      allow read: if request.auth != null && 
+        (request.auth.uid == resource.data.targetUserId || 
+         request.auth.uid == resource.data.fromUserId);
+      allow write: if request.auth != null && 
+        request.auth.uid == resource.data.fromUserId;
+    }
+    
+    // Bildirimler - sadece kendi bildirimlerine erişim
+    match /notifications/{notificationId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    // Duello oyunları - mevcut kural
+    match /duel_games/{gameId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Genel catch-all - geçici (30 gün)
+    match /{document=**} {
+      allow read, write: if request.time < timestamp.date(2025, 7, 21);
+    }
+  }
+}

@@ -1,7 +1,8 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum GameStatus { waiting, active, finished }
-enum PlayerStatus { waiting, playing, won, lost, disconnected }
+enum PlayerStatus { waiting, ready, playing, won, lost, disconnected }
 
 class DuelGame {
   final String gameId;
@@ -86,12 +87,27 @@ class DuelPlayer {
   });
 
   factory DuelPlayer.fromMap(Map<String, dynamic> data) {
+    // guesses ve guessColors'ı JSON string'den veya doğrudan listeden parse et
+    List<List<String>> parseList(dynamic fieldData) {
+      if (fieldData is String) {
+        final decoded = jsonDecode(fieldData);
+        return List<List<String>>.from(decoded.map((x) => List<String>.from(x.map((e) => e.toString()))));
+      }
+      if (fieldData is List) {
+        return List<List<String>>.from(fieldData.map((x) => List<String>.from(x.map((e) => e.toString()))));
+      }
+      return [];
+    }
+
+    final guessesList = parseList(data['guesses']);
+    final guessColorsList = parseList(data['guessColors']);
+
     return DuelPlayer(
       playerId: data['playerId'] ?? '',
       playerName: data['playerName'] ?? '',
       status: PlayerStatus.values.byName(data['status'] ?? 'waiting'),
-      guesses: List<List<String>>.from(data['guesses']?.map((x) => List<String>.from(x)) ?? []),
-      guessColors: List<List<String>>.from(data['guessColors']?.map((x) => List<String>.from(x)) ?? []),
+      guesses: guessesList.isNotEmpty ? guessesList : List.generate(6, (_) => List.filled(5, '_')),
+      guessColors: guessColorsList.isNotEmpty ? guessColorsList : List.generate(6, (_) => List.filled(5, 'empty')),
       currentAttempt: data['currentAttempt'] ?? 0,
       finishedAt: data['finishedAt'] != null ? (data['finishedAt'] as Timestamp).toDate() : null,
       score: data['score'] ?? 0,
@@ -103,8 +119,8 @@ class DuelPlayer {
       'playerId': playerId,
       'playerName': playerName,
       'status': status.name,
-      'guesses': guesses,
-      'guessColors': guessColors,
+      'guesses': jsonEncode(guesses), // JSON string olarak serialize et
+      'guessColors': jsonEncode(guessColors), // JSON string olarak serialize et
       'currentAttempt': currentAttempt,
       'finishedAt': finishedAt != null ? Timestamp.fromDate(finishedAt!) : null,
       'score': score,

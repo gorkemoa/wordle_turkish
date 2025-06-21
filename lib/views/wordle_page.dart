@@ -3,9 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import '../widgets/shake_widget.dart';
-import '../widgets/keyboard_widget.dart'; // KeyboardWidget'i içe aktarın
+import '../widgets/keyboard_widget.dart';
+import '../services/firebase_service.dart';
 
 class WordlePage extends StatefulWidget {
   final VoidCallback toggleTheme;
@@ -45,6 +47,9 @@ class _WordlePageState extends State<WordlePage> {
   void _showResultDialog(WordleViewModel viewModel) {
     bool won = viewModel.guesses[viewModel.currentAttempt].join().toTurkishUpperCase() == viewModel.secretWord;
     bool timeOut = viewModel.totalRemainingSeconds <= 0;
+
+    // Oyun sonucunu Firebase'e kaydet
+    _saveGameResult(viewModel, won, timeOut);
 
     String title;
     String content;
@@ -235,6 +240,53 @@ void _navigateToMainMenu() {
   void _shareResult(WordleViewModel viewModel) {
     final String shareText = viewModel.generateShareText();
     Share.share(shareText);
+  }
+
+  Future<void> _saveGameResult(WordleViewModel viewModel, bool won, bool timeOut) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Oyun süresini hesapla
+      final gameDuration = Duration(
+        seconds: WordleViewModel.totalGameSeconds - viewModel.totalRemainingSeconds,
+      );
+
+      // Skor hesapla (basit algoritma)
+      int score = 0;
+      if (won) {
+        // Kazanılan oyunlar için skor hesaplama
+        final attemptsUsed = viewModel.currentAttempt + 1;
+        final timeBonus = viewModel.totalRemainingSeconds * 2;
+        final attemptBonus = (WordleViewModel.maxAttempts - attemptsUsed) * 50;
+        score = 100 + timeBonus + attemptBonus;
+      } else if (!timeOut) {
+        // Kaybedilen ama zaman aşımı olmayan oyunlar için az puan
+        score = viewModel.currentAttempt * 10;
+      }
+
+      // Firebase'e kaydet
+      await FirebaseService.saveGameResult(
+        uid: user.uid,
+        gameType: 'Günlük Mücadele',
+        score: score,
+        isWon: won,
+        duration: gameDuration,
+        additionalData: {
+          'level': viewModel.currentLevel,
+          'attempts': viewModel.currentAttempt + 1,
+          'timeOut': timeOut,
+          'secretWord': viewModel.secretWord,
+        },
+      );
+
+      // Seviye güncellemesi
+      await FirebaseService.updateUserLevel(user.uid);
+
+      print('Oyun sonucu Firebase\'e kaydedildi: Score=$score, Won=$won, Duration=${gameDuration.inSeconds}s');
+    } catch (e) {
+      print('Oyun sonucu kaydetme hatası: $e');
+    }
   }
 
   @override

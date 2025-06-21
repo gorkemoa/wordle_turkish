@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "duel_games",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

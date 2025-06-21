@@ -19,6 +19,17 @@ class DuelViewModel extends ChangeNotifier {
   bool _isGameActive = false;
   StreamSubscription<DuelGame?>? _gameSubscription;
   
+  // Countdown kontrolü
+  bool _showingCountdown = false;
+  
+  // Oyun süresi takibi
+  DateTime? _gameStartTime;
+  
+  // Onay sistemi
+  bool _isPlayerReady = false;
+  Timer? _readyTimer;
+  int _readyCountdown = 10;
+
   // Kelime seti
   Set<String> validWordsSet = {};
   bool _isLoadingWords = false;
@@ -35,6 +46,13 @@ class DuelViewModel extends ChangeNotifier {
   bool get isGameActive => _isGameActive;
   List<String> get currentGuess => _currentGuess;
   bool get isLoadingWords => _isLoadingWords;
+  bool get showingCountdown => _showingCountdown;
+
+  // Oyun süresi hesaplama
+  Duration get gameDuration {
+    if (_gameStartTime == null) return Duration.zero;
+    return DateTime.now().difference(_gameStartTime!);
+  }
 
   // Mevcut oyuncunun verilerini al
   DuelPlayer? get currentPlayer {
@@ -56,9 +74,14 @@ class DuelViewModel extends ChangeNotifier {
     return null;
   }
 
+  // Onay sistemi getters
+  bool get isPlayerReady => _isPlayerReady;
+  int get readyCountdown => _readyCountdown;
+
   @override
   void dispose() {
     _gameSubscription?.cancel();
+    _readyTimer?.cancel();
     super.dispose();
   }
 
@@ -105,29 +128,48 @@ class DuelViewModel extends ChangeNotifier {
   // Düello oyununu başlat
   Future<bool> startDuelGame() async {
     try {
+      debugPrint('Düello oyunu başlatılıyor...');
+      
       // Firebase'e giriş yap
       final user = await FirebaseService.signInAnonymously();
-      if (user == null) return false;
+      if (user == null) {
+        debugPrint('Firebase giriş başarısız');
+        return false;
+      }
+      debugPrint('Firebase giriş başarılı: ${user.uid}');
 
       // Kelime listesini yükle
       await loadValidWords();
+      debugPrint('Kelime listesi yüklendi: ${validWordsSet.length} kelime');
 
       // Oyuncu adı oluştur
       _playerName = FirebaseService.generatePlayerName();
+      debugPrint('Oyuncu adı: $_playerName');
       
       // Gizli kelime seç
       final secretWord = _selectRandomWord();
+      debugPrint('Gizli kelime seçildi: $secretWord');
       
       // Oyun oluştur veya katıl
       _gameId = await FirebaseService.findOrCreateGame(_playerName, secretWord);
-      if (_gameId == null) return false;
+      if (_gameId == null) {
+        debugPrint('Oyun oluşturma başarısız');
+        return false;
+      }
+      debugPrint('Oyun ID: $_gameId');
 
       // Oyun durumunu dinlemeye başla
-      _gameSubscription = FirebaseService.listenToGame(_gameId!).listen((game) {
-        _currentGame = game;
-        _updateGameState();
-        notifyListeners();
-      });
+      _gameSubscription = FirebaseService.listenToGame(_gameId!).listen(
+        (game) {
+          debugPrint('Oyun güncellemesi alındı');
+          _currentGame = game;
+          _updateGameState();
+          notifyListeners();
+        },
+        onError: (error) {
+          debugPrint('Oyun dinleme hatası: $error');
+        },
+      );
 
       return true;
     } catch (e) {
@@ -140,12 +182,69 @@ class DuelViewModel extends ChangeNotifier {
   void _updateGameState() {
     if (_currentGame == null) return;
 
-    _isGameActive = _currentGame!.status == GameStatus.active;
+    final previousStatus = _isGameActive;
+    final gameStatus = _currentGame!.status;
+    final playerCount = _currentGame!.players.length;
     
-    // Oyun başladıysa gizli kelimeyi ayarla
-    if (_isGameActive && _currentWord.isEmpty) {
-      _currentWord = _currentGame!.secretWord;
+    switch (gameStatus) {
+      case GameStatus.waiting:
+        // Bekleme odasında
+        _isGameActive = false;
+        _showingCountdown = false;
+        
+        // 2 oyuncu varsa ve henüz onay sistemi başlamamışsa başlat
+        if (playerCount == 2 && _readyTimer == null && !_isPlayerReady) {
+          _startReadyCountdown();
+        }
+        break;
+        
+      case GameStatus.active:
+        // Oyun aktif - ama önce countdown göster
+        if (!previousStatus && !_showingCountdown) {
+          // Bekleme odasından oyuna geçiş - countdown göster
+          _showingCountdown = true;
+          _isGameActive = false;
+          _scheduleGameStart();
+        } else if (_showingCountdown) {
+          // Countdown devam ediyor
+          _isGameActive = false;
+        } else {
+          // Oyun aktif
+          _isGameActive = true;
+          if (_currentWord.isEmpty) {
+            _currentWord = _currentGame!.secretWord;
+          }
+        }
+        break;
+        
+      case GameStatus.finished:
+        // Oyun bitti
+        _isGameActive = false;
+        _showingCountdown = false;
+        _readyTimer?.cancel();
+        break;
     }
+  }
+
+  // Oyun başlangıcını planla (countdown sonrası)
+  void _scheduleGameStart() {
+    Future.delayed(const Duration(seconds: 3), () {
+      if (_currentGame?.status == GameStatus.active) {
+        _showingCountdown = false;
+        _isGameActive = true;
+        _gameStartTime = DateTime.now();
+        
+        if (_currentWord.isEmpty) {
+          _currentWord = _currentGame!.secretWord;
+        }
+        
+        // Ready timer'ı temizle
+        _readyTimer?.cancel();
+        _readyTimer = null;
+        
+        notifyListeners();
+      }
+    });
   }
 
   // Harf gir
@@ -239,13 +338,70 @@ class DuelViewModel extends ChangeNotifier {
     }
     
     _gameSubscription?.cancel();
+    _resetGameState();
+    notifyListeners();
+  }
+
+  // Onay sistemi başlat
+  void _startReadyCountdown() {
+    if (_readyTimer != null) return; // Zaten başlatılmış
+    
+    _readyCountdown = 10;
+    _readyTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _readyCountdown--;
+      notifyListeners();
+      
+      if (_readyCountdown <= 0) {
+        timer.cancel();
+        _handleReadyTimeout();
+      }
+    });
+    
+    notifyListeners();
+  }
+
+  // Onay verilemezse odayı kapat ve yeni oyun ara
+  void _handleReadyTimeout() async {
+    if (_gameId != null) {
+      // Mevcut oyunu sil
+      await FirebaseService.deleteGame(_gameId!);
+    }
+    
+    // Durumu sıfırla
+    _resetGameState();
+    
+    // Yeni oyun ara
+    await Future.delayed(const Duration(milliseconds: 500));
+    startDuelGame();
+  }
+
+  // Oyun durumunu sıfırla
+  void _resetGameState() {
     _currentGame = null;
     _gameId = null;
     _isGameActive = false;
+    _showingCountdown = false;
+    _gameStartTime = null;
+    _isPlayerReady = false;
+    _readyCountdown = 10;
+    _readyTimer?.cancel();
+    _readyTimer = null;
     _currentWord = '';
     _currentColumn = 0;
     _currentGuess = List.filled(wordLength, '');
+  }
+
+  // Oyuncunun onay vermesi
+  Future<void> setPlayerReady([bool? ready]) async {
+    if (_gameId == null) return;
+    
+    _isPlayerReady = ready ?? !_isPlayerReady;
     notifyListeners();
+    
+    // Firebase'e ready durumunu gönder
+    if (_isPlayerReady) {
+      await FirebaseService.setPlayerReady(_gameId!);
+    }
   }
 
   // Renk string'ini Color'a çevir
@@ -257,6 +413,8 @@ class DuelViewModel extends ChangeNotifier {
         return Colors.orange;
       case 'grey':
         return Colors.grey;
+      case 'empty':
+        return Colors.transparent;
       default:
         return Colors.transparent;
     }
