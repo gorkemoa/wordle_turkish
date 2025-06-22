@@ -66,12 +66,7 @@ class FirebaseService {
     try {
       print('Google Sign-In başlatılıyor...');
       
-      // Google Sign-In instance'ını kontrol et
-      if (_googleSignIn == null) {
-        print('Google Sign-In instance null!');
-        throw Exception('Google Sign-In yapılandırması hatalı');
-      }
-      
+      // Google Sign-In instance'ı zaten null olamaz çünkü sabit bir değere atanmış
       print('Google Sign-In instance hazır');
       
       // Önceki oturumu temizle

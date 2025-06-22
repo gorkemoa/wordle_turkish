@@ -42,12 +42,8 @@ class LeaderboardViewModel extends ChangeNotifier {
         case LeaderboardType.winRate:
           orderBy = 'gamesWon';
           break;
-        case LeaderboardType.bestTime:
-          orderBy = 'bestTime';
-          descending = false;
-          break;
-        case LeaderboardType.bestAttempts:
-          orderBy = 'bestAttempts';
+        case LeaderboardType.averageAttempts:
+          orderBy = 'totalAttempts';
           descending = false;
           break;
       }
@@ -69,6 +65,16 @@ class LeaderboardViewModel extends ChangeNotifier {
           if (a.gamesPlayed == 0) return 1;
           if (b.gamesPlayed == 0) return -1;
           return b.winRate.compareTo(a.winRate);
+        });
+      }
+
+      // Average attempts için özel sıralama
+      if (_currentType == LeaderboardType.averageAttempts) {
+        _leaderboard.sort((a, b) {
+          if (a.gamesPlayed == 0 && b.gamesPlayed == 0) return 0;
+          if (a.gamesPlayed == 0) return 1;
+          if (b.gamesPlayed == 0) return -1;
+          return a.averageAttempts.compareTo(b.averageAttempts);
         });
       }
 
@@ -129,8 +135,6 @@ class LeaderboardViewModel extends ChangeNotifier {
             totalScore: currentStats.totalScore + _calculateScore(gameWon, attempts, timeSpent),
             gamesPlayed: currentStats.gamesPlayed + 1,
             gamesWon: currentStats.gamesWon + (gameWon ? 1 : 0),
-            bestTime: gameWon && timeSpent < currentStats.bestTime ? timeSpent : currentStats.bestTime,
-            bestAttempts: gameWon && attempts < currentStats.bestAttempts ? attempts : currentStats.bestAttempts,
             totalAttempts: currentStats.totalAttempts + attempts,
             lastPlayedAt: DateTime.now(),
             createdAt: currentStats.createdAt,
@@ -148,8 +152,6 @@ class LeaderboardViewModel extends ChangeNotifier {
             totalScore: _calculateScore(gameWon, attempts, timeSpent),
             gamesPlayed: 1,
             gamesWon: gameWon ? 1 : 0,
-            bestTime: gameWon ? timeSpent : 9999,
-            bestAttempts: gameWon ? attempts : 999,
             totalAttempts: attempts,
             lastPlayedAt: DateTime.now(),
             createdAt: DateTime.now(),
@@ -188,10 +190,8 @@ class LeaderboardViewModel extends ChangeNotifier {
         return 'Toplam Puan';
       case LeaderboardType.winRate:
         return 'Kazanma Oranı';
-      case LeaderboardType.bestTime:
-        return 'En İyi Süre';
-      case LeaderboardType.bestAttempts:
-        return 'En Az Deneme';
+      case LeaderboardType.averageAttempts:
+        return 'Ortalama Deneme';
     }
   }
 

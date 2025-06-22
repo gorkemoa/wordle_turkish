@@ -377,7 +377,6 @@ class WordleViewModel extends ChangeNotifier {
   void _updateHighScores() {
     final currentTime = totalGameSeconds - _totalRemainingSeconds;
     final currentAttempts = _currentAttempt + 1;
-    final gameWon = _secretWord == _guesses[_currentAttempt].join();
 
     bool updated = false;
 

@@ -424,10 +424,8 @@ class LeaderboardTab extends StatelessWidget {
         return stats.totalScore.toString();
       case LeaderboardType.winRate:
         return viewModel.formatWinRate(stats.winRate);
-      case LeaderboardType.bestTime:
-        return stats.bestTime < 9999 ? viewModel.formatTime(stats.bestTime) : '--';
-      case LeaderboardType.bestAttempts:
-        return stats.bestAttempts < 999 ? stats.bestAttempts.toString() : '--';
+      case LeaderboardType.averageAttempts:
+        return stats.averageAttempts.toStringAsFixed(1);
     }
   }
 }
