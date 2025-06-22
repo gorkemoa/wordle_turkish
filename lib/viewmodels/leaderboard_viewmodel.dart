@@ -42,10 +42,6 @@ class LeaderboardViewModel extends ChangeNotifier {
         case LeaderboardType.winRate:
           orderBy = 'gamesWon';
           break;
-        case LeaderboardType.averageAttempts:
-          orderBy = 'totalAttempts';
-          descending = false;
-          break;
       }
 
       final querySnapshot = await _firestore
@@ -65,16 +61,6 @@ class LeaderboardViewModel extends ChangeNotifier {
           if (a.gamesPlayed == 0) return 1;
           if (b.gamesPlayed == 0) return -1;
           return b.winRate.compareTo(a.winRate);
-        });
-      }
-
-      // Average attempts için özel sıralama
-      if (_currentType == LeaderboardType.averageAttempts) {
-        _leaderboard.sort((a, b) {
-          if (a.gamesPlayed == 0 && b.gamesPlayed == 0) return 0;
-          if (a.gamesPlayed == 0) return 1;
-          if (b.gamesPlayed == 0) return -1;
-          return a.averageAttempts.compareTo(b.averageAttempts);
         });
       }
 
@@ -190,8 +176,6 @@ class LeaderboardViewModel extends ChangeNotifier {
         return 'Toplam Puan';
       case LeaderboardType.winRate:
         return 'Kazanma Oranı';
-      case LeaderboardType.averageAttempts:
-        return 'Ortalama Deneme';
     }
   }
 

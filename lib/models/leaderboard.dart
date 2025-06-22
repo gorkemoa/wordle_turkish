@@ -49,7 +49,6 @@ class LeaderboardEntry {
 enum LeaderboardType {
   totalScore,
   winRate,
-  averageAttempts,
 }
 
 class LeaderboardStats {

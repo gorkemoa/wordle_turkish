@@ -11,15 +11,19 @@ class LeaderboardPage extends StatefulWidget {
 }
 
 class _LeaderboardPageState extends State<LeaderboardPage> 
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
+    
+    // İlk yüklemede toplam puan sıralamasını getir
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<LeaderboardViewModel>().loadLeaderboard();
+      context.read<LeaderboardViewModel>().loadLeaderboard(
+        type: LeaderboardType.totalScore,
+      );
     });
   }
 
@@ -52,8 +56,6 @@ class _LeaderboardPageState extends State<LeaderboardPage>
           tabs: const [
             Tab(text: 'Toplam Puan'),
             Tab(text: 'Kazanma Oranı'),
-            Tab(text: 'En İyi Süre'),
-            Tab(text: 'En Az Deneme'),
           ],
           onTap: (index) {
             final leaderboardType = LeaderboardType.values[index];
@@ -75,8 +77,6 @@ class _LeaderboardPageState extends State<LeaderboardPage>
         child: TabBarView(
           controller: _tabController,
           children: const [
-            LeaderboardTab(),
-            LeaderboardTab(),
             LeaderboardTab(),
             LeaderboardTab(),
           ],
@@ -424,8 +424,6 @@ class LeaderboardTab extends StatelessWidget {
         return stats.totalScore.toString();
       case LeaderboardType.winRate:
         return viewModel.formatWinRate(stats.winRate);
-      case LeaderboardType.averageAttempts:
-        return stats.averageAttempts.toStringAsFixed(1);
     }
   }
 }
