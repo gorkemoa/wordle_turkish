@@ -7,8 +7,7 @@ import 'dart:async';
 import '../services/firebase_service.dart';
 import '../services/avatar_service.dart';
 import '../widgets/avatar_selector.dart';
-import '../viewmodels/wordle_viewmodel.dart';
-import 'wordle_page.dart';
+
 import 'duel_page.dart';
 import 'leaderboard_page.dart';
 import 'dart:math' as math;

@@ -321,6 +321,38 @@ class FirebaseService {
     }
   }
 
+  /// Kullanıcının adını güncelle
+  static Future<bool> updateUserDisplayName(String uid, String newDisplayName) async {
+    try {
+      // Kullanıcı adını temizle
+      final cleanName = newDisplayName.trim();
+      if (cleanName.isEmpty || cleanName.length < 2) {
+        print('Geçersiz kullanıcı adı: çok kısa');
+        return false;
+      }
+      
+      if (cleanName.length > 20) {
+        print('Geçersiz kullanıcı adı: çok uzun');
+        return false;
+      }
+
+      await _firestore.collection('users').doc(uid).update({
+        'displayName': cleanName,
+        'lastActiveAt': FieldValue.serverTimestamp(),
+      });
+
+      // Leaderboard stats'ta da güncelle
+      await _firestore.collection('leaderboard_stats').doc(uid).update({
+        'playerName': cleanName,
+      });
+
+      return true;
+    } catch (e) {
+      print('Kullanıcı adı güncelleme hatası: $e');
+      return false;
+    }
+  }
+
   /// Kullanıcı için yeni rastgele avatar oluştur
   static Future<String?> generateNewAvatar(String uid) async {
     try {
