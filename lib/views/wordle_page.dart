@@ -268,7 +268,7 @@ class _WordlePageState extends State<WordlePage> {
 
 void _navigateToMainMenu() {
   debugPrint('Ana Menüye Dönüldü');
-  Navigator.pushReplacementNamed(context, '/'); // Ana menü rotası olarak '/' kullanıldı
+  Navigator.pushReplacementNamed(context, '/home'); // Ana menü rotası olarak '/home' kullanıldı
 }
 
   Future<void> _saveGameResult(WordleViewModel viewModel, bool won, bool timeOut) async {

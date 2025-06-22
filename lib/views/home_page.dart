@@ -704,13 +704,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
                 borderRadius: BorderRadius.circular(20),
                       ),
-                      child: CircleAvatar(
-                        radius: 18,
-                          backgroundColor: const Color(0xFF4285F4),
-                          backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
-                          child: user?.photoURL == null
-                              ? const Icon(Icons.person, color: Colors.white, size: 18)
-                              : null,
+                      child: FutureBuilder<String?>(
+                        future: FirebaseService.getUserAvatar(user?.uid ?? ''),
+                        builder: (context, snapshot) {
+                          final userAvatar = snapshot.data ?? AvatarService.generateAvatar(user?.uid ?? '');
+                          
+                          return CircleAvatar(
+                            radius: 18,
+                            backgroundColor: const Color(0xFF4285F4),
+                            backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
+                            child: user?.photoURL == null
+                                ? Text(
+                                    userAvatar,
+                                    style: const TextStyle(fontSize: 16),
+                                  )
+                                : null,
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -801,13 +811,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
             ),
-            child: CircleAvatar(
-              radius: 32,
-              backgroundColor: Colors.transparent,
-              backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
-              child: user?.photoURL == null
-                  ? const Icon(Icons.person, color: Colors.white, size: 35)
-                  : null,
+            child: FutureBuilder<String?>(
+              future: FirebaseService.getUserAvatar(user?.uid ?? ''),
+              builder: (context, snapshot) {
+                final userAvatar = snapshot.data ?? AvatarService.generateAvatar(user?.uid ?? '');
+                
+                return CircleAvatar(
+                  radius: 32,
+                  backgroundColor: Colors.transparent,
+                  backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
+                  child: user?.photoURL == null
+                      ? Text(
+                          userAvatar,
+                          style: const TextStyle(fontSize: 32),
+                        )
+                      : null,
+                );
+              },
             ),
           ),
           const SizedBox(width: 20),
