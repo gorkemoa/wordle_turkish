@@ -206,24 +206,33 @@ class LeaderboardTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.person,
-                color: Colors.white,
-                size: 24,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Senin Durumun',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
+                     Row(
+             children: [
+               Container(
+                 width: 40,
+                 height: 40,
+                 decoration: BoxDecoration(
+                   color: Colors.white.withOpacity(0.2),
+                   borderRadius: BorderRadius.circular(20),
+                 ),
+                 child: Center(
+                   child: Text(
+                     stats.avatar,
+                     style: const TextStyle(fontSize: 20),
+                   ),
+                 ),
+               ),
+               const SizedBox(width: 12),
+               Text(
+                 'Senin Durumun',
+                 style: const TextStyle(
+                   color: Colors.white,
+                   fontSize: 18,
+                   fontWeight: FontWeight.bold,
+                 ),
+               ),
+             ],
+           ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -308,33 +317,58 @@ class LeaderboardTab extends StatelessWidget {
         ],
       ),
       child: Row(
-        children: [
-          // Sıralama
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: rank <= 3 ? const Color(0xFF4285F4) : Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: rankIcon != null
-                  ? Icon(
-                      rankIcon,
-                      color: Colors.white,
-                      size: 20,
-                    )
-                  : Text(
-                      rank.toString(),
-                      style: TextStyle(
-                        color: rank <= 3 ? Colors.white : Colors.grey.shade600,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(width: 12),
+                 children: [
+           // Sıralama ve Avatar
+           Row(
+             children: [
+               // Sıralama
+               Container(
+                 width: 30,
+                 height: 30,
+                 decoration: BoxDecoration(
+                   color: rank <= 3 ? const Color(0xFF4285F4) : Colors.grey.shade200,
+                   borderRadius: BorderRadius.circular(15),
+                 ),
+                 child: Center(
+                   child: rankIcon != null
+                       ? Icon(
+                           rankIcon,
+                           color: Colors.white,
+                           size: 16,
+                         )
+                       : Text(
+                           rank.toString(),
+                           style: TextStyle(
+                             color: rank <= 3 ? Colors.white : Colors.grey.shade600,
+                             fontWeight: FontWeight.bold,
+                             fontSize: 12,
+                           ),
+                         ),
+                 ),
+               ),
+               const SizedBox(width: 8),
+               // Avatar
+               Container(
+                 width: 40,
+                 height: 40,
+                 decoration: BoxDecoration(
+                   color: const Color(0xFF4285F4).withOpacity(0.1),
+                   borderRadius: BorderRadius.circular(20),
+                   border: Border.all(
+                     color: const Color(0xFF4285F4).withOpacity(0.3),
+                     width: 1,
+                   ),
+                 ),
+                 child: Center(
+                   child: Text(
+                     stats.avatar,
+                     style: const TextStyle(fontSize: 20),
+                   ),
+                 ),
+               ),
+             ],
+           ),
+           const SizedBox(width: 12),
           
           // Oyuncu bilgileri
           Expanded(

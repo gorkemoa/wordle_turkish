@@ -278,6 +278,75 @@ class FirebaseService {
     return '$adjective$noun$number';
   }
 
+  // Avatar yönetimi fonksiyonları
+  
+  /// Kullanıcının mevcut avatarını al
+  static Future<String?> getUserAvatar(String uid) async {
+    try {
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (doc.exists) {
+        final data = doc.data();
+        return data?['avatar'] as String?;
+      }
+      return null;
+    } catch (e) {
+      print('Avatar alma hatası: $e');
+      return null;
+    }
+  }
+
+  /// Kullanıcının avatarını güncelle
+  static Future<bool> updateUserAvatar(String uid, String newAvatar) async {
+    try {
+      // Avatar'ın geçerli olup olmadığını kontrol et
+      if (!AvatarService.isValidAvatar(newAvatar)) {
+        print('Geçersiz avatar: $newAvatar');
+        return false;
+      }
+
+      await _firestore.collection('users').doc(uid).update({
+        'avatar': newAvatar,
+        'lastActiveAt': FieldValue.serverTimestamp(),
+      });
+
+      // Leaderboard stats'ta da güncelle
+      await _firestore.collection('leaderboard_stats').doc(uid).update({
+        'avatar': newAvatar,
+      });
+
+      return true;
+    } catch (e) {
+      print('Avatar güncelleme hatası: $e');
+      return false;
+    }
+  }
+
+  /// Kullanıcı için yeni rastgele avatar oluştur
+  static Future<String?> generateNewAvatar(String uid) async {
+    try {
+      final currentAvatar = await getUserAvatar(uid);
+      final newAvatar = AvatarService.changeAvatar(currentAvatar);
+      
+      final success = await updateUserAvatar(uid, newAvatar);
+      return success ? newAvatar : null;
+    } catch (e) {
+      print('Yeni avatar oluşturma hatası: $e');
+      return null;
+    }
+  }
+
+  /// Kullanıcının avatar'ını deterministik olarak sıfırla
+  static Future<String?> resetUserAvatar(String uid) async {
+    try {
+      final defaultAvatar = AvatarService.generateAvatar(uid);
+      final success = await updateUserAvatar(uid, defaultAvatar);
+      return success ? defaultAvatar : null;
+    } catch (e) {
+      print('Avatar sıfırlama hatası: $e');
+      return null;
+    }
+  }
+
   // Yeni oyun odası oluştur veya mevcut odaya katıl
   static Future<String?> findOrCreateGame(String playerName, String secretWord) async {
     try {

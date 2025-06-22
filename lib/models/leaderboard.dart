@@ -64,6 +64,7 @@ enum LeaderboardType {
 class LeaderboardStats {
   final String playerId;
   final String playerName;
+  final String avatar;
   final int totalScore;
   final int gamesPlayed;
   final int gamesWon;
@@ -76,6 +77,7 @@ class LeaderboardStats {
   LeaderboardStats({
     required this.playerId,
     required this.playerName,
+    required this.avatar,
     required this.totalScore,
     required this.gamesPlayed,
     required this.gamesWon,
@@ -93,6 +95,7 @@ class LeaderboardStats {
     return LeaderboardStats(
       playerId: data['playerId'] ?? '',
       playerName: data['playerName'] ?? 'Anonim Oyuncu',
+      avatar: data['avatar'] ?? '🎮',
       totalScore: data['totalScore'] ?? 0,
       gamesPlayed: data['gamesPlayed'] ?? 0,
       gamesWon: data['gamesWon'] ?? 0,
@@ -108,6 +111,7 @@ class LeaderboardStats {
     return {
       'playerId': playerId,
       'playerName': playerName,
+      'avatar': avatar,
       'totalScore': totalScore,
       'gamesPlayed': gamesPlayed,
       'gamesWon': gamesWon,

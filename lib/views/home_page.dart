@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import '../services/firebase_service.dart';
+import '../services/avatar_service.dart';
+import '../widgets/avatar_selector.dart';
 import 'wordle_page.dart';
 import 'duel_page.dart';
 import 'leaderboard_page.dart';
@@ -222,44 +224,115 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4285F4),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.person, color: Colors.white, size: 20),
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(width: 12),
-              const Text(
-                'Profil Bilgileri',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: Color(0xFF333333),
-                ),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4285F4),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.person, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Profil Bilgileri',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: Color(0xFF333333),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircleAvatar(
-                radius: 40,
-                backgroundColor: const Color(0xFF4285F4),
-                backgroundImage: user.photoURL != null ? NetworkImage(user.photoURL!) : null,
-                child: user.photoURL == null
-                    ? const Icon(Icons.person, size: 40, color: Colors.white)
-                    : null,
-              ),
-              const SizedBox(height: 24),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Avatar bölümü
+                  FutureBuilder<String?>(
+                    future: FirebaseService.getUserAvatar(user.uid),
+                    builder: (context, snapshot) {
+                      final userAvatar = snapshot.data ?? AvatarService.generateAvatar(user.uid);
+                      
+                      return GestureDetector(
+                        onTap: () async {
+                          final newAvatar = await showAvatarSelector(
+                            context: context,
+                            currentAvatar: userAvatar,
+                          );
+                          
+                          if (newAvatar != null) {
+                            final success = await FirebaseService.updateUserAvatar(user.uid, newAvatar);
+                            if (success && mounted) {
+                              setState(() {});
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Avatar güncellendi!'),
+                                  backgroundColor: Color(0xFF4285F4),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4285F4).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(40),
+                                border: Border.all(
+                                  color: const Color(0xFF4285F4),
+                                  width: 2,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  userAvatar,
+                                  style: const TextStyle(fontSize: 36),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF4285F4),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.white, width: 1),
+                                ),
+                                child: const Icon(
+                                  Icons.edit,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Avatar\'ını değiştirmek için tıkla',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
               
               _buildProfileInfo('İsim', user.displayName ?? 'Belirtilmemiş'),
               const SizedBox(height: 16),
@@ -309,6 +382,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
             ),
           ],
+        );
+          },
         );
       },
     );

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/leaderboard.dart';
 import '../services/firebase_service.dart';
+import '../services/avatar_service.dart';
 import 'dart:math' as math;
 
 class LeaderboardViewModel extends ChangeNotifier {
@@ -124,6 +125,7 @@ class LeaderboardViewModel extends ChangeNotifier {
           final updatedStats = LeaderboardStats(
             playerId: user.uid,
             playerName: playerName,
+            avatar: currentStats.avatar,
             totalScore: currentStats.totalScore + _calculateScore(gameWon, attempts, timeSpent),
             gamesPlayed: currentStats.gamesPlayed + 1,
             gamesWon: currentStats.gamesWon + (gameWon ? 1 : 0),
@@ -136,9 +138,13 @@ class LeaderboardViewModel extends ChangeNotifier {
           
           transaction.set(docRef, updatedStats.toFirestore());
         } else {
+          // Yeni kullanıcı için avatar oluştur
+          final userAvatar = await FirebaseService.getUserAvatar(user.uid) ?? AvatarService.generateAvatar(user.uid);
+          
           final newStats = LeaderboardStats(
             playerId: user.uid,
             playerName: playerName,
+            avatar: userAvatar,
             totalScore: _calculateScore(gameWon, attempts, timeSpent),
             gamesPlayed: 1,
             gamesWon: gameWon ? 1 : 0,
