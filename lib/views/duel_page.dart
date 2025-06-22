@@ -16,6 +16,7 @@ class DuelPage extends StatefulWidget {
 class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  bool _hasNavigatedToResult = false;
 
   @override
   void initState() {
@@ -104,12 +105,17 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   }
 
   void _navigateToResultPage(DuelGame game) {
+    if (_hasNavigatedToResult) return; // Tekrar navigasyon engellemesi
+    _hasNavigatedToResult = true;
+    
     final viewModel = Provider.of<DuelViewModel>(context, listen: false);
     final currentPlayer = viewModel.currentPlayer;
     final opponentPlayer = viewModel.opponentPlayer;
     
     if (currentPlayer == null) return;
 
+    debugPrint('DuelPage - Sonuç sayfasına yönlendiriliyor');
+    
     // Sonuç sayfasına yönlendir
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
@@ -173,9 +179,13 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
 
           // Oyun bitti kontrolü
           if (game.status == GameStatus.finished) {
+            debugPrint('DuelPage - Oyun bitti, sonuç sayfasına yönlendiriliyor');
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              _navigateToResultPage(game);
+              if (mounted) {
+                _navigateToResultPage(game);
+              }
             });
+            return _buildGameFinishedState();
           }
 
           // Aktif oyun
@@ -273,6 +283,28 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
               color: Colors.white,
               fontSize: 18,
                 fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGameFinishedState() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            color: Colors.green,
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Oyun bitti! Sonuçlar yükleniyor...',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],

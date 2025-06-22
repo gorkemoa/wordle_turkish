@@ -45,5 +45,27 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>REVERSED_CLIENT_ID</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.581364962777-xyz123abc456def789ghi012jkl345mn</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>googlegmail</string>
+		<string>googlemail</string>
+		<string>googleplus</string>
+		<string>googledrive</string>
+		<string>googlephotos</string>
+		<string>googleearth</string>
+		<string>googleyoutube</string>
+		<string>googlemaps</string>
+	</array>
 </dict>
 </plist>

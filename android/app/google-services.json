@@ -12,7 +12,20 @@
           "package_name": "com.example.wordle_turkish"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "581364962777-jjj1qbchf8ht5poitpjln24lf81mg0vu.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.wordle_turkish",
+            "certificate_hash": "f29ea19bd5648dff61e4257b362a2e9c593ac8be"
+          }
+        },
+        {
+          "client_id": "581364962777-9cg4jd0fgnsblkmjkkqr81688k96g987.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCtB0_ZQ0ANO3OqtpvVIKTT3Ot_IavuEFo"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "581364962777-9cg4jd0fgnsblkmjkkqr81688k96g987.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "581364962777-mhugmmhk0ptrbcf7sa18fgckep5825jf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.wordleTurkish"
+              }
+            }
+          ]
         }
       }
     }

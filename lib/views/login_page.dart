@@ -84,11 +84,11 @@ class _LoginPageState extends State<LoginPage>
 
       if (user != null && mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
-      } else {
+      } else if (mounted) {
         _showErrorSnackBar(_isLogin ? 'Giriş başarısız!' : 'Kayıt başarısız!');
       }
     } catch (e) {
-      _showErrorSnackBar('Bir hata oluştu: $e');
+      if (mounted) _showErrorSnackBar('Bir hata oluştu: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -102,11 +102,13 @@ class _LoginPageState extends State<LoginPage>
       
       if (user != null && mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
-      } else {
-        _showErrorSnackBar('Google ile giriş iptal edildi veya başarısız oldu!');
+      } else if (mounted) {
+        _showErrorSnackBar('Google ile giriş iptal edildi');
       }
+    } on Exception catch (e) {
+      if (mounted) _showErrorSnackBar(e.toString().replaceFirst('Exception: ', ''));
     } catch (e) {
-      _showErrorSnackBar('Google giriş hatası. Lütfen tekrar deneyin.');
+      if (mounted) _showErrorSnackBar('Google giriş hatası: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -120,17 +122,18 @@ class _LoginPageState extends State<LoginPage>
       
       if (user != null && mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
-      } else {
+      } else if (mounted) {
         _showErrorSnackBar('Misafir girişi başarısız!');
       }
     } catch (e) {
-      _showErrorSnackBar('Misafir giriş hatası: $e');
+      if (mounted) _showErrorSnackBar('Misafir giriş hatası: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _showErrorSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),

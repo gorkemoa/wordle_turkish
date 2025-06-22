@@ -10,7 +10,11 @@ import 'package:flutter/services.dart';
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
-  static final GoogleSignIn _googleSignIn = GoogleSignIn();
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+    hostedDomain: null,
+    clientId: null, // Platform-specific konfigürasyon dosyalarından alınacak
+  );
   static final Uuid _uuid = const Uuid();
 
   // Email ve şifre ile kayıt ol
@@ -32,10 +36,10 @@ class FirebaseService {
       return result.user;
     } on FirebaseAuthException catch (e) {
       print('Kayıt hatası: ${e.message}');
-      return null;
+      throw _handleAuthException(e);
     } catch (e) {
       print('Kayıt hatası: $e');
-      return null;
+      throw Exception('Kayıt işlemi başarısız: $e');
     }
   }
 
@@ -49,65 +53,129 @@ class FirebaseService {
       return result.user;
     } on FirebaseAuthException catch (e) {
       print('Giriş hatası: ${e.message}');
-      return null;
+      throw _handleAuthException(e);
     } catch (e) {
       print('Giriş hatası: $e');
-      return null;
+      throw Exception('Giriş işlemi başarısız: $e');
     }
   }
 
   // Google ile giriş yap
   static Future<User?> signInWithGoogle() async {
     try {
-      // Google Sign-In paketinin mevcut olduğunu kontrol et
-      if (!await _googleSignIn.isSignedIn()) {
-        final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-        if (googleUser == null) {
-          print('Google giriş iptal edildi');
-          return null;
-        }
+      print('Google Sign-In başlatılıyor...');
+      
+      // Google Sign-In instance'ını kontrol et
+      if (_googleSignIn == null) {
+        print('Google Sign-In instance null!');
+        throw Exception('Google Sign-In yapılandırması hatalı');
+      }
+      
+      print('Google Sign-In instance hazır');
+      
+      // Önceki oturumu temizle
+      try {
+        await _googleSignIn.signOut();
+        print('Önceki Google oturumu temizlendi');
+      } catch (e) {
+        print('Google signOut hatası (göz ardı edilebilir): $e');
+      }
+      
+      // Google hesabı seç
+      print('Google hesap seçimi başlatılıyor...');
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        print('Google giriş iptal edildi');
+        return null;
+      }
 
-        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-        
-        final credential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken: googleAuth.idToken,
-        );
+      print('Google kullanıcısı seçildi: ${googleUser.email}');
 
-        final UserCredential result = await _auth.signInWithCredential(credential);
-        
-        // İlk kez giriş yapıyorsa kullanıcı verilerini sakla
-        if (result.additionalUserInfo?.isNewUser == true && result.user != null) {
+      // Google authentication bilgilerini al
+      print('Google authentication bilgileri alınıyor...');
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
+      if (googleAuth.accessToken == null || googleAuth.idToken == null) {
+        print('Google authentication token\'ları alınamadı');
+        print('Access Token: ${googleAuth.accessToken != null ? "Var" : "Yok"}');
+        print('ID Token: ${googleAuth.idToken != null ? "Var" : "Yok"}');
+        throw Exception('Google authentication başarısız');
+      }
+
+      print('Google auth token\'ları alındı');
+
+      // Firebase credential oluştur
+      print('Firebase credential oluşturuluyor...');
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      print('Firebase credential oluşturuldu');
+
+      // Firebase ile giriş yap
+      print('Firebase ile giriş yapılıyor...');
+      final UserCredential result = await _auth.signInWithCredential(credential);
+      
+      print('Firebase giriş başarılı: ${result.user?.email}');
+
+      // İlk kez giriş yapıyorsa kullanıcı verilerini sakla
+      if (result.additionalUserInfo?.isNewUser == true && result.user != null) {
+        print('Yeni kullanıcı, profil oluşturuluyor...');
+        try {
           await _saveUserProfile(
             result.user!, 
             result.user!.displayName ?? 'Google Kullanıcısı',
             result.user!.email ?? '',
           );
-        }
-        
-        return result.user;
-      } else {
-        // Zaten giriş yapmış
-        final GoogleSignInAccount? googleUser = _googleSignIn.currentUser;
-        if (googleUser != null) {
-          final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-          
-          final credential = GoogleAuthProvider.credential(
-            accessToken: googleAuth.accessToken,
-            idToken: googleAuth.idToken,
-          );
-
-          final UserCredential result = await _auth.signInWithCredential(credential);
-          return result.user;
+          print('Kullanıcı profili oluşturuldu');
+        } catch (e) {
+          print('Kullanıcı profili oluşturma hatası: $e');
+          // Profil oluşturma hatası giriş işlemini engellemez
         }
       }
-      return null;
+      
+      return result.user;
+    } on FirebaseAuthException catch (e) {
+      print('Firebase Auth hatası: ${e.code} - ${e.message}');
+      print('Firebase Auth detay: ${e.toString()}');
+      throw _handleAuthException(e);
     } on PlatformException catch (e) {
-      print('Google giriş platform hatası: ${e.message}');
-      return null;
+      print('Platform hatası: ${e.code} - ${e.message}');
+      print('Platform detay: ${e.toString()}');
+      throw Exception('Google Sign-In platform hatası: ${e.message}');
     } catch (e) {
-      print('Google giriş hatası: $e');
-      return null;
+      print('Google giriş genel hatası: $e');
+      print('Hata tipi: ${e.runtimeType}');
+      print('Stack trace: ${StackTrace.current}');
+      throw Exception('Google ile giriş başarısız: $e');
+    }
+  }
+
+  // Auth exception handler
+  static Exception _handleAuthException(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'user-not-found':
+        return Exception('Bu e-posta adresiyle kayıtlı kullanıcı bulunamadı');
+      case 'wrong-password':
+        return Exception('Hatalı şifre');
+      case 'email-already-in-use':
+        return Exception('Bu e-posta adresi zaten kullanımda');
+      case 'weak-password':
+        return Exception('Şifre çok zayıf');
+      case 'invalid-email':
+        return Exception('Geçersiz e-posta adresi');
+      case 'user-disabled':
+        return Exception('Bu hesap devre dışı bırakılmış');
+      case 'too-many-requests':
+        return Exception('Çok fazla başarısız deneme. Lütfen daha sonra tekrar deneyin');
+      case 'operation-not-allowed':
+        return Exception('Bu giriş yöntemi etkinleştirilmemiş');
+      case 'account-exists-with-different-credential':
+        return Exception('Bu e-posta adresi farklı bir giriş yöntemiyle kayıtlı');
+      default:
+        return Exception('Giriş hatası: ${e.message}');
     }
   }
 
@@ -334,24 +402,157 @@ class FirebaseService {
 
       // Kazanma durumunu kontrol et
       final isWinner = guess.join('').toUpperCase() == game.secretWord.toUpperCase();
-      final newStatus = isWinner ? PlayerStatus.won : PlayerStatus.playing;
-      final newAttempt = isWinner ? player.currentAttempt : player.currentAttempt + 1;
+      final isLastAttempt = player.currentAttempt >= 5; // 6 tahmin (0-5 index)
+      
+      PlayerStatus newStatus;
+      if (isWinner) {
+        newStatus = PlayerStatus.won;
+      } else if (isLastAttempt) {
+        newStatus = PlayerStatus.lost;
+      } else {
+        newStatus = PlayerStatus.playing;
+      }
+      
+      final newAttempt = (isWinner || isLastAttempt) ? player.currentAttempt : player.currentAttempt + 1;
 
-      await _firestore.collection('duel_games').doc(gameId).update({
+      // Oyun bitip bitmediğini kontrol et
+      bool gameFinished = false;
+      String? winnerId;
+      
+      if (isWinner) {
+        // Bu oyuncu kazandı
+        gameFinished = true;
+        winnerId = user.uid;
+      } else if (isLastAttempt) {
+        // Bu oyuncu son tahminini yaptı ve kelimeyi bulamadı
+        gameFinished = true;
+        
+        // Diğer oyuncunun durumunu kontrol et
+        final opponentPlayer = game.players.values.firstWhere(
+          (p) => p.playerId != user.uid,
+          orElse: () => DuelPlayer(
+            playerId: '',
+            playerName: '',
+            status: PlayerStatus.waiting,
+            guesses: [],
+            guessColors: [],
+            currentAttempt: 0,
+            score: 0,
+          ),
+        );
+        
+        // Eğer rakip daha önce kelimeyi bilmişse onun kazanması
+        if (opponentPlayer.status == PlayerStatus.won) {
+          winnerId = opponentPlayer.playerId;
+        } else if (opponentPlayer.status == PlayerStatus.lost) {
+          // Her iki oyuncu da kelimeyi bulamadı - berabere
+          winnerId = null;
+        } else {
+          // Rakip hala oynuyor, bu oyuncu kaybetti - rakip kazandı
+          winnerId = opponentPlayer.playerId;
+          
+          // Rakip oyuncunun durumunu da güncelle
+          await _firestore.collection('duel_games').doc(gameId).update({
+            'players.${opponentPlayer.playerId}.status': PlayerStatus.won.name,
+            'players.${opponentPlayer.playerId}.finishedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      Map<String, dynamic> updateData = {
         'players.${user.uid}.guesses': jsonEncode(updatedGuesses),
         'players.${user.uid}.guessColors': jsonEncode(updatedGuessColors),
         'players.${user.uid}.currentAttempt': newAttempt,
         'players.${user.uid}.status': newStatus.name,
-        if (isWinner) 'players.${user.uid}.finishedAt': FieldValue.serverTimestamp(),
-        if (isWinner) 'winnerId': user.uid,
-        if (isWinner) 'status': 'finished',
-        if (isWinner) 'finishedAt': FieldValue.serverTimestamp(),
-      });
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
 
+      if (isWinner || isLastAttempt) {
+        updateData['players.${user.uid}.finishedAt'] = FieldValue.serverTimestamp();
+      }
+
+      if (gameFinished) {
+        updateData['status'] = 'finished';
+        updateData['finishedAt'] = FieldValue.serverTimestamp();
+        if (winnerId != null) {
+          updateData['winnerId'] = winnerId;
+        }
+      }
+
+      await _firestore.collection('duel_games').doc(gameId).update(updateData);
+
+      print('Tahmin yapıldı - isWinner: $isWinner, gameFinished: $gameFinished, winnerId: $winnerId');
+      
+      // Eğer oyun bitmediğinde ve rakip kaybettiyse, oyunu kontrol et
+      if (!gameFinished && newStatus == PlayerStatus.playing) {
+        await _checkGameEndConditions(gameId);
+      }
+      
       return true;
     } catch (e) {
       print('Tahmin yapma hatası: $e');
       return false;
+    }
+  }
+
+  // Oyun bitiş koşullarını kontrol et
+  static Future<void> _checkGameEndConditions(String gameId) async {
+    try {
+      final gameDoc = await _firestore.collection('duel_games').doc(gameId).get();
+      if (!gameDoc.exists) return;
+
+      final game = DuelGame.fromFirestore(gameDoc);
+      if (game.status == GameStatus.finished) return; // Oyun zaten bitti
+
+      final players = game.players.values.toList();
+      if (players.length != 2) return; // 2 oyuncu olmalı
+
+      final player1 = players[0];
+      final player2 = players[1];
+
+      // Eğer bir oyuncu kaybetti ve diğeri hala oynuyorsa
+      if (player1.status == PlayerStatus.lost && player2.status == PlayerStatus.playing) {
+        // Player2 kazandı
+        await _finishGameWithWinner(gameId, player2.playerId);
+      } else if (player2.status == PlayerStatus.lost && player1.status == PlayerStatus.playing) {
+        // Player1 kazandı
+        await _finishGameWithWinner(gameId, player1.playerId);
+      } else if (player1.status == PlayerStatus.lost && player2.status == PlayerStatus.lost) {
+        // Her ikisi de kaybetti - berabere
+        await _finishGameDraw(gameId);
+      }
+    } catch (e) {
+      print('Oyun bitiş koşulları kontrol hatası: $e');
+    }
+  }
+
+  // Kazanan ile oyunu bitir
+  static Future<void> _finishGameWithWinner(String gameId, String winnerId) async {
+    try {
+      await _firestore.collection('duel_games').doc(gameId).update({
+        'status': 'finished',
+        'winnerId': winnerId,
+        'finishedAt': FieldValue.serverTimestamp(),
+        'players.$winnerId.status': PlayerStatus.won.name,
+        'players.$winnerId.finishedAt': FieldValue.serverTimestamp(),
+      });
+      print('Oyun kazanan ile bitirildi: $winnerId');
+    } catch (e) {
+      print('Oyunu kazanan ile bitirme hatası: $e');
+    }
+  }
+
+  // Berabere ile oyunu bitir
+  static Future<void> _finishGameDraw(String gameId) async {
+    try {
+      await _firestore.collection('duel_games').doc(gameId).update({
+        'status': 'finished',
+        'finishedAt': FieldValue.serverTimestamp(),
+        // winnerId null kalır (berabere)
+      });
+      print('Oyun berabere bitirildi');
+    } catch (e) {
+      print('Oyunu berabere bitirme hatası: $e');
     }
   }
 

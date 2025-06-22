@@ -105,7 +105,7 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
                 await viewModel.leaveGame();
                 
                 // Bekleme odasından çık ve DuelPage'e dön (oradan ana sayfaya gidecek)
-                if (mounted) {
+                if (mounted && context.mounted) {
                   Navigator.of(context).pop(false); // Oyun başlamadı sinyali
                 }
               },

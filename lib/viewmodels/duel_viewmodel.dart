@@ -182,9 +182,11 @@ class DuelViewModel extends ChangeNotifier {
   void _updateGameState() {
     if (_currentGame == null) return;
 
-    final previousStatus = _isGameActive;
+    final previousGameActive = _isGameActive;
     final gameStatus = _currentGame!.status;
     final playerCount = _currentGame!.players.length;
+    
+    debugPrint('DuelViewModel - Oyun durumu güncelleniyor: $gameStatus, playerCount: $playerCount');
     
     switch (gameStatus) {
       case GameStatus.waiting:
@@ -200,7 +202,7 @@ class DuelViewModel extends ChangeNotifier {
         
       case GameStatus.active:
         // Oyun aktif - ama önce countdown göster
-        if (!previousStatus && !_showingCountdown) {
+        if (!previousGameActive && !_showingCountdown) {
           // Bekleme odasından oyuna geçiş - countdown göster
           _showingCountdown = true;
           _isGameActive = false;
@@ -219,6 +221,7 @@ class DuelViewModel extends ChangeNotifier {
         
       case GameStatus.finished:
         // Oyun bitti
+        debugPrint('DuelViewModel - Oyun finished durumuna geçti');
         _isGameActive = false;
         _showingCountdown = false;
         _readyTimer?.cancel();
