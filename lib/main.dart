@@ -118,7 +118,8 @@ class _MyAppState extends State<MyApp> {
       routes: {
         '/login': (context) => const LoginPage(),
         '/home': (context) => HomePage(toggleTheme: _toggleTheme),
-        '/wordle': (context) => WordlePage(toggleTheme: _toggleTheme),
+        '/wordle_daily': (context) => WordlePage(toggleTheme: _toggleTheme, gameMode: GameMode.daily),
+        '/wordle_challenge': (context) => WordlePage(toggleTheme: _toggleTheme, gameMode: GameMode.challenge),
         '/duel_full': (context) => const DuelPage(),
         '/leaderboard': (context) => const LeaderboardPage(),
       },

@@ -11,8 +11,9 @@ import '../services/firebase_service.dart';
 
 class WordlePage extends StatefulWidget {
   final VoidCallback toggleTheme;
+  final GameMode gameMode;
 
-  const WordlePage({Key? key, required this.toggleTheme}) : super(key: key);
+  const WordlePage({Key? key, required this.toggleTheme, required this.gameMode}) : super(key: key);
 
   @override
   State<WordlePage> createState() => _WordlePageState();
@@ -27,6 +28,7 @@ class _WordlePageState extends State<WordlePage> {
   void initState() {
     super.initState();
     _viewModel = Provider.of<WordleViewModel>(context, listen: false);
+    
     _listener = () {
       if (_viewModel.gameOver && !_hasShownDialog) {
         _hasShownDialog = true; // Dialogu gösteriyoruz
@@ -36,6 +38,11 @@ class _WordlePageState extends State<WordlePage> {
       }
     };
     _viewModel.addListener(_listener);
+    
+    // Oyun modunu build tamamlandıktan sonra ayarla
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _viewModel.resetGame(mode: widget.gameMode);
+    });
   }
 
   @override
@@ -80,11 +87,12 @@ class _WordlePageState extends State<WordlePage> {
         ),
       );
     } else if (won) {
-      if (viewModel.currentLevel == viewModel.maxLevel) {
-        // Maksimum seviyeye ulaşıldı
+      if (viewModel.gameMode == GameMode.challenge && viewModel.currentLevel == viewModel.maxLevel) {
+        // Zorlu modda maksimum seviyeye ulaşıldı
         _showMaxLevelDialog();
         return; // Fonksiyondan çık
-      } else {
+      } else if (viewModel.gameMode == GameMode.challenge) {
+        // Zorlu modda sonraki seviyeye geç
         title = 'Tebrikler!';
         actions.add(
           TextButton(
@@ -95,7 +103,28 @@ class _WordlePageState extends State<WordlePage> {
             child: const Text('Devam'),
           ),
         );
-        // 'Sonucu Paylaş' ve 'Yeniden Başla' butonlarını kaldırdık
+      } else {
+        // Günlük modda kazandınız
+        title = 'Tebrikler!';
+        content = 'Günlük kelimeyi doğru bildiniz!';
+        actions.add(
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _navigateToMainMenu();
+            },
+            child: const Text('Ana Menü'),
+          ),
+        );
+        actions.add(
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Share.share(viewModel.generateShareText());
+            },
+            child: const Text('Paylaş'),
+          ),
+        );
       }
     } else {
       // Kaybettiniz
@@ -267,7 +296,7 @@ void _navigateToMainMenu() {
       // Firebase'e kaydet
       await FirebaseService.saveGameResult(
         uid: user.uid,
-        gameType: 'Günlük Mücadele',
+        gameType: viewModel.gameMode == GameMode.daily ? 'Günlük Oyun' : 'Zorlu Mod',
         score: score,
         isWon: won,
         duration: gameDuration,
@@ -276,6 +305,7 @@ void _navigateToMainMenu() {
           'attempts': viewModel.currentAttempt + 1,
           'timeOut': timeOut,
           'secretWord': viewModel.secretWord,
+          'wordLength': viewModel.currentWordLength,
         },
       );
 
@@ -307,7 +337,7 @@ void _navigateToMainMenu() {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Kelime Bul Türkçe'),
+            title: Text(viewModel.gameMode == GameMode.daily ? 'Günlük Oyun' : 'Zorlu Mod'),
             centerTitle: true,
             actions: [
               if (!viewModel.gameOver) // Sadece oyun sırasında zamanlayıcıyı göster
@@ -375,8 +405,10 @@ void _navigateToMainMenu() {
                                 Text('En Az Deneme: ${viewModel.bestAttempts < 999 ? viewModel.bestAttempts : "Yok"}'),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            Text('Seviye: ${viewModel.currentLevel}'),
+                            if (viewModel.gameMode == GameMode.challenge) ...[
+                              const SizedBox(height: 8),
+                              Text('Seviye: ${viewModel.currentLevel} / ${viewModel.maxLevel}'),
+                            ],
                           ],
                         ),
                       ),

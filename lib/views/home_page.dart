@@ -7,6 +7,7 @@ import 'dart:async';
 import '../services/firebase_service.dart';
 import '../services/avatar_service.dart';
 import '../widgets/avatar_selector.dart';
+import '../viewmodels/wordle_viewmodel.dart';
 import 'wordle_page.dart';
 import 'duel_page.dart';
 import 'leaderboard_page.dart';
@@ -498,11 +499,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  void _navigateToWordle(BuildContext context) {
+  void _navigateToWordle(BuildContext context, GameMode gameMode) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => WordlePage(toggleTheme: widget.toggleTheme ?? () {}),
+        builder: (context) => WordlePage(
+          toggleTheme: widget.toggleTheme ?? () {},
+          gameMode: gameMode,
+        ),
       ),
     );
   }
@@ -996,11 +1000,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             childAspectRatio: 1.0,
             children: [
             _buildAnimatedGameModeCard(
-                'Günlük Mücadele',
-                'Her gün yeni kelime',
+                'Günlük Oyun',
+                'Her zaman 5 harfli kelimeler',
                 const Color(0xFF34A853),
                 Icons.today,
-                () => _navigateToWordle(context),
+                () => Navigator.pushNamed(context, '/wordle_daily'),
+              ),
+            _buildAnimatedGameModeCard(
+                'Zorlu Mod',
+                '4-8 harf kademeli zorluk',
+                const Color(0xFFFF6B35),
+                Icons.fitness_center,
+                () => Navigator.pushNamed(context, '/wordle_challenge'),
               ),
             _buildAnimatedGameModeCard(
                 'Duello Modu',

@@ -22,6 +22,11 @@ extension TurkishCaseExtension on String {
   }
 }
 
+enum GameMode {
+  daily,    // Günlük mod - hep 5 harfli
+  challenge // Zorlu mod - 4'ten 8'e kademeli
+}
+
 class WordleViewModel extends ChangeNotifier {
   static const int maxAttempts = 6;
   static const int minWordLength = 4;
@@ -48,6 +53,9 @@ class WordleViewModel extends ChangeNotifier {
   int _totalRemainingSeconds = totalGameSeconds;
   bool _totalTimerRunning = false;
 
+  // Oyun modu
+  GameMode _gameMode = GameMode.daily;
+
   // Dinamik kelime uzunluğu ve seviye
   int _currentLevel = 1;
   int _currentWordLength = 5;
@@ -60,8 +68,8 @@ class WordleViewModel extends ChangeNotifier {
   // Geçerli tüm kelimeler seti
   Set<String> validWordsSet = {};
 
-  // Dinamik kelime uzunluğunu belirleyen harita
-  final Map<int, int> levelWordLength = {
+  // Zorlu mod için dinamik kelime uzunluğunu belirleyen harita
+  final Map<int, int> challengeModeWordLength = {
     1: 4,
     2: 5,
     3: 6,
@@ -69,8 +77,8 @@ class WordleViewModel extends ChangeNotifier {
     5: 8,
   };
 
-  // Maksimum seviye
-  int get maxLevel => levelWordLength.length;
+  // Maksimum seviye (sadece zorlu modda kullanılır)
+  int get maxLevel => challengeModeWordLength.length;
 
   WordleViewModel() {
     resetGame();
@@ -91,16 +99,28 @@ class WordleViewModel extends ChangeNotifier {
   int get currentLevel => _currentLevel;
   int get bestTime => _bestTime;
   int get bestAttempts => _bestAttempts;
+  GameMode get gameMode => _gameMode;
 
-  Future<void> resetGame() async {
+  Future<void> resetGame({GameMode? mode}) async {
     _gameOver = false;
     _needsShake = false;
     _keyboardColors.clear();
     _currentAttempt = 0;
     _currentColumn = 0; // Sıfırla
 
-    // Seviye bazında kelime uzunluğunu ayarla
-    _currentWordLength = levelWordLength[_currentLevel] ?? 5;
+    // Mod ayarla
+    if (mode != null) {
+      _gameMode = mode;
+    }
+
+    // Mod bazında kelime uzunluğunu ayarla
+    if (_gameMode == GameMode.daily) {
+      _currentWordLength = 5; // Günlük mod her zaman 5 harfli
+      _currentLevel = 1; // Günlük modda seviye yok
+    } else {
+      // Zorlu mod - seviye bazında kelime uzunluğunu ayarla
+      _currentWordLength = challengeModeWordLength[_currentLevel] ?? 5;
+    }
 
     // Tahminler ve renkler listesini güncelle
     _guesses = List.generate(maxAttempts, (_) => List.filled(_currentWordLength, ''));
@@ -113,7 +133,7 @@ class WordleViewModel extends ChangeNotifier {
 
     // Gizli kelimeyi seç
     _secretWord = selectRandomWord();
-    debugPrint('Gizli Kelime: $_secretWord'); // Gizli kelimeyi debug konsoluna yazdır
+    debugPrint('Gizli Kelime: $_secretWord (${_gameMode == GameMode.daily ? 'Günlük' : 'Zorlu'} Mod)'); // Gizli kelimeyi debug konsoluna yazdır
     notifyListeners();
 
     // Toplam oyun zamanlayıcısını başlat
@@ -423,9 +443,9 @@ class WordleViewModel extends ChangeNotifier {
     return result;
   }
 
-  // Level progression
+  // Level progression (sadece zorlu modda)
   void goToNextLevel() {
-    if (_currentLevel < maxLevel) {
+    if (_gameMode == GameMode.challenge && _currentLevel < maxLevel) {
       _currentLevel++;
       resetGame();
     } else {
