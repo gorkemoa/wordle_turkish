@@ -7,6 +7,7 @@ import 'dart:async';
 import '../services/firebase_service.dart';
 import 'wordle_page.dart';
 import 'duel_page.dart';
+import 'leaderboard_page.dart';
 import 'dart:math' as math;
 
 class HomePage extends StatefulWidget {
