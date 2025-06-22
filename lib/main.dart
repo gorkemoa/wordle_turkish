@@ -8,6 +8,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'firebase_options.dart';
 import 'viewmodels/wordle_viewmodel.dart';
 import 'viewmodels/duel_viewmodel.dart';
+import 'viewmodels/leaderboard_viewmodel.dart';
 import 'views/home_page.dart';
 import 'views/login_page.dart';
 import 'views/wordle_page.dart';
@@ -34,6 +35,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => WordleViewModel()),
         ChangeNotifierProvider(create: (_) => DuelViewModel()),
+        ChangeNotifierProvider(create: (_) => LeaderboardViewModel()),
       ],
       child: const MyApp(),
     ),
