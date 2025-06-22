@@ -578,6 +578,7 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Başlık
           Container(
@@ -607,7 +608,7 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             ),
           ),
           
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           
           // Oyuncular - Yatay düzen
           if (playerCount == 2)
@@ -654,12 +655,13 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
           else
             // Tek oyuncu durumu
             Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 _buildCompactPlayerCard(
                   game.players.values.first,
                   true,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 _buildEmptyPlayerSlot(),
               ],
             ),
@@ -670,7 +672,7 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
 
   Widget _buildCompactPlayerCard(DuelPlayer player, bool isCurrentPlayer) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: isCurrentPlayer 
           ? Colors.blue.shade600.withOpacity(0.2) 
@@ -703,7 +705,7 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             ),
           ),
           
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           
           // Oyuncu adı
           Text(
@@ -718,7 +720,7 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             overflow: TextOverflow.ellipsis,
           ),
           
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           
           Text(
             isCurrentPlayer ? 'Sen' : 'Rakip',
@@ -728,7 +730,7 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             ),
           ),
           
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           
           // Durum göstergesi
           Container(

@@ -15,15 +15,32 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // Dinamik veriler
   Map<String, dynamic>? userStats;
   bool isLoading = true;
+  late AnimationController _animationController;
+  late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(seconds: 20),
+      vsync: this,
+    );
+    _animation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(_animationController);
+    _animationController.repeat();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -343,152 +360,191 @@ class _HomePageState extends State<HomePage> {
     
     if (isLoading) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF8F9FA),
-        body: const Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF4285F4),
+        body: Container(
+          decoration: _buildBackgroundDecoration(),
+          child: const Center(
+            child: CircularProgressIndicator(
+              color: Colors.white,
+            ),
           ),
         ),
       );
     }
     
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(
-        child: Column(
+      body: Container(
+        decoration: _buildBackgroundDecoration(),
+        child: Stack(
           children: [
-            // AppBar bölümü
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+            _buildBackgroundPattern(),
+            SafeArea(
+          child: Column(
+            children: [
+              // AppBar bölümü
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.95),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0x1A000000),
+                      blurRadius: 20,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                  
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x0A000000),
-                    blurRadius: 20,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  // Logo ve başlık
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF4285F4), Color(0xFF34A853)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF4285F4).withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.psychology,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'Kelime Bul',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF333333),
-                      ),
-                    ),
-                  ),
-                  
-                  // Bildirim butonu
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    child: IconButton(
-                      onPressed: () => _showFeatureComingSoon(context, 'Bildirimler'),
-                      icon: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8F9FA),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.notifications_outlined,
-                          color: Color(0xFF666666),
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                  ),
-                  
-                  // Profil butonu
-                  GestureDetector(
-                    onTap: () => _showUserProfile(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
+                child: Row(
+                  children: [
+                    // Logo ve başlık
+                    Container(
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFF4285F4), Color(0xFF34A853)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF4285F4).withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      child: CircleAvatar(
-                        radius: 18,
-                        backgroundColor: Colors.white,
-                        child: CircleAvatar(
-                          radius: 16,
-                          backgroundColor: const Color(0xFF4285F4),
-                          backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
-                          child: user?.photoURL == null
-                              ? const Icon(Icons.person, color: Colors.white, size: 18)
-                              : null,
+                      child: const Icon(
+                        Icons.psychology,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Text(
+                        'Kelime Bul',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF333333),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Ana içerik
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    // Hoş geldin bölümü
-                    _buildWelcomeSection(user),
                     
-                    const SizedBox(height: 20),
+                    // Bildirim butonu
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        onPressed: () => _showFeatureComingSoon(context, 'Bildirimler'),
+                        icon: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.notifications_outlined,
+                            color: Color(0xFF666666),
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                    ),
                     
-                    // İstatistikler
-                    _buildStatsSection(),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Oyun Modları
-                    Expanded(
-                      child: _buildGameModesSection(context),
+                    // Profil butonu
+                    GestureDetector(
+                      onTap: () => _showUserProfile(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF4285F4), Color(0xFF34A853)],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: CircleAvatar(
+                          radius: 18,
+                          backgroundColor: Colors.white,
+                          child: CircleAvatar(
+                            radius: 16,
+                            backgroundColor: const Color(0xFF4285F4),
+                            backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
+                            child: user?.photoURL == null
+                                ? const Icon(Icons.person, color: Colors.white, size: 18)
+                                : null,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
-        ),
+
+              // Ana içerik
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      // Hoş geldin bölümü
+                      _buildWelcomeSection(user),
+                      
+                      const SizedBox(height: 20),
+                      
+                      // İstatistikler
+                      _buildStatsSection(),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Oyun Modları
+                      Expanded(
+                        child: _buildGameModesSection(context),
+                      ),
+                    ],
+                  ),
+                                 ),
+               ),
+             ],
+           ),
+         ),
+        ],
+       ),
+     );
+   }
+
+  BoxDecoration _buildBackgroundDecoration() {
+    return BoxDecoration(
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFF667eea),
+          Color(0xFF764ba2),
+          Color(0xFF6B73FF),
+          Color(0xFF000DFF),
+        ],
+        stops: [0.0, 0.3, 0.7, 1.0],
       ),
+      // Pattern overlay için blend mode kullanacağız
+    );
+  }
+
+  // Arka plan pattern widget'ı
+  Widget _buildBackgroundPattern() {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: GamePatternPainter(_animation.value),
+          size: Size.infinite,
+        );
+      },
     );
   }
 
@@ -787,5 +843,86 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+}
+
+// Oyun temalı pattern çizen custom painter
+class GamePatternPainter extends CustomPainter {
+  final double animationValue;
+  
+  GamePatternPainter(this.animationValue);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.05)
+      ..style = PaintingStyle.fill;
+
+    final strokePaint = Paint()
+      ..color = Colors.white.withOpacity(0.1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    // Kelime bloklarını temsil eden kareler çiz
+    final blockSize = 25.0;
+    final spacing = 35.0;
+    
+    for (double x = -spacing; x < size.width + spacing; x += spacing) {
+      for (double y = -spacing; y < size.height + spacing; y += spacing) {
+        final offsetX = x + (animationValue * 10);
+        final offsetY = y + (animationValue * 5);
+        
+        // Ana kareler
+        final rect = Rect.fromLTWH(
+          offsetX,
+          offsetY,
+          blockSize,
+          blockSize,
+        );
+        
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+          paint,
+        );
+        
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+          strokePaint,
+        );
+        
+        // Küçük noktalar (harfleri temsil eder)
+        if ((x + y) % 70 == 0) {
+          final dotPaint = Paint()
+            ..color = Colors.white.withOpacity(0.15)
+            ..style = PaintingStyle.fill;
+            
+          canvas.drawCircle(
+            Offset(offsetX + blockSize / 2, offsetY + blockSize / 2),
+            3.0,
+            dotPaint,
+          );
+        }
+      }
+    }
+
+    // Diagonal çizgiler (kelime bağlantılarını temsil eder)
+    final linePaint = Paint()
+      ..color = Colors.white.withOpacity(0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    for (double i = 0; i < size.width + size.height; i += 100) {
+      final animatedOffset = i + (animationValue * 50);
+      canvas.drawLine(
+        Offset(animatedOffset - size.height, 0),
+        Offset(animatedOffset, size.height),
+        linePaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(GamePatternPainter oldDelegate) {
+    return oldDelegate.animationValue != animationValue;
   }
 }

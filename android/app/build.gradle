@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace "com.example.wordle_turkish" // Burada namespace'i belirtiyoruz
-    compileSdkVersion 34
+    compileSdkVersion 35
 
     defaultConfig {
         applicationId "com.example.wordle_turkish"
         minSdkVersion 23
-        targetSdkVersion 34
+        targetSdkVersion 35
         versionCode 1
         versionName "1.0.0"
         multiDexEnabled true
