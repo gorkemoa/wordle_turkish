@@ -334,7 +334,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                   const SizedBox(height: 24),
               
-              _buildProfileInfo('İsim', user.displayName ?? 'Belirtilmemiş'),
+              _buildEditableProfileInfo('İsim', user.displayName ?? 'Belirtilmemiş', user.isAnonymous, user.uid),
               const SizedBox(height: 16),
               _buildProfileInfo('E-posta', user.email ?? 'Belirtilmemiş'),
               const SizedBox(height: 16),
@@ -420,6 +420,60 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditableProfileInfo(String label, String value, bool isAnonymous, String uid) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF666666),
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF333333),
+                fontSize: 14,
+              ),
+            ),
+          ),
+          if (isAnonymous) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => _showEditNameDialog(value, uid),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4285F4),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(
+                  Icons.edit,
+                  size: 14,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
