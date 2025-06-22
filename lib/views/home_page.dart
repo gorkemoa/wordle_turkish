@@ -499,17 +499,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  void _navigateToWordle(BuildContext context, GameMode gameMode) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => WordlePage(
-          toggleTheme: widget.toggleTheme ?? () {},
-          gameMode: gameMode,
-        ),
-      ),
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {

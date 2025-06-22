@@ -62,7 +62,7 @@ class _WordlePageState extends State<WordlePage> {
     viewModel.updateLeaderboardStats(context);
 
     String title;
-    String content;
+    String? content;
     List<Widget> actions = [];
 
     if (timeOut && !won) {
@@ -155,6 +155,7 @@ class _WordlePageState extends State<WordlePage> {
       barrierDismissible: false, // Kullanıcının dışarıya tıklayarak kapatmasını engeller
       builder: (_) => AlertDialog(
         title: Text(title),
+        content: content != null ? Text(content!) : null,
         actions: actions,
       ),
     );
