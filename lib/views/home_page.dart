@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import '../services/firebase_service.dart';
 import '../services/avatar_service.dart';
-import '../widgets/avatar_selector.dart';
+
 
 import 'duel_page.dart';
 import 'leaderboard_page.dart';
@@ -225,78 +225,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
 
 
-  void _signOut(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF9500),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.logout, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Çıkış Yap',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF333333),
-                ),
-              ),
-            ],
-          ),
-          content: const Text(
-            'Çıkış yapmak istediğinizden emin misiniz?\n\nOyun ilerlemeniz kaydedilecektir.',
-            style: TextStyle(
-              fontSize: 16,
-              color: Color(0xFF666666),
-              height: 1.5,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                'İptal',
-                style: TextStyle(
-                  color: Color(0xFF666666),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await FirebaseService.signOut();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE53E3E),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-              ),
-              child: const Text(
-                'Çıkış Yap',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
+
 
 
 
