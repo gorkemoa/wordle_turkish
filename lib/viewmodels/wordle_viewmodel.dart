@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'leaderboard_viewmodel.dart';
 
 extension TurkishCaseExtension on String {
   String toTurkishUpperCase() {
@@ -355,6 +357,7 @@ class WordleViewModel extends ChangeNotifier {
   void _updateHighScores() {
     final currentTime = totalGameSeconds - _totalRemainingSeconds;
     final currentAttempts = _currentAttempt + 1;
+    final gameWon = _secretWord == _guesses[_currentAttempt].join();
 
     bool updated = false;
 
@@ -371,6 +374,23 @@ class WordleViewModel extends ChangeNotifier {
     if (updated) {
       _saveBestScores();
       notifyListeners();
+    }
+  }
+
+  void updateLeaderboardStats(BuildContext context) {
+    final currentTime = totalGameSeconds - _totalRemainingSeconds;
+    final currentAttempts = _currentAttempt + 1;
+    final gameWon = _secretWord == _guesses[_currentAttempt].join();
+
+    try {
+      final leaderboardViewModel = context.read<LeaderboardViewModel>();
+      leaderboardViewModel.updateUserStats(
+        gameWon: gameWon,
+        attempts: currentAttempts,
+        timeSpent: currentTime,
+      );
+    } catch (e) {
+      print('Başarı tablosu güncellenirken hata: $e');
     }
   }
 

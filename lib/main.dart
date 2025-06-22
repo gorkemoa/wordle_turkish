@@ -13,6 +13,7 @@ import 'views/home_page.dart';
 import 'views/login_page.dart';
 import 'views/wordle_page.dart';
 import 'views/duel_page.dart';
+import 'views/leaderboard_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -119,6 +120,7 @@ class _MyAppState extends State<MyApp> {
         '/home': (context) => HomePage(toggleTheme: _toggleTheme),
         '/wordle': (context) => WordlePage(toggleTheme: _toggleTheme),
         '/duel_full': (context) => const DuelPage(),
+        '/leaderboard': (context) => const LeaderboardPage(),
       },
       themeMode: _themeMode,
     );

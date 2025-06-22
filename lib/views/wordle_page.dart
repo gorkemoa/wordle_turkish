@@ -50,6 +50,9 @@ class _WordlePageState extends State<WordlePage> {
 
     // Oyun sonucunu Firebase'e kaydet
     _saveGameResult(viewModel, won, timeOut);
+    
+    // Başarı tablosu istatistiklerini güncelle
+    viewModel.updateLeaderboardStats(context);
 
     String title;
     String content;

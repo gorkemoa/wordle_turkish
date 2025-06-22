@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:uuid/uuid.dart';
 import '../models/duel_game.dart';
 import 'package:flutter/services.dart';
+import 'avatar_service.dart';
 
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -200,11 +201,15 @@ class FirebaseService {
   // Kullanıcı profil bilgilerini Firestore'a kaydet
   static Future<void> _saveUserProfile(User user, String displayName, String email) async {
     try {
+      // Kullanıcı için deterministik avatar oluştur
+      String userAvatar = AvatarService.generateAvatar(user.uid);
+      
       await _firestore.collection('users').doc(user.uid).set({
         'uid': user.uid,
         'displayName': displayName,
         'email': email,
         'photoURL': user.photoURL,
+        'avatar': userAvatar,
         'isAnonymous': user.isAnonymous,
         'createdAt': FieldValue.serverTimestamp(),
         'lastActiveAt': FieldValue.serverTimestamp(),
