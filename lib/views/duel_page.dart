@@ -17,6 +17,7 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
   bool _hasNavigatedToResult = false;
+  bool _hasStartedGame = false; // Oyun başlatma kontrolü için flag
 
   @override
   void initState() {
@@ -36,9 +37,13 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
     ));
     _pulseController.repeat(reverse: true);
     
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _startGame();
-    });
+    // Sadece bir kez oyun başlat
+    if (!_hasStartedGame) {
+      _hasStartedGame = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _startGame();
+      });
+    }
   }
 
   @override
@@ -71,10 +76,14 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       // Eğer oyun başlamadıysa ana sayfaya dön
       if (gameStarted != true && mounted) {
         debugPrint('DuelPage - Oyun başlamadı, ana sayfaya dönülüyor');
+        // ViewModel'i temizle
+        final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+        await viewModel.leaveGame();
         Navigator.of(context).pop();
       } else if (gameStarted == true && mounted) {
         debugPrint('DuelPage - Oyun başladı, burada kalıyoruz');
         // Oyun başladıysa burada kalıp oyunu göster
+        // startGame flag'ini sıfırlama - oyun zaten başladı
       }
     } catch (e) {
       print('DuelPage _startGame hatası: $e');
@@ -162,6 +171,10 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
           // Oyun yükleniyor
           if (game == null) {
             debugPrint('DuelPage - Oyun null, loading gösteriliyor');
+            // Eğer oyun başlatılmış ama null ise, hata durumu göster
+            if (_hasStartedGame) {
+              return _buildErrorState();
+            }
             return _buildLoadingState();
           }
           
@@ -284,6 +297,53 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
               fontSize: 18,
                 fontWeight: FontWeight.bold,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.error_outline,
+            color: Colors.red,
+            size: 64,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Oyun bağlantısı kesildi',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Bağlantı sorunu yaşandı',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Ana Sayfaya Dön'),
           ),
         ],
       ),

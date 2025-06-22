@@ -345,6 +345,13 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
               
               const SizedBox(height: 20),
               
+              // Başka rakip bul butonu (sadece rakip beklenirken göster)
+              if (isWaitingForOpponent)
+                _buildFindNewOpponentButton(viewModel),
+              
+              if (isWaitingForOpponent)
+                const SizedBox(height: 12),
+              
               // Çıkış butonu - En alt
               _buildExitButton(isWaitingForOpponent),
             ],
@@ -1116,6 +1123,91 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFindNewOpponentButton(DuelViewModel viewModel) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () async {
+          // Loading dialog göster
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                backgroundColor: const Color(0xFF2A2A2A),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(color: Colors.blue),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Başka rakip aranıyor...',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+
+          try {
+            final success = await viewModel.findNewOpponent();
+            
+            // Dialog'u kapat
+            if (mounted) {
+              Navigator.of(context).pop();
+            }
+            
+            if (!success && mounted) {
+              // Hata mesajı göster
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Başka rakip bulunamadı. Tekrar deneyin.'),
+                  backgroundColor: Colors.red.shade600,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          } catch (e) {
+            // Dialog'u kapat
+            if (mounted) {
+              Navigator.of(context).pop();
+            }
+            
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Bir hata oluştu. Tekrar deneyin.'),
+                  backgroundColor: Colors.red.shade600,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          }
+        },
+        icon: const Icon(Icons.refresh, color: Colors.white),
+        label: const Text(
+          'Başka Rakip Bul',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.orange.shade600,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
       ),
     );
   }

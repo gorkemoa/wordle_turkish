@@ -28,7 +28,7 @@ class DuelViewModel extends ChangeNotifier {
   // Onay sistemi
   bool _isPlayerReady = false;
   Timer? _readyTimer;
-  int _readyCountdown = 10;
+  int _readyCountdown = 20;
 
   // Kelime seti
   Set<String> validWordsSet = {};
@@ -349,7 +349,7 @@ class DuelViewModel extends ChangeNotifier {
   void _startReadyCountdown() {
     if (_readyTimer != null) return; // Zaten başlatılmış
     
-    _readyCountdown = 10;
+    _readyCountdown = 20;
     _readyTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _readyCountdown--;
       notifyListeners();
@@ -373,9 +373,9 @@ class DuelViewModel extends ChangeNotifier {
     // Durumu sıfırla
     _resetGameState();
     
-    // Yeni oyun ara
-    await Future.delayed(const Duration(milliseconds: 500));
-    startDuelGame();
+    // Yeni oyun aramak yerine, timeout mesajı göster
+    // Kullanıcı manuel olarak yeni oyun başlatacak
+    debugPrint('DuelViewModel - Ready timeout, oyun iptal edildi');
   }
 
   // Oyun durumunu sıfırla
@@ -386,7 +386,7 @@ class DuelViewModel extends ChangeNotifier {
     _showingCountdown = false;
     _gameStartTime = null;
     _isPlayerReady = false;
-    _readyCountdown = 10;
+    _readyCountdown = 20;
     _readyTimer?.cancel();
     _readyTimer = null;
     _currentWord = '';
@@ -404,6 +404,60 @@ class DuelViewModel extends ChangeNotifier {
     // Firebase'e ready durumunu gönder
     if (_isPlayerReady) {
       await FirebaseService.setPlayerReady(_gameId!);
+    }
+  }
+
+  // Başka rakip bul
+  Future<bool> findNewOpponent() async {
+    try {
+      debugPrint('Başka rakip aranıyor...');
+      
+      // Mevcut oyundan çık
+      if (_gameId != null) {
+        await FirebaseService.leaveGame(_gameId!);
+      }
+      
+      // Oyun durumunu temizle ama player name'i koru
+      final currentPlayerName = _playerName;
+      _resetGameState();
+      _playerName = currentPlayerName;
+      
+      // Kelime listesini kontrol et
+      if (validWordsSet.isEmpty) {
+        await loadValidWords();
+      }
+      
+      // Yeni gizli kelime seç
+      final secretWord = _selectRandomWord();
+      debugPrint('Yeni gizli kelime seçildi: $secretWord');
+      
+      // Yeni oyun oluştur veya katıl
+      _gameId = await FirebaseService.findOrCreateGame(_playerName, secretWord);
+      if (_gameId == null) {
+        debugPrint('Yeni oyun oluşturma başarısız');
+        return false;
+      }
+      debugPrint('Yeni oyun ID: $_gameId');
+
+      // Oyun durumunu dinlemeye başla
+      _gameSubscription?.cancel(); // Eski subscription'ı temizle
+      _gameSubscription = FirebaseService.listenToGame(_gameId!).listen(
+        (game) {
+          debugPrint('Yeni oyun güncellemesi alındı');
+          _currentGame = game;
+          _updateGameState();
+          notifyListeners();
+        },
+        onError: (error) {
+          debugPrint('Yeni oyun dinleme hatası: $error');
+        },
+      );
+
+      debugPrint('Başka rakip arama başarılı');
+      return true;
+    } catch (e) {
+      debugPrint('Başka rakip arama hatası: $e');
+      return false;
     }
   }
 
