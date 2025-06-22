@@ -373,9 +373,9 @@ class DuelViewModel extends ChangeNotifier {
     // Durumu sıfırla
     _resetGameState();
     
-    // Yeni oyun ara
-    await Future.delayed(const Duration(milliseconds: 500));
-    startDuelGame();
+    // Yeni oyun aramak yerine, timeout mesajı göster
+    // Kullanıcı manuel olarak yeni oyun başlatacak
+    debugPrint('DuelViewModel - Ready timeout, oyun iptal edildi');
   }
 
   // Oyun durumunu sıfırla
