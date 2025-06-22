@@ -14,6 +14,7 @@ import 'views/login_page.dart';
 import 'views/wordle_page.dart';
 import 'views/duel_page.dart';
 import 'views/leaderboard_page.dart';
+import 'views/profile_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -122,6 +123,7 @@ class _MyAppState extends State<MyApp> {
         '/wordle_challenge': (context) => WordlePage(toggleTheme: _toggleTheme, gameMode: GameMode.challenge),
         '/duel_full': (context) => const DuelPage(),
         '/leaderboard': (context) => const LeaderboardPage(),
+        '/profile': (context) => const ProfilePage(),
       },
       themeMode: _themeMode,
     );
