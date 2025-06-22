@@ -393,14 +393,24 @@ class DuelViewModel extends ChangeNotifier {
     if (currentPlayer == null) return;
     
     // Oyuncunun tahminlerini kontrol et
-    for (final guess in currentPlayer.guesses) {
-      final guessWord = guess.letters.join('');
-      final guessColors = guess.colors;
+    for (int guessIndex = 0; guessIndex < currentPlayer.guesses.length; guessIndex++) {
+      final guessLetters = currentPlayer.guesses[guessIndex];
+      final guessColors = currentPlayer.guessColors[guessIndex];
+      
+      // Boş tahminleri atla
+      if (guessLetters.every((letter) => letter == '_' || letter.isEmpty)) {
+        continue;
+      }
       
       // Her harfi kontrol et
-      for (int i = 0; i < guessWord.length && i < guessColors.length; i++) {
-        final letter = guessWord[i];
+      for (int i = 0; i < guessLetters.length && i < guessColors.length; i++) {
+        final letter = guessLetters[i];
         final color = guessColors[i];
+        
+        // Boş harfleri atla
+        if (letter == '_' || letter.isEmpty || color == 'empty') {
+          continue;
+        }
         
         // Mevcut klavye rengi
         final currentColor = _keyboardLetters[letter];
