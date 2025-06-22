@@ -949,6 +949,36 @@ class _DuelKeyboardWidget extends StatelessWidget {
 
   Widget _buildLetterKey(BuildContext context, String key, double keyHeight, 
                         double fontSize, double spacing, {double flex = 1.0}) {
+    // Harf durumuna göre renk belirle
+    final keyboardLetters = viewModel.keyboardLetters;
+    final keyStatus = keyboardLetters[key];
+    
+    Color getKeyColor() {
+      switch (keyStatus) {
+        case 'green':
+          return Colors.green.shade600;
+        case 'orange':
+          return Colors.orange.shade600;
+        case 'grey':
+          return Colors.grey.shade700;
+        default:
+          return const Color(0xFF565758); // Varsayılan renk
+      }
+    }
+    
+    Color getKeyColorSecondary() {
+      switch (keyStatus) {
+        case 'green':
+          return Colors.green.shade800;
+        case 'orange':
+          return Colors.orange.shade800;
+        case 'grey':
+          return Colors.grey.shade800;
+        default:
+          return const Color(0xFF3A3A3C); // Varsayılan renk
+      }
+    }
+    
     return Expanded(
       flex: (flex * 10).round(),
       child: Padding(
@@ -965,15 +995,17 @@ class _DuelKeyboardWidget extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFF565758),
-                    const Color(0xFF3A3A3C),
+                    getKeyColor(),
+                    getKeyColorSecondary(),
                   ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: const Color(0xFF6D6D6D),
+                  color: keyStatus != null 
+                    ? getKeyColor().withOpacity(0.8)
+                    : const Color(0xFF6D6D6D),
                   width: 0.5,
                 ),
                 boxShadow: [
@@ -988,7 +1020,9 @@ class _DuelKeyboardWidget extends StatelessWidget {
               child: Text(
                 key,
                 style: TextStyle(
-                  color: Colors.white,
+                  color: keyStatus == 'grey' 
+                    ? Colors.grey.shade400 
+                    : Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: fontSize,
                   shadows: [

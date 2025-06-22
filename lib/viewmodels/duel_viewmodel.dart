@@ -37,6 +37,9 @@ class DuelViewModel extends ChangeNotifier {
   // Geçici tahmin (henüz gönderilmeden)
   List<String> _currentGuess = List.filled(wordLength, '');
 
+  // Klavye harf durumları
+  Map<String, String> _keyboardLetters = {};
+
   // Getters
   DuelGame? get currentGame => _currentGame;
   String? get gameId => _gameId;
@@ -47,6 +50,7 @@ class DuelViewModel extends ChangeNotifier {
   List<String> get currentGuess => _currentGuess;
   bool get isLoadingWords => _isLoadingWords;
   bool get showingCountdown => _showingCountdown;
+  Map<String, String> get keyboardLetters => _keyboardLetters;
 
   // Oyun süresi hesaplama
   Duration get gameDuration {
@@ -187,6 +191,9 @@ class DuelViewModel extends ChangeNotifier {
     final playerCount = _currentGame!.players.length;
     
     debugPrint('DuelViewModel - Oyun durumu güncelleniyor: $gameStatus, playerCount: $playerCount');
+    
+    // Klavye harflerini güncelle
+    _updateKeyboardColors();
     
     switch (gameStatus) {
       case GameStatus.waiting:
@@ -378,6 +385,48 @@ class DuelViewModel extends ChangeNotifier {
     debugPrint('DuelViewModel - Ready timeout, oyun iptal edildi');
   }
 
+  // Klavye renklerini güncelle
+  void _updateKeyboardColors() {
+    if (_currentGame == null) return;
+    
+    final currentPlayer = this.currentPlayer;
+    if (currentPlayer == null) return;
+    
+    // Oyuncunun tahminlerini kontrol et
+    for (int guessIndex = 0; guessIndex < currentPlayer.guesses.length; guessIndex++) {
+      final guessLetters = currentPlayer.guesses[guessIndex];
+      final guessColors = currentPlayer.guessColors[guessIndex];
+      
+      // Boş tahminleri atla
+      if (guessLetters.every((letter) => letter == '_' || letter.isEmpty)) {
+        continue;
+      }
+      
+      // Her harfi kontrol et
+      for (int i = 0; i < guessLetters.length && i < guessColors.length; i++) {
+        final letter = guessLetters[i];
+        final color = guessColors[i];
+        
+        // Boş harfleri atla
+        if (letter == '_' || letter.isEmpty || color == 'empty') {
+          continue;
+        }
+        
+        // Mevcut klavye rengi
+        final currentColor = _keyboardLetters[letter];
+        
+        // Renk önceliği: yeşil > turuncu > gri
+        if (color == 'green') {
+          _keyboardLetters[letter] = 'green';
+        } else if (color == 'orange' && currentColor != 'green') {
+          _keyboardLetters[letter] = 'orange';
+        } else if (color == 'grey' && currentColor != 'green' && currentColor != 'orange') {
+          _keyboardLetters[letter] = 'grey';
+        }
+      }
+    }
+  }
+
   // Oyun durumunu sıfırla
   void _resetGameState() {
     _currentGame = null;
@@ -392,6 +441,7 @@ class DuelViewModel extends ChangeNotifier {
     _currentWord = '';
     _currentColumn = 0;
     _currentGuess = List.filled(wordLength, '');
+    _keyboardLetters = {}; // Klavye renklerini sıfırla
   }
 
   // Oyuncunun onay vermesi
