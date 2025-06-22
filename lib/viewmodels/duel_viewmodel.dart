@@ -385,6 +385,38 @@ class DuelViewModel extends ChangeNotifier {
     debugPrint('DuelViewModel - Ready timeout, oyun iptal edildi');
   }
 
+  // Klavye renklerini güncelle
+  void _updateKeyboardColors() {
+    if (_currentGame == null) return;
+    
+    final currentPlayer = this.currentPlayer;
+    if (currentPlayer == null) return;
+    
+    // Oyuncunun tahminlerini kontrol et
+    for (final guess in currentPlayer.guesses) {
+      final guessWord = guess.letters.join('');
+      final guessColors = guess.colors;
+      
+      // Her harfi kontrol et
+      for (int i = 0; i < guessWord.length && i < guessColors.length; i++) {
+        final letter = guessWord[i];
+        final color = guessColors[i];
+        
+        // Mevcut klavye rengi
+        final currentColor = _keyboardLetters[letter];
+        
+        // Renk önceliği: yeşil > turuncu > gri
+        if (color == 'green') {
+          _keyboardLetters[letter] = 'green';
+        } else if (color == 'orange' && currentColor != 'green') {
+          _keyboardLetters[letter] = 'orange';
+        } else if (color == 'grey' && currentColor != 'green' && currentColor != 'orange') {
+          _keyboardLetters[letter] = 'grey';
+        }
+      }
+    }
+  }
+
   // Oyun durumunu sıfırla
   void _resetGameState() {
     _currentGame = null;
@@ -399,6 +431,7 @@ class DuelViewModel extends ChangeNotifier {
     _currentWord = '';
     _currentColumn = 0;
     _currentGuess = List.filled(wordLength, '');
+    _keyboardLetters = {}; // Klavye renklerini sıfırla
   }
 
   // Oyuncunun onay vermesi
