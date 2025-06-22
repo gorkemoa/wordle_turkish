@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'firebase_options.dart';
 import 'viewmodels/wordle_viewmodel.dart';
 import 'viewmodels/duel_viewmodel.dart';
@@ -14,6 +15,9 @@ import 'views/duel_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Splash screen'i preserve et
+  FlutterNativeSplash.preserve(widgetsBinding: WidgetsBinding.instance);
   
   try {
     // Firebase'i initialize et
@@ -45,6 +49,20 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   ThemeMode _themeMode = ThemeMode.dark;
+
+  @override
+  void initState() {
+    super.initState();
+    // Splash screen'i kaldır
+    _removeSplashScreen();
+  }
+
+  void _removeSplashScreen() {
+    // Kısa bir gecikme sonrası splash screen'i kaldır
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      FlutterNativeSplash.remove();
+    });
+  }
 
   void _toggleTheme() {
     setState(() {

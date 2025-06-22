@@ -24,6 +24,7 @@ dependencies:
 
 dev_dependencies:
   flutter_lints: ^2.0.0
+  flutter_native_splash: ^2.4.1
   
   flutter_test:
     sdk: flutter
@@ -33,3 +34,11 @@ flutter:
   assets:
     - assets/turkce_kelime_listesi.txt
     - assets/kelimeler.json
+
+flutter_native_splash:
+  color: "#667eea"
+  color_dark: "#764ba2"
+  android_12:
+    color: "#667eea"
+    color_dark: "#764ba2"
+  web: false

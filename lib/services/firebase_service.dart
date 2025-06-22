@@ -659,14 +659,14 @@ class FirebaseService {
           'level': 1,
           'tokens': 100,
           'points': 150,
-          'streak': 1,
+          'currentStreak': 0,
+          'bestStreak': 0,
           'gamesPlayed': 0,
           'gamesWon': 0,
           'winRate': 0.0,
           'bestScore': 0,
           'totalPlayTime': 0,
           'lastGameDate': FieldValue.serverTimestamp(),
-          'streakStartDate': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -980,40 +980,27 @@ class FirebaseService {
         updates['gamesWon'] = FieldValue.increment(1);
         updates['lastGameDate'] = FieldValue.serverTimestamp();
         
-        // Seri kontrolü (son oyun 24 saat içinde mi?)
+        // Kazanma serisi kontrolü
         final userStats = await getUserStats(uid);
         if (userStats != null) {
-          final lastGameDate = userStats['lastGameDate'];
-          final now = DateTime.now();
+          final currentStreak = userStats['currentStreak'] ?? 0;
+          final bestStreak = userStats['bestStreak'] ?? 0;
+          final newStreak = currentStreak + 1;
           
-          if (lastGameDate != null) {
-            DateTime lastDate;
-            if (lastGameDate is DateTime) {
-              lastDate = lastGameDate;
-            } else if (lastGameDate is Timestamp) {
-              lastDate = lastGameDate.toDate();
-            } else {
-              // İlk oyun
-              updates['streak'] = 1;
-              updates['streakStartDate'] = FieldValue.serverTimestamp();
-              return;
-            }
-            
-            final difference = now.difference(lastDate).inHours;
-            if (difference <= 24) {
-              // Seriyi devam ettir
-              updates['streak'] = FieldValue.increment(1);
-            } else {
-              // Seri kırıldı, yeniden başla
-              updates['streak'] = 1;
-              updates['streakStartDate'] = FieldValue.serverTimestamp();
-            }
-          } else {
-            // İlk oyun
-            updates['streak'] = 1;
-            updates['streakStartDate'] = FieldValue.serverTimestamp();
+          updates['currentStreak'] = newStreak;
+          
+          // En iyi seriyi güncelle
+          if (newStreak > bestStreak) {
+            updates['bestStreak'] = newStreak;
           }
+        } else {
+          // İlk kazanma
+          updates['currentStreak'] = 1;
+          updates['bestStreak'] = 1;
         }
+      } else {
+        // Kaybedince seriyi sıfırla
+        updates['currentStreak'] = 0;
       }
 
       // En iyi skoru güncelle

@@ -237,10 +237,6 @@ void _navigateToMainMenu() {
   debugPrint('Ana Menüye Dönüldü');
   Navigator.pushReplacementNamed(context, '/'); // Ana menü rotası olarak '/' kullanıldı
 }
-  void _shareResult(WordleViewModel viewModel) {
-    final String shareText = viewModel.generateShareText();
-    Share.share(shareText);
-  }
 
   Future<void> _saveGameResult(WordleViewModel viewModel, bool won, bool timeOut) async {
     try {
