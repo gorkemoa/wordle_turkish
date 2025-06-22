@@ -190,10 +190,10 @@ class DuelViewModel extends ChangeNotifier {
     final gameStatus = _currentGame!.status;
     final playerCount = _currentGame!.players.length;
     
+    debugPrint('DuelViewModel - Oyun durumu güncelleniyor: $gameStatus, playerCount: $playerCount');
+    
     // Klavye harflerini güncelle
     _updateKeyboardColors();
-    
-    debugPrint('DuelViewModel - Oyun durumu güncelleniyor: $gameStatus, playerCount: $playerCount');
     
     switch (gameStatus) {
       case GameStatus.waiting:
