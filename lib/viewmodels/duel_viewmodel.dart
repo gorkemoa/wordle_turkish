@@ -37,6 +37,9 @@ class DuelViewModel extends ChangeNotifier {
   // Geçici tahmin (henüz gönderilmeden)
   List<String> _currentGuess = List.filled(wordLength, '');
 
+  // Klavye harf durumları
+  Map<String, String> _keyboardLetters = {};
+
   // Getters
   DuelGame? get currentGame => _currentGame;
   String? get gameId => _gameId;
@@ -47,6 +50,7 @@ class DuelViewModel extends ChangeNotifier {
   List<String> get currentGuess => _currentGuess;
   bool get isLoadingWords => _isLoadingWords;
   bool get showingCountdown => _showingCountdown;
+  Map<String, String> get keyboardLetters => _keyboardLetters;
 
   // Oyun süresi hesaplama
   Duration get gameDuration {
