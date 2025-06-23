@@ -343,7 +343,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     _buildModernHeader(user),
                     const SizedBox(height: 20),
                     Expanded(
-                      child: _buildGameMenu(context),
+                      child: Center(
+                        child: _buildGameMenu(context),
+                      ),
                     ),
                     _buildStreakInfo(),
                     const SizedBox(height: 10),
@@ -536,6 +538,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       animation: _bounceAnimation,
       builder: (context, child) {
         return GridView.builder(
+          shrinkWrap: true,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
