@@ -26,7 +26,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Map<String, dynamic>? userStats;
   bool isLoading = true;
-  int activeDuelPlayers = 0;
+  int activeUsers = 0;
   late AnimationController _animationController;
   late AnimationController _pulseController;
   late AnimationController _bounceController;
@@ -36,7 +36,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late AnimationController _dailyChallengePulseController;
   late Animation<double> _dailyChallengePulseAnimation;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userStatsSubscription;
-  StreamSubscription<int>? _duelPlayersSubscription;
+  StreamSubscription<int>? _activeUsersSubscription;
   final List<WordleParticle> _particles = [];
   final _random = math.Random();
   late AnimationController _sheenController;
@@ -107,7 +107,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _dailyChallengePulseController.dispose();
     _sheenController.dispose();
     _userStatsSubscription?.cancel();
-    _duelPlayersSubscription?.cancel();
+    _activeUsersSubscription?.cancel();
+    FirebaseService.setUserOffline(); // Çıkışta offline işaretle
     super.dispose();
   }
 
@@ -143,7 +144,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       // Real-time veri dinlemeyi başlat
       _startListeningToUserStats(user.uid);
-      _startListeningToDuelPlayers();
+      _startListeningToActiveUsers();
+      
+      // Kullanıcıyı online olarak işaretle
+      FirebaseService.setUserOnline();
 
     } catch (e) {
       print('Veri yükleme hatası: $e');
@@ -190,36 +194,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
   }
 
-  void _startListeningToDuelPlayers() {
-    _duelPlayersSubscription?.cancel();
+  void _startListeningToActiveUsers() {
+    _activeUsersSubscription?.cancel();
     
     // Stream'i hemen başlat - kullanıcı direkt aktif sayıyı görsün
-    _duelPlayersSubscription = FirebaseService.getActiveDuelPlayersCount().listen(
+    _activeUsersSubscription = FirebaseService.getActiveUsersCount().listen(
       (count) {
-        print('HomePage - Aktif düello oyuncu sayısı: $count');
+        print('HomePage - Aktif kullanıcı sayısı: $count');
         if (mounted) {
           setState(() {
-            activeDuelPlayers = count;
+            activeUsers = count;
           });
         }
       },
       onError: (error) {
-        print('Aktif düello oyuncuları dinleme hatası: $error');
+        print('Aktif kullanıcıları dinleme hatası: $error');
       },
     );
     
-    // Temizlik işlemini arka planda yap
-    _cleanupInBackground();
-  }
-
-  // Arka planda temizlik
-  void _cleanupInBackground() async {
-    try {
-      await FirebaseService.cleanupOldDuelGames();
-      print('Arka plan temizliği tamamlandı');
-    } catch (e) {
-      print('Arka plan temizlik hatası: $e');
-    }
+    // Realtime Database otomatik presence yönetimi kullandığı için heartbeat gerekli değil
   }
 
   Future<void> _refreshData() async {
@@ -415,7 +408,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             child: FutureBuilder<String?>(
               future: FirebaseService.getUserAvatar(user?.uid ?? ''),
               builder: (context, snapshot) {
-                final userAvatar = snapshot.data ?? AvatarService.generateAvatar(user?.uid ?? '');
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  // Loading durumunda basit bir avatar göster
+                  return CircleAvatar(
+                    radius: 22,
+                    backgroundColor: const Color(0xFF4285F4).withOpacity(0.8),
+                    child: const Icon(Icons.person, color: Colors.white, size: 24),
+                  );
+                }
+                
+                final userAvatar = snapshot.data ?? '👤';
                 return CircleAvatar(
                   radius: 22,
                   backgroundColor: const Color(0xFF4285F4).withOpacity(0.8),
@@ -543,7 +545,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       },
       {
         'title': 'DÜELLO',
-        'subtitle': activeDuelPlayers > 1 ? '$activeDuelPlayers oyuncu aktif!' : activeDuelPlayers == 1 ? '1 oyuncu bekliyor!' : 'Arkadaşlarınla kapış!',
+        'subtitle': activeUsers > 1 ? '$activeUsers kişi aktif!' : activeUsers == 1 ? '1 kişi aktif!' : 'Arkadaşlarınla kapış!',
         'icon': Icons.sports_esports,
         'pattern': _buildThemedPattern(const Color(0xFFe74c3c), 'duel'),
         'color': const Color(0xFFe74c3c),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:uuid/uuid.dart';
 import '../models/duel_game.dart';
@@ -10,6 +11,7 @@ import 'avatar_service.dart';
 
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseDatabase _database = FirebaseDatabase.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
@@ -281,12 +283,33 @@ class FirebaseService {
       final doc = await _firestore.collection('users').doc(uid).get();
       if (doc.exists) {
         final data = doc.data();
-        return data?['avatar'] as String?;
+        final savedAvatar = data?['avatar'] as String?;
+        
+        if (savedAvatar != null && savedAvatar.isNotEmpty) {
+          print('DEBUG - Avatar veritabanından alındı: $savedAvatar');
+          return savedAvatar;
+        } else {
+          // Avatar yoksa oluştur ve kaydet
+          print('DEBUG - Avatar bulunamadı, yeni oluşturuluyor...');
+          final newAvatar = AvatarService.generateAvatar(uid);
+          await updateUserAvatar(uid, newAvatar);
+          print('DEBUG - Yeni avatar kaydedildi: $newAvatar');
+          return newAvatar;
+        }
+      } else {
+        // Kullanıcı profili yoksa oluştur
+        print('DEBUG - Kullanıcı profili bulunamadı, oluşturuluyor...');
+        final newAvatar = AvatarService.generateAvatar(uid);
+        final user = getCurrentUser();
+        if (user != null) {
+          await _saveUserProfile(user, user.displayName ?? 'Kullanıcı', user.email ?? '');
+        }
+        return newAvatar;
       }
-      return null;
     } catch (e) {
       print('Avatar alma hatası: $e');
-      return null;
+      // Hata durumunda bile bir avatar döndür
+      return AvatarService.generateAvatar(uid);
     }
   }
 
@@ -1071,8 +1094,39 @@ class FirebaseService {
       if (tasksData == null) {
         await initializeDailyTasks(uid);
       }
+      
+      // Kullanıcı profili ve avatar var mı kontrol et
+      await _ensureUserProfileExists(uid);
     } catch (e) {
       print('Kullanıcı verilerini başlatma hatası: $e');
+    }
+  }
+
+  // Kullanıcı profilinin var olduğundan emin ol
+  static Future<void> _ensureUserProfileExists(String uid) async {
+    try {
+      final user = getCurrentUser();
+      if (user == null) return;
+      
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+      if (!userDoc.exists) {
+        print('DEBUG - Kullanıcı profili yok, oluşturuluyor...');
+        await _saveUserProfile(user, user.displayName ?? generatePlayerName(), user.email ?? '');
+      } else {
+        // Profil var ama avatar yoksa ekle
+        final data = userDoc.data();
+        final avatar = data?['avatar'] as String?;
+        if (avatar == null || avatar.isEmpty) {
+          print('DEBUG - Avatar eksik, ekleniyor...');
+          final newAvatar = AvatarService.generateAvatar(uid);
+          await _firestore.collection('users').doc(uid).update({
+            'avatar': newAvatar,
+            'lastActiveAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    } catch (e) {
+      print('Kullanıcı profil kontrol hatası: $e');
     }
   }
 
@@ -1205,42 +1259,78 @@ class FirebaseService {
     return (totalPoints / 500).floor() + 1;
   }
 
-  // Aktif düello oyuncularını dinle
-  static Stream<int> getActiveDuelPlayersCount() {
-    // Son 1 saat içinde oluşturulmuş oyunları al
-    final oneHourAgo = DateTime.now().subtract(const Duration(hours: 1));
-    
-    return _firestore
-        .collection('duel_games')
-        .where('status', whereIn: ['waiting', 'active'])
-        .where('createdAt', isGreaterThan: Timestamp.fromDate(oneHourAgo))
-        .snapshots()
-        .map((snapshot) {
-      int activePlayerCount = 0;
-      print('DEBUG - Son 1 saatteki aktif oyun sayısı: ${snapshot.docs.length}');
-      
-      for (final doc in snapshot.docs) {
-        final game = DuelGame.fromFirestore(doc);
-        
-        // Sadece bağlı oyuncuları say (disconnected olmayanlar)
-        int connectedPlayers = 0;
-        for (final player in game.players.values) {
-          if (player.status != PlayerStatus.disconnected) {
-            connectedPlayers++;
-          }
-        }
-        
-        final createdTime = game.createdAt;
-        final now = DateTime.now();
-        final minutesAgo = now.difference(createdTime).inMinutes;
-        
-        print('DEBUG - Oyun ID: ${game.gameId}, Durum: ${game.status}, $minutesAgo dk önce oluşturuldu, Bağlı oyuncu: $connectedPlayers');
-        activePlayerCount += connectedPlayers;
+  // Realtime Database ile aktif kullanıcı sayısını dinle
+  static Stream<int> getActiveUsersCount() {
+    return _database.ref('presence').onValue.map((event) {
+      if (event.snapshot.value == null) {
+        print('DEBUG - Aktif kullanıcı sayısı: 0');
+        return 0;
       }
       
-      print('DEBUG - Toplam aktif oyuncu sayısı: $activePlayerCount');
-      return activePlayerCount;
+      final presence = event.snapshot.value as Map<dynamic, dynamic>;
+      int activeCount = 0;
+      
+      for (final entry in presence.entries) {
+        final userData = entry.value as Map<dynamic, dynamic>;
+        final isOnline = userData['isOnline'] as bool? ?? false;
+        if (isOnline) {
+          activeCount++;
+        }
+      }
+      
+      print('DEBUG - Aktif kullanıcı sayısı: $activeCount');
+      return activeCount;
     });
+  }
+
+  // Kullanıcının online durumunu kaydet (Realtime Database)
+  static Future<void> setUserOnline() async {
+    try {
+      final user = getCurrentUser();
+      if (user == null) return;
+
+      final userPresenceRef = _database.ref('presence/${user.uid}');
+      
+      // Online durumunu kaydet
+      await userPresenceRef.set({
+        'isOnline': true,
+        'lastSeen': ServerValue.timestamp,
+        'deviceInfo': 'flutter_app',
+      });
+      
+      // Bağlantı kesildiğinde otomatik offline yap
+      await userPresenceRef.onDisconnect().set({
+        'isOnline': false,
+        'lastSeen': ServerValue.timestamp,
+      });
+      
+      print('DEBUG - Kullanıcı online olarak işaretlendi (Realtime DB)');
+    } catch (e) {
+      print('Online durumu kaydetme hatası: $e');
+    }
+  }
+
+  // Kullanıcının offline durumunu kaydet (Realtime Database)
+  static Future<void> setUserOffline() async {
+    try {
+      final user = getCurrentUser();
+      if (user == null) return;
+
+      await _database.ref('presence/${user.uid}').set({
+        'isOnline': false,
+        'lastSeen': ServerValue.timestamp,
+      });
+      
+      print('DEBUG - Kullanıcı offline olarak işaretlendi (Realtime DB)');
+    } catch (e) {
+      print('Offline durumu kaydetme hatası: $e');
+    }
+  }
+
+  // Presence heartbeat artık gerekli değil - onDisconnect otomatik yapıyor
+  static Future<void> updateUserPresence() async {
+    // Realtime Database otomatik presence yönetimi kullandığı için bu metod artık boş
+    // Ama uyumluluk için bırakıyoruz
   }
 
     // Eski düello oyunlarını temizle
