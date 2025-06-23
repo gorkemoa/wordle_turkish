@@ -335,7 +335,12 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
               // Oyun bilgileri - Kompakt tasarım
               _buildCompactGameInfo(game),
               
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
+              
+              // Jeton bilgisi - Yeni responsive card
+              _buildTokenInfo(),
+              
+              const SizedBox(height: 16),
               
               // Onay sistemi veya bekleme durumu - Alt merkez
               if (isWaitingForOpponent)
@@ -430,6 +435,226 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildTokenInfo() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Responsive tasarım için ekran genişliğini kontrol et
+        final isSmallScreen = constraints.maxWidth < 350;
+        final iconSize = isSmallScreen ? 18.0 : 20.0;
+        final fontSize = isSmallScreen ? 12.0 : 14.0;
+        final titleFontSize = isSmallScreen ? 14.0 : 16.0;
+        
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.amber.shade600.withOpacity(0.15),
+                Colors.orange.shade600.withOpacity(0.15),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.amber.shade600.withOpacity(0.4),
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            children: [
+              // Başlık
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.monetization_on,
+                    color: Colors.amber.shade400,
+                    size: iconSize,
+                  ),
+                  SizedBox(width: isSmallScreen ? 6 : 8),
+                  Text(
+                    'Düello Jeton Sistemi',
+                    style: TextStyle(
+                      color: Colors.amber.shade200,
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              
+              SizedBox(height: isSmallScreen ? 8 : 12),
+              
+              // Responsive grid layout
+              if (isSmallScreen)
+                // Küçük ekranlar için dikey liste
+                Column(
+                  children: [
+                    _buildTokenInfoRow(
+                      Icons.payment,
+                      'Giriş Ücreti',
+                      '2 Jeton',
+                      Colors.red.shade400,
+                      fontSize,
+                      iconSize,
+                    ),
+                    SizedBox(height: 6),
+                    _buildTokenInfoRow(
+                      Icons.emoji_events,
+                      'Kazanç',
+                      '4 Jeton',
+                      Colors.green.shade400,
+                      fontSize,
+                      iconSize,
+                    ),
+                    SizedBox(height: 6),
+                    _buildTokenInfoRow(
+                      Icons.schedule,
+                      'Kesim Zamanı',
+                      'Oyun Başlangıcı',
+                      Colors.blue.shade400,
+                      fontSize,
+                      iconSize,
+                    ),
+                  ],
+                )
+              else
+                // Büyük ekranlar için yatay grid
+                Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTokenInfoRow(
+                            Icons.payment,
+                            'Giriş Ücreti',
+                            '2 Jeton',
+                            Colors.red.shade400,
+                            fontSize,
+                            iconSize,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: _buildTokenInfoRow(
+                            Icons.emoji_events,
+                            'Kazanç',
+                            '4 Jeton',
+                            Colors.green.shade400,
+                            fontSize,
+                            iconSize,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    _buildTokenInfoRow(
+                      Icons.schedule,
+                      'Kesim Zamanı',
+                      'Oyun Başlangıcı',
+                      Colors.blue.shade400,
+                      fontSize,
+                      iconSize,
+                    ),
+                  ],
+                ),
+              
+              SizedBox(height: isSmallScreen ? 6 : 8),
+              
+              // Uyarı mesajı
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSmallScreen ? 8 : 12,
+                  vertical: isSmallScreen ? 4 : 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade600.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.orange.shade600.withOpacity(0.5),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.orange.shade300,
+                      size: isSmallScreen ? 14 : 16,
+                    ),
+                    SizedBox(width: isSmallScreen ? 4 : 6),
+                    Flexible(
+                      child: Text(
+                        'Jetonlar oyun başladığında kesilir',
+                        style: TextStyle(
+                          color: Colors.orange.shade200,
+                          fontSize: isSmallScreen ? 10 : 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTokenInfoRow(
+    IconData icon,
+    String label,
+    String value,
+    Color color,
+    double fontSize,
+    double iconSize,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: iconSize),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.grey.shade300,
+                    fontSize: fontSize - 2,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

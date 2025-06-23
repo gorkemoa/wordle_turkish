@@ -143,20 +143,13 @@ class DuelViewModel extends ChangeNotifier {
       }
       debugPrint('Firebase giriş başarılı: ${user.uid}');
 
-      // Jeton kontrolü ve kesme - 2 jeton gerekli
+      // Jeton kontrolü (henüz kesme, oyun başladığında kesilecek)
       final currentTokens = await FirebaseService.getUserTokens(user.uid);
       if (currentTokens < 2) {
         debugPrint('Yetersiz jeton: $currentTokens (2 gerekli)');
         return false;
       }
-      
-      // 2 jeton kes
-      final success = await FirebaseService.spendTokens(user.uid, 2, 'Düello Girişi');
-      if (!success) {
-        debugPrint('Jeton kesme başarısız');
-        return false;
-      }
-      debugPrint('2 jeton kesildi, düello başlatılıyor');
+      debugPrint('Jeton kontrolü başarılı: $currentTokens (2 jeton oyun başladığında kesilecek)');
 
       // Kelime listesini yükle
       await loadValidWords();
@@ -258,8 +251,11 @@ class DuelViewModel extends ChangeNotifier {
 
   // Oyun başlangıcını planla (countdown sonrası)
   void _scheduleGameStart() {
-    Future.delayed(const Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 3), () async {
       if (_currentGame?.status == GameStatus.active) {
+        // Oyun başlıyor - jetonu kes
+        await _deductGameTokens();
+        
         _showingCountdown = false;
         _isGameActive = true;
         _gameStartTime = DateTime.now();
@@ -275,6 +271,23 @@ class DuelViewModel extends ChangeNotifier {
         notifyListeners();
       }
     });
+  }
+
+  // Oyun başladığında jeton kes
+  Future<void> _deductGameTokens() async {
+    try {
+      final user = FirebaseService.getCurrentUser();
+      if (user != null) {
+        final success = await FirebaseService.spendTokens(user.uid, 2, 'Düello Oyunu');
+        if (success) {
+          debugPrint('Oyun başladı - 2 jeton kesildi');
+        } else {
+          debugPrint('Jeton kesme hatası');
+        }
+      }
+    } catch (e) {
+      debugPrint('Jeton kesme exception: $e');
+    }
   }
 
   // Harf gir

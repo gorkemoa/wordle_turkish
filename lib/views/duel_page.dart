@@ -72,13 +72,13 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       // Kullanıcının online olduğundan emin ol
       await FirebaseService.setUserOnline();
       
-      // Jeton kontrolü
+      // Jeton kontrolü (düello viewmodel'de de kontrol ediliyor)
       final user = FirebaseService.getCurrentUser();
       if (user != null) {
         final tokens = await FirebaseService.getUserTokens(user.uid);
         if (tokens < 2) {
           _showErrorDialog('Yetersiz Jeton', 
-            'Düello oynamak için 2 jetona ihtiyacınız var. Mevcut jetonunuz: $tokens');
+            'Düello oynamak için 2 jetona ihtiyacınız var. Mevcut jetonunuz: $tokens\n\n💡 Jetonlar oyun başladığında kesilir.');
           return;
         }
       }
