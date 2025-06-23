@@ -315,22 +315,19 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
         ),
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
               // Durum göstergesi - Üst kısım
               _buildStatusIndicator(isWaitingForOpponent),
               
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               
-              // Oyuncular kartı - Merkez üst
-              Expanded(
-                flex: 3,
-                child: _buildPlayersCard(game, viewModel),
-              ),
+              // Oyuncular kartı - Kompakt
+              _buildPlayersCard(game, viewModel),
               
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               
               // Oyun bilgileri - Kompakt tasarım
               _buildCompactGameInfo(game),
@@ -340,7 +337,7 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
               // Jeton bilgisi - Yeni responsive card
               _buildTokenInfo(),
               
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               
               // Onay sistemi veya bekleme durumu - Alt merkez
               if (isWaitingForOpponent)
@@ -348,7 +345,7 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
               else
                 _buildReadySystem(viewModel),
               
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               
               // Başka rakip bul butonu (sadece rakip beklenirken göster)
               if (isWaitingForOpponent)
@@ -359,6 +356,9 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
               
               // Çıkış butonu - En alt
               _buildExitButton(isWaitingForOpponent),
+              
+              // Alt padding
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -666,10 +666,10 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
     
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.green.withOpacity(0.3)),
       ),
       child: Column(
@@ -678,25 +678,25 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
         children: [
           // Başlık
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [Colors.green.shade600, Colors.blue.shade600],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
               ),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.people, color: Colors.white, size: 20),
-                const SizedBox(width: 6),
+                Icon(Icons.people, color: Colors.white, size: 18),
+                const SizedBox(width: 4),
                 Text(
                   'Oyuncular ($playerCount/2)',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -704,7 +704,7 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             ),
           ),
           
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           
           // Oyuncular - Yatay düzen
           if (playerCount == 2)
@@ -768,12 +768,12 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
 
   Widget _buildCompactPlayerCard(DuelPlayer player, bool isCurrentPlayer) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: isCurrentPlayer 
           ? Colors.blue.shade600.withOpacity(0.2) 
           : const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: isCurrentPlayer 
           ? Border.all(color: Colors.blue.shade600, width: 2)
           : Border.all(color: Colors.grey.withOpacity(0.3)),
@@ -782,8 +782,8 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
         children: [
           // Avatar
           Container(
-            width: 60,
-            height: 60,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
@@ -797,18 +797,18 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             child: Icon(
               isCurrentPlayer ? Icons.person : Icons.person_outline,
               color: Colors.white,
-              size: 32,
+              size: 28,
             ),
           ),
           
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           
           // Oyuncu adı
           Text(
             player.playerName,
             style: TextStyle(
               color: isCurrentPlayer ? Colors.blue.shade200 : Colors.white,
-              fontSize: 14,
+              fontSize: 12,
               fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.center,
@@ -822,11 +822,11 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             isCurrentPlayer ? 'Sen' : 'Rakip',
             style: TextStyle(
               color: Colors.grey.shade400,
-              fontSize: 12,
+              fontSize: 10,
             ),
           ),
           
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           
           // Durum göstergesi
           Container(

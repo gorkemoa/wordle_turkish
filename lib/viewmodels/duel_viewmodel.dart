@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/duel_game.dart';
@@ -126,8 +127,15 @@ class DuelViewModel extends ChangeNotifier {
     if (validWordsSet.isEmpty) return 'ELMA';
     
     final words = validWordsSet.toList();
-    words.shuffle();
-    return words.first;
+    final random = math.Random();
+    
+    // Daha gerçek rastgele seçim için timestamp kullan
+    random.nextInt(words.length);
+    
+    final selectedWord = words[random.nextInt(words.length)];
+    debugPrint('Rastgele kelime seçildi: $selectedWord (${words.length} kelime arasından)');
+    
+    return selectedWord;
   }
 
   // Düello oyununu başlat

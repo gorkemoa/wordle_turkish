@@ -96,6 +96,20 @@ class _TokenShopPageState extends State<TokenShopPage> {
     }
   }
 
+  Future<void> _addTestTokens() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // 10 test jetonu ekle
+      await FirebaseService.earnTokens(user.uid, 10, 'Test Jetonu');
+      _showSnackBar('🧪 10 test jetonu eklendi!', Colors.pink);
+      await _loadUserTokens(); // Jeton sayısını yenile
+    } catch (e) {
+      _showSnackBar('Bir hata oluştu: $e', Colors.red);
+    }
+  }
+
   void _showSnackBar(String message, Color color) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,6 +166,10 @@ class _TokenShopPageState extends State<TokenShopPage> {
                   
                   // Reklam izle kartı
                   _buildAdWatchCard(),
+                  const SizedBox(height: 16),
+                  
+                  // Test butonu - geliştirme için
+                  _buildTestTokenCard(),
                   const SizedBox(height: 16),
                   
                   // Oyun kazanma kartı
@@ -405,6 +423,77 @@ class _TokenShopPageState extends State<TokenShopPage> {
                       ),
                     )
                   : const Text('İzle'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTestTokenCard() {
+    return Card(
+      color: const Color(0xFF2A2A2A),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.pink.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.bug_report,
+                color: Colors.pink,
+                size: 32,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Test Jetonu',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Geliştirme için 10 jeton ekle (sadece test)',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.monetization_on, color: Colors.amber, size: 16),
+                      const SizedBox(width: 4),
+                      const Text(
+                        '+10',
+                        style: TextStyle(
+                          color: Colors.amber,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              onPressed: _addTestTokens,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.pink,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Test Al'),
             ),
           ],
         ),
