@@ -216,6 +216,7 @@ class FirebaseService {
         'lastActiveAt': FieldValue.serverTimestamp(),
         'gamesPlayed': 0,
         'gamesWon': 0,
+        'tokens': 2, // Yeni üyeler 2 jetonla başlar
       }, SetOptions(merge: true));
 
       // Kullanıcı istatistiklerini ve günlük görevlerini başlat
@@ -396,13 +397,18 @@ class FirebaseService {
   // Yeni oyun odası oluştur veya mevcut odaya katıl (Realtime Database)
   static Future<String?> findOrCreateGame(String playerName, String secretWord) async {
     try {
+      print('=== DÜELLO OYUNU OLUŞTURMA BAŞLADI ===');
       print('Realtime DB oyun oluşturma başlatılıyor...');
+      print('Database URL: ${_database.app.options.databaseURL}');
+      
       final user = getCurrentUser();
       if (user == null) {
-        print('Kullanıcı null!');
+        print('HATA: Kullanıcı null - giriş yapılmamış!');
         return null;
       }
-      print('Kullanıcı ID: ${user.uid}');
+      print('✓ Kullanıcı ID: ${user.uid}');
+      print('✓ Oyuncu adı: $playerName');
+      print('✓ Gizli kelime: $secretWord');
 
       // Bekleyen oyunları ara
       print('Bekleyen oyunlar aranıyor...');
@@ -642,8 +648,6 @@ class FirebaseService {
       return false;
     }
   }
-
-
 
   // Bitmiş düello oyununu geçmişe kaydet (Firestore)
   static Future<void> _saveDuelGameToHistory(String gameId, DuelGame game, String? winnerId) async {
@@ -1154,6 +1158,9 @@ class FirebaseService {
 
       // Görev ilerlemelerini güncelle
       await _updateTaskProgressBasedOnGame(uid, gameType, score, isWon, duration);
+      
+      // Jeton sistemini güncelle
+      await updateTokensForGameResult(uid, isWon, gameType);
 
     } catch (e) {
       print('Oyun sonucu kaydetme hatası: $e');
@@ -1386,6 +1393,153 @@ class FirebaseService {
     }
   }
 
-  // Gerçek oyun sonuçlarını kaydetmek için saveGameResult metodunu kullanın
-  // Artık sahte veri oluşturmuyoruz - sadece gerçek oyun verileri saklanacak
+  // ============= JETON YÖNETİMİ =============
+  
+  /// Kullanıcının mevcut jeton sayısını al
+  static Future<int> getUserTokens(String uid) async {
+    try {
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        return data['tokens'] ?? 0;
+      }
+      return 0;
+    } catch (e) {
+      print('Jeton alma hatası: $e');
+      return 0;
+    }
+  }
+  
+  /// Jeton harca (ipucu, güçlendirme vs.)
+  static Future<bool> spendTokens(String uid, int amount, String reason) async {
+    try {
+      final currentTokens = await getUserTokens(uid);
+      if (currentTokens < amount) {
+        print('Yetersiz jeton: $currentTokens < $amount');
+        return false;
+      }
+      
+      await _firestore.collection('users').doc(uid).update({
+        'tokens': FieldValue.increment(-amount),
+        'lastActiveAt': FieldValue.serverTimestamp(),
+      });
+      
+      // Jeton harcama geçmişi kaydet
+      await _logTokenTransaction(uid, -amount, reason);
+      print('$amount jeton harcandı: $reason');
+      return true;
+    } catch (e) {
+      print('Jeton harcama hatası: $e');
+      return false;
+    }
+  }
+  
+  /// Jeton kazan (oyun kazanma, reklam izleme vs.)
+  static Future<void> earnTokens(String uid, int amount, String reason) async {
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'tokens': FieldValue.increment(amount),
+        'lastActiveAt': FieldValue.serverTimestamp(),
+      });
+      
+      // Jeton kazanma geçmişi kaydet
+      await _logTokenTransaction(uid, amount, reason);
+      print('$amount jeton kazanıldı: $reason');
+    } catch (e) {
+      print('Jeton kazanma hatası: $e');
+    }
+  }
+  
+  /// Jeton işlem geçmişi kaydet
+  static Future<void> _logTokenTransaction(String uid, int amount, String reason) async {
+    try {
+      await _firestore.collection('token_transactions').add({
+        'uid': uid,
+        'amount': amount,
+        'reason': reason,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Jeton işlem kaydı hatası: $e');
+    }
+  }
+  
+  /// Reklam izleyerek jeton kazan
+  static Future<void> earnTokensFromAd(String uid) async {
+    try {
+      const int adTokenReward = 1; // Reklam başına 1 jeton
+      await earnTokens(uid, adTokenReward, 'Reklam İzleme');
+      
+      // Reklam izleme istatistiği
+      await _firestore.collection('users').doc(uid).update({
+        'adsWatched': FieldValue.increment(1),
+      });
+    } catch (e) {
+      print('Reklam jeton kazanma hatası: $e');
+    }
+  }
+  
+  /// Günlük bonus jeton kazan (reklam alternatifi)
+  static Future<bool> earnDailyBonus(String uid) async {
+    try {
+      final today = DateTime.now();
+      final todayStr = '${today.year}-${today.month}-${today.day}';
+      
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+      final userData = userDoc.data() ?? {};
+      final lastBonusDate = userData['lastBonusDate'] as String?;
+      
+      // Bugün zaten bonus aldı mı kontrol et
+      if (lastBonusDate == todayStr) {
+        return false; // Bugün zaten aldı
+      }
+      
+      // Bonus ver
+      await earnTokens(uid, 1, 'Günlük Bonus');
+      
+      // Son bonus tarihini güncelle
+      await _firestore.collection('users').doc(uid).update({
+        'lastBonusDate': todayStr,
+      });
+      
+      return true;
+    } catch (e) {
+      print('Günlük bonus hatası: $e');
+      return false;
+    }
+  }
+  
+  /// Günlük bonus alınabilir mi kontrol et
+  static Future<bool> canEarnDailyBonus(String uid) async {
+    try {
+      final today = DateTime.now();
+      final todayStr = '${today.year}-${today.month}-${today.day}';
+      
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+      final userData = userDoc.data() ?? {};
+      final lastBonusDate = userData['lastBonusDate'] as String?;
+      
+      return lastBonusDate != todayStr;
+    } catch (e) {
+      print('Günlük bonus kontrol hatası: $e');
+      return false;
+    }
+  }
+  
+  /// Oyun sonucuna göre jeton güncelle
+  static Future<void> updateTokensForGameResult(String uid, bool won, String gameType) async {
+    try {
+      if (won) {
+        await earnTokens(uid, 1, '$gameType Kazanma');
+      } else {
+        // Kaybedince jeton kaybetme (minimum 0'a düşebilir)
+        final currentTokens = await getUserTokens(uid);
+        if (currentTokens > 0) {
+          await spendTokens(uid, 1, '$gameType Kaybetme');
+        }
+      }
+    } catch (e) {
+      print('Oyun sonucu jeton güncelleme hatası: $e');
+    }
+  }
 } 

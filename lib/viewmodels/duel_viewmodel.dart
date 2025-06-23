@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../models/duel_game.dart';
 import '../services/firebase_service.dart';
 import '../viewmodels/wordle_viewmodel.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class DuelViewModel extends ChangeNotifier {
   static const int maxAttempts = 6;
@@ -155,9 +156,10 @@ class DuelViewModel extends ChangeNotifier {
       debugPrint('Gizli kelime seçildi: $secretWord');
       
       // Oyun oluştur veya katıl
+      debugPrint('Firebase\'e oyun oluşturma isteği gönderiliyor...');
       _gameId = await FirebaseService.findOrCreateGame(_playerName, secretWord);
       if (_gameId == null) {
-        debugPrint('Oyun oluşturma başarısız');
+        debugPrint('HATA: Oyun oluşturma başarısız - Firebase bağlantısı kontrol edilsin');
         return false;
       }
       debugPrint('Oyun ID: $_gameId');
@@ -232,6 +234,9 @@ class DuelViewModel extends ChangeNotifier {
         _isGameActive = false;
         _showingCountdown = false;
         _readyTimer?.cancel();
+        
+        // Jeton sistemini güncelle
+        _updateTokensForGameResult();
         break;
     }
   }
@@ -524,6 +529,27 @@ class DuelViewModel extends ChangeNotifier {
         return Colors.transparent;
       default:
         return Colors.transparent;
+    }
+  }
+
+  // Oyun sonucuna göre jeton güncelle
+  Future<void> _updateTokensForGameResult() async {
+    try {
+      final user = FirebaseService.getCurrentUser();
+      if (user == null || _currentGame == null) return;
+
+      final currentPlayer = this.currentPlayer;
+      if (currentPlayer == null) return;
+
+      // Oyuncunun kazanıp kaybettiğini kontrol et
+      bool won = currentPlayer.status == PlayerStatus.won;
+      
+      // Firebase'e jeton güncellemesi gönder
+      await FirebaseService.updateTokensForGameResult(user.uid, won, 'Düello');
+      
+      debugPrint('Düello jeton güncellemesi: won=$won');
+    } catch (e) {
+      debugPrint('Düello jeton güncelleme hatası: $e');
     }
   }
 } 

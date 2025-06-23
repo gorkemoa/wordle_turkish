@@ -10,6 +10,7 @@ import '../services/avatar_service.dart';
 
 import 'duel_page.dart';
 import 'leaderboard_page.dart';
+import 'token_shop_page.dart';
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'dart:ui';
@@ -301,6 +302,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     Navigator.pushNamed(context, '/profile');
   }
 
+  void _navigateToTokenShop() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TokenShopPage(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -459,7 +469,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ),
 
-          _buildStatChip(Icons.monetization_on, tokens.toString(), Colors.amber),
+          GestureDetector(
+            onTap: () => _navigateToTokenShop(),
+            child: _buildStatChip(Icons.monetization_on, tokens.toString(), Colors.amber),
+          ),
           const SizedBox(width: 8),
           _buildHeaderButton(Icons.brightness_6_outlined, widget.toggleTheme ?? () {}),
         ],

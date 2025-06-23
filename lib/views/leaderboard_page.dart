@@ -175,6 +175,55 @@ class LeaderboardTab extends StatelessWidget {
                 ),
               ),
               
+              // Açıklama metni
+              if (viewModel.currentType == LeaderboardType.winRate) ...[
+                SliverToBoxAdapter(
+                  child: Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.blue.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Sıralama Sistemi',
+                              style: TextStyle(
+                                color: Colors.blue.shade700,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '• 10+ oyun oynayan oyuncular gerçek kazanma oranlarıyla sıralanır\n'
+                          '• Az oyun oynayan oyuncular (*) düzeltilmiş oranla sıralanır\n'
+                          '• Bu sistem, 1 oyun oynayıp %100 alan oyuncuların avantajını engeller',
+                          style: TextStyle(
+                            color: Colors.blue.shade600,
+                            fontSize: 12,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              
               // Alt boşluk
               const SliverToBoxAdapter(
                 child: SizedBox(height: 100),
@@ -386,12 +435,34 @@ class LeaderboardTab extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  '${stats.gamesPlayed} oyun • ${stats.gamesWon} galibiyet',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF666666),
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      '${stats.gamesPlayed} oyun • ${stats.gamesWon} galibiyet',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF666666),
+                      ),
+                    ),
+                    if (stats.gamesPlayed < 10) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'YENİ',
+                          style: TextStyle(
+                            fontSize: 8,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -423,7 +494,12 @@ class LeaderboardTab extends StatelessWidget {
       case LeaderboardType.totalScore:
         return stats.totalScore.toString();
       case LeaderboardType.winRate:
-        return viewModel.formatWinRate(stats.winRate);
+        // Az oyun oynayan oyuncular için düzeltilmiş oran göster
+        if (stats.gamesPlayed < 10) {
+          return '${viewModel.formatWinRate(stats.adjustedWinRate)} *';
+        } else {
+          return viewModel.formatWinRate(stats.winRate);
+        }
     }
   }
 }

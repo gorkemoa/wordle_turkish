@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'services/firebase_service.dart';
+import 'services/ad_service.dart';
 import 'viewmodels/wordle_viewmodel.dart';
 import 'viewmodels/duel_viewmodel.dart';
 import 'viewmodels/leaderboard_viewmodel.dart';
@@ -32,6 +33,13 @@ void main() async {
       print('Firebase initialization hatası: $e');
       rethrow;
     }
+  }
+  
+  // AdMob'u başlat (opsiyonel)
+  try {
+    await AdService.initialize();
+  } catch (e) {
+    print('AdMob başlatılamadı, reklam özellikleri devre dışı: $e');
   }
   
   runApp(

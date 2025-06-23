@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/duel_viewmodel.dart';
 import '../models/duel_game.dart';
+import '../services/firebase_service.dart';
 import 'duel_waiting_room.dart';
 import 'duel_result_page.dart';
 
@@ -17,6 +18,7 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   late Animation<double> _pulseAnimation;
   bool _hasNavigatedToResult = false;
   bool _hasStartedGame = false; // Oyun başlatma kontrolü için flag
+  bool _hasTimedOut = false; // Timeout kontrolü için flag
 
   @override
   void initState() {
@@ -42,6 +44,18 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _startGame();
       });
+      
+      // 15 saniye timeout ekle
+      Future.delayed(const Duration(seconds: 15), () {
+        if (mounted && !_hasTimedOut) {
+          final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+          if (viewModel.currentGame == null) {
+            setState(() {
+              _hasTimedOut = true;
+            });
+          }
+        }
+      });
     }
   }
 
@@ -54,12 +68,17 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   Future<void> _startGame() async {
     try {
       final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+      
+      // Kullanıcının online olduğundan emin ol
+      await FirebaseService.setUserOnline();
+      
       final success = await viewModel.startDuelGame();
       
       if (!mounted) return;
       
       if (!success) {
-        _showErrorDialog('Oyun başlatılamadı', 'Bağlantı hatası oluştu');
+        _showErrorDialog('Oyun başlatılamadı', 
+          'Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.');
         return;
       }
       
@@ -152,6 +171,37 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         elevation: 0,
         automaticallyImplyLeading: false,
         actions: [
+          // Jeton göstergesi
+          Consumer<DuelViewModel>(
+            builder: (context, viewModel, child) {
+              return FutureBuilder<int>(
+                future: FirebaseService.getCurrentUser() != null 
+                    ? FirebaseService.getUserTokens(FirebaseService.getCurrentUser()!.uid)
+                    : Future.value(0),
+                builder: (context, snapshot) {
+                  final tokens = snapshot.data ?? 0;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.monetization_on, color: Colors.amber, size: 20),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$tokens',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.exit_to_app, color: Colors.red),
             onPressed: () => _showExitDialog(),
@@ -170,10 +220,11 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
           // Oyun yükleniyor
           if (game == null) {
             debugPrint('DuelPage - Oyun null, loading gösteriliyor');
-            // Eğer oyun başlatılmış ama null ise, hata durumu göster
-            if (_hasStartedGame) {
+            // Timeout olmuşsa error göster
+            if (_hasTimedOut) {
               return _buildErrorState();
             }
+            // Oyun başlatılıyorsa loading göster
             return _buildLoadingState();
           }
           
@@ -281,21 +332,53 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   }
 
   Widget _buildLoadingState() {
-    return const Center(
-            child: Column(
+    return Center(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-          CircularProgressIndicator(
-            color: Colors.blue,
+        children: [
+          // Animasyonlu düello ikonları
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _pulseAnimation.value,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.sports_martial_arts,
+                    color: Colors.blue,
+                    size: 48,
+                  ),
+                ),
+              );
+            },
           ),
-          SizedBox(height: 16),
-                Text(
-            'Oyun yükleniyor...',
-                  style: TextStyle(
+          const SizedBox(height: 24),
+          const CircularProgressIndicator(
+            color: Colors.blue,
+            strokeWidth: 3,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Düello Hazırlanıyor...',
+            style: TextStyle(
               color: Colors.white,
               fontSize: 18,
-                fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.bold,
             ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Rakip aranıyor veya oyun oluşturuluyor',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -308,13 +391,13 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(
-            Icons.error_outline,
-            color: Colors.red,
+            Icons.wifi_off,
+            color: Colors.orange,
             size: 64,
           ),
           const SizedBox(height: 16),
           const Text(
-            'Oyun bağlantısı kesildi',
+            'Bağlantı Sorunu',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -323,26 +406,52 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Bağlantı sorunu yaşandı',
+            'İnternet bağlantınızı kontrol edin',
             style: TextStyle(
               color: Colors.grey,
               fontSize: 14,
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  // Tekrar dene
+                  setState(() {
+                    _hasStartedGame = false;
+                    _hasTimedOut = false;
+                  });
+                  _startGame();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('Tekrar Dene'),
               ),
-            ),
-            child: const Text('Ana Sayfaya Dön'),
+              const SizedBox(width: 16),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('Ana Sayfa'),
+              ),
+            ],
           ),
         ],
       ),

@@ -341,6 +341,31 @@ void _navigateToMainMenu() {
             title: Text(viewModel.gameMode == GameMode.daily ? 'Günlük Oyun' : 'Zorlu Mod'),
             centerTitle: true,
             actions: [
+              // Jeton göstergesi
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.monetization_on, color: Colors.amber, size: 20),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${viewModel.userTokens}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // İpucu butonu
+              if (!viewModel.gameOver)
+                IconButton(
+                  icon: const Icon(Icons.lightbulb_outline),
+                  onPressed: () => _showHintDialog(viewModel),
+                  tooltip: 'Harf İpucu (1 🪙)',
+                ),
               if (!viewModel.gameOver) // Sadece oyun sırasında zamanlayıcıyı göster
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12.0),
@@ -458,13 +483,30 @@ void _navigateToMainMenu() {
                   alignment: Alignment.center,
                   child: FittedBox(
                     fit: BoxFit.scaleDown, // Metni kutuya sığdır
-                    child: Text(
-                      viewModel.guesses[row][col],
-                      style: TextStyle(
-                        fontSize: boxSize * 0.5, // Dinamik font size
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Text(
+                          viewModel.guesses[row][col],
+                          style: TextStyle(
+                            fontSize: boxSize * 0.5, // Dinamik font size
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        // İpucu harfini göster (sadece boş kutularda ve mevcut satırda)
+                        if (viewModel.guesses[row][col].isEmpty && 
+                            row == viewModel.currentAttempt && 
+                            viewModel.isHintRevealed(col))
+                          Text(
+                            viewModel.getHintLetter(col),
+                            style: TextStyle(
+                              fontSize: boxSize * 0.4,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.amber.withOpacity(0.7),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 );
@@ -480,5 +522,115 @@ void _navigateToMainMenu() {
     final minutes = (seconds / 60).floor();
     final remainingSeconds = seconds % 60;
     return "${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}";
+  }
+
+  /// İpucu dialog'unu göster
+  void _showHintDialog(WordleViewModel viewModel) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lightbulb, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('Harf İpucu'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mevcut Jetonlar: ${viewModel.userTokens} 🪙'),
+            const SizedBox(height: 8),
+            const Text('Harf ipucu satın almak için 1 jeton gerekir.'),
+            const SizedBox(height: 8),
+            Text('Açılan ipuçları: ${viewModel.revealedHints.length}/${viewModel.currentWordLength}'),
+            if (viewModel.userTokens < 1) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Yetersiz jeton! Reklam izleyerek ücretsiz jeton kazanabilirsiniz.',
+                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          if (viewModel.userTokens < 1)
+            TextButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _watchAdForTokens(viewModel);
+              },
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Reklam İzle'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          if (viewModel.userTokens >= 1 && viewModel.revealedHints.length < viewModel.currentWordLength)
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _buyHint(viewModel);
+              },
+              icon: const Icon(Icons.lightbulb),
+              label: const Text('İpucu Al (1 🪙)'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Harf ipucu satın al
+  Future<void> _buyHint(WordleViewModel viewModel) async {
+    bool success = await viewModel.buyLetterHint();
+    if (success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🎉 Harf ipucu alındı!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ İpucu alınamadı!'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Reklam izleyerek jeton kazan
+  Future<void> _watchAdForTokens(WordleViewModel viewModel) async {
+    bool success = await viewModel.watchAdForTokens();
+    if (success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🎉 1 jeton kazandınız!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Reklam şu anda mevcut değil!'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 }

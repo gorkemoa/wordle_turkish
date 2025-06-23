@@ -7,6 +7,9 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'leaderboard_viewmodel.dart';
+import '../services/firebase_service.dart';
+import '../services/ad_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 extension TurkishCaseExtension on String {
   String toTurkishUpperCase() {
@@ -67,6 +70,10 @@ class WordleViewModel extends ChangeNotifier {
 
   // Geçerli tüm kelimeler seti
   Set<String> validWordsSet = {};
+  
+  // Jeton sistemi
+  int _userTokens = 0;
+  List<int> _revealedHints = []; // Açılan ipucu pozisyonları
 
   // Zorlu mod için dinamik kelime uzunluğunu belirleyen harita
   final Map<int, int> challengeModeWordLength = {
@@ -83,6 +90,7 @@ class WordleViewModel extends ChangeNotifier {
   WordleViewModel() {
     resetGame();
     _loadBestScores();
+    _loadUserTokens();
   }
 
   // Getters
@@ -100,6 +108,9 @@ class WordleViewModel extends ChangeNotifier {
   int get bestTime => _bestTime;
   int get bestAttempts => _bestAttempts;
   GameMode get gameMode => _gameMode;
+  int get userTokens => _userTokens;
+  List<int> get revealedHints => _revealedHints;
+  int get currentColumn => _currentColumn;
 
   Future<void> resetGame({GameMode? mode}) async {
     _gameOver = false;
@@ -107,6 +118,7 @@ class WordleViewModel extends ChangeNotifier {
     _keyboardColors.clear();
     _currentAttempt = 0;
     _currentColumn = 0; // Sıfırla
+    _revealedHints.clear(); // İpuçlarını sıfırla
 
     // Mod ayarla
     if (mode != null) {
@@ -454,5 +466,106 @@ class WordleViewModel extends ChangeNotifier {
       notifyListeners();
       // Maksimum seviyeye ulaşıldığında yapılacak işlemler
     }
+  }
+
+  // ============= JETON SİSTEMİ =============
+  
+  /// Kullanıcının jeton sayısını Firebase'den yükle
+  Future<void> _loadUserTokens() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        _userTokens = await FirebaseService.getUserTokens(user.uid);
+        notifyListeners();
+      }
+    } catch (e) {
+      print('Jeton yükleme hatası: $e');
+    }
+  }
+  
+  /// Jeton sayısını yenile
+  Future<void> refreshTokens() async {
+    await _loadUserTokens();
+  }
+  
+  /// Harf ipucu satın al (1 jeton)
+  Future<bool> buyLetterHint() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+      
+      // Yetersiz jeton kontrolü
+      if (_userTokens < 1) {
+        return false;
+      }
+      
+      // Tüm harfler açılmış mı kontrolü
+      if (_revealedHints.length >= _currentWordLength) {
+        return false;
+      }
+      
+      // Rastgele bir harf pozisyonu seç (henüz açılmamış)
+      List<int> availablePositions = [];
+      for (int i = 0; i < _currentWordLength; i++) {
+        if (!_revealedHints.contains(i)) {
+          availablePositions.add(i);
+        }
+      }
+      
+      if (availablePositions.isEmpty) return false;
+      
+      availablePositions.shuffle();
+      int selectedPosition = availablePositions.first;
+      
+      // Jetonu harca
+      bool success = await FirebaseService.spendTokens(user.uid, 1, 'Harf İpucu');
+      if (success) {
+        _revealedHints.add(selectedPosition);
+        _userTokens--; // Local güncelleme
+        notifyListeners();
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      print('Harf ipucu satın alma hatası: $e');
+      return false;
+    }
+  }
+  
+  /// Reklam izleyerek jeton kazan
+  Future<bool> watchAdForTokens() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+      
+      if (!AdService.isRewardedAdReady()) {
+        return false;
+      }
+      
+      bool success = await AdService.showRewardedAd(user.uid);
+      if (success) {
+        await refreshTokens(); // Jeton sayısını güncelle
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      print('Reklam izleme hatası: $e');
+      return false;
+    }
+  }
+  
+  /// Belirli pozisyondaki harfin ipucu olarak açılıp açılmadığını kontrol et
+  bool isHintRevealed(int position) {
+    return _revealedHints.contains(position);
+  }
+  
+  /// İpucu harfini al
+  String getHintLetter(int position) {
+    if (isHintRevealed(position) && position < _secretWord.length) {
+      return _secretWord[position];
+    }
+    return '';
   }
 }

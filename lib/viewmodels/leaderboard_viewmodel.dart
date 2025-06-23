@@ -54,13 +54,15 @@ class LeaderboardViewModel extends ChangeNotifier {
           .map((doc) => LeaderboardStats.fromFirestore(doc.data()))
           .toList();
 
-      // Win rate için özel sıralama
+      // Win rate için özel sıralama (Ranking Score kullanarak)
       if (_currentType == LeaderboardType.winRate) {
         _leaderboard.sort((a, b) {
           if (a.gamesPlayed == 0 && b.gamesPlayed == 0) return 0;
           if (a.gamesPlayed == 0) return 1;
           if (b.gamesPlayed == 0) return -1;
-          return b.winRate.compareTo(a.winRate);
+          
+          // Yeni ranking score sistemini kullan
+          return b.rankingScore.compareTo(a.rankingScore);
         });
       }
 
