@@ -129,49 +129,79 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   }
 
   void _showErrorDialog(String title, String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        content: Text(message, style: const TextStyle(color: Colors.grey)),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Dialog'u kapat
-              Navigator.pop(context); // Ana sayfaya dön
-            },
-            child: const Text('Tamam', style: TextStyle(color: Colors.blue)),
-          ),
-        ],
-      ),
-    );
+    if (!mounted) {
+      debugPrint('DuelPage - Widget mounted değil, error dialog gösterilmiyor');
+      return;
+    }
+    
+    try {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: Text(title, style: const TextStyle(color: Colors.white)),
+          content: Text(message, style: const TextStyle(color: Colors.grey)),
+          actions: [
+            TextButton(
+              onPressed: () {
+                try {
+                  Navigator.pop(context); // Dialog'u kapat
+                  if (mounted) {
+                    Navigator.pop(context); // Ana sayfaya dön
+                  }
+                } catch (e) {
+                  debugPrint('Error dialog close error: $e');
+                }
+              },
+              child: const Text('Tamam', style: TextStyle(color: Colors.blue)),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error dialog show error: $e');
+    }
   }
 
   void _navigateToResultPage(DuelGame game) {
-    if (_hasNavigatedToResult) return; // Tekrar navigasyon engellemesi
+    if (_hasNavigatedToResult || !mounted) return; // Tekrar navigasyon ve mounted engellemesi
     _hasNavigatedToResult = true;
     
-    final viewModel = Provider.of<DuelViewModel>(context, listen: false);
-    final currentPlayer = viewModel.currentPlayer;
-    final opponentPlayer = viewModel.opponentPlayer;
-    
-    if (currentPlayer == null) return;
+    try {
+      final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+      final currentPlayer = viewModel.currentPlayer;
+      final opponentPlayer = viewModel.opponentPlayer;
+      
+      if (currentPlayer == null) {
+        debugPrint('DuelPage - currentPlayer null, sonuç sayfasına yönlendirme iptal edildi');
+        return;
+      }
 
-    debugPrint('DuelPage - Sonuç sayfasına yönlendiriliyor');
-    
-    // Sonuç sayfasına yönlendir
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => DuelResultPage(
-          game: game,
-          currentPlayer: currentPlayer,
-          opponentPlayer: opponentPlayer,
-          playerName: viewModel.playerName,
-          gameDuration: viewModel.gameDuration,
+      debugPrint('DuelPage - Sonuç sayfasına yönlendiriliyor');
+      
+      // Mounted kontrolü tekrar yap
+      if (!mounted) {
+        debugPrint('DuelPage - Widget artık mounted değil, navigation iptal edildi');
+        return;
+      }
+      
+      // Sonuç sayfasına yönlendir
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => DuelResultPage(
+            game: game,
+            currentPlayer: currentPlayer,
+            opponentPlayer: opponentPlayer,
+            playerName: viewModel.playerName,
+            gameDuration: viewModel.gameDuration,
+          ),
         ),
-      ),
-    );
+      );
+      
+      debugPrint('DuelPage - Sonuç sayfasına yönlendirme başarılı');
+    } catch (e) {
+      debugPrint('DuelPage - Sonuç sayfasına yönlendirme hatası: $e');
+    }
   }
 
   @override
@@ -377,10 +407,22 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.of(context).pop();
-                final viewModel = Provider.of<DuelViewModel>(context, listen: false);
-                await viewModel.leaveGame();
-                Navigator.popUntil(context, (route) => route.isFirst);
+                try {
+                  Navigator.of(context).pop();
+                  final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+                  await viewModel.leaveGame();
+                  
+                  // Mounted kontrolü ekle
+                  if (mounted) {
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                  }
+                } catch (e) {
+                  debugPrint('Exit button error: $e');
+                  // Hata olsa bile güvenli şekilde çık
+                  if (mounted) {
+                    Navigator.of(context).pop();
+                  }
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
