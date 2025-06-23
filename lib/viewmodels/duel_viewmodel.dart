@@ -313,6 +313,11 @@ class DuelViewModel extends ChangeNotifier {
         
         // Jeton sistemini güncelle
         _updateTokensForGameResult();
+        
+        // Oyun bittikten sonra odayı temizle
+        Future.delayed(const Duration(seconds: 2), () async {
+          await _cleanupFinishedGame();
+        });
         break;
     }
   }
@@ -573,6 +578,31 @@ class DuelViewModel extends ChangeNotifier {
     notifyListeners();
     
     debugPrint('DuelViewModel - Yeni oyun için sıfırlandı');
+  }
+
+  // Bitmiş oyunu temizle
+  Future<void> _cleanupFinishedGame() async {
+    try {
+      if (_gameId != null) {
+        // Firebase'den oyunu sil
+        await FirebaseService.deleteGame(_gameId!);
+        debugPrint('DuelViewModel - Bitmiş oyun temizlendi: $_gameId');
+      }
+      
+      // Subscription'ı temizle
+      _gameSubscription?.cancel();
+      _gameSubscription = null;
+      
+      // State'i sıfırla
+      _resetGameState();
+      
+      // UI'ı güncelle
+      notifyListeners();
+      
+      debugPrint('DuelViewModel - Oyun bitti ve tamamen temizlendi');
+    } catch (e) {
+      debugPrint('DuelViewModel - Oyun temizleme hatası: $e');
+    }
   }
 
   // Oyuncunun onay vermesi
