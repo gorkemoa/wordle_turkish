@@ -470,10 +470,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
           GestureDetector(
             onTap: () => _navigateToTokenShop(),
-            child: FutureBuilder<int>(
-              future: user != null ? FirebaseService.getUserTokens(user.uid) : Future.value(0),
+            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
+              stream: user != null 
+                  ? FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots()
+                  : Stream.value(null),
               builder: (context, snapshot) {
-                final tokens = snapshot.data ?? 0;
+                int tokens = 0;
+                if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
+                  tokens = (snapshot.data!.data() ?? {})['tokens'] ?? 0;
+                }
                 return _buildStatChip(Icons.monetization_on, tokens.toString(), Colors.amber);
               },
             ),

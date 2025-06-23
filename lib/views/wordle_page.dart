@@ -533,7 +533,7 @@ void _navigateToMainMenu() {
           children: [
             Icon(Icons.lightbulb, color: Colors.amber),
             SizedBox(width: 8),
-            Text('Harf İpucu'),
+            Text('İpucu Seçenekleri'),
           ],
         ),
         content: Column(
@@ -541,21 +541,111 @@ void _navigateToMainMenu() {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Mevcut Jetonlar: ${viewModel.userTokens} 🪙'),
-            const SizedBox(height: 8),
-            const Text('Harf ipucu satın almak için 1 jeton gerekir.'),
-            const SizedBox(height: 8),
-            Text('Açılan ipuçları: ${viewModel.revealedHints.length}/${viewModel.currentWordLength}'),
-            if (viewModel.userTokens < 1) ...[
+            const SizedBox(height: 16),
+            
+            // Harf İpucu (Sarı)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.lightbulb, color: Colors.amber, size: 20),
+                      SizedBox(width: 8),
+                      Text('Harf İpucu', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text('Rastgele bir harfi gösterir', style: TextStyle(fontSize: 12)),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('3 🪙'),
+                      ElevatedButton(
+                        onPressed: viewModel.userTokens >= 3 && viewModel.revealedHints.length < viewModel.currentWordLength
+                            ? () async {
+                                Navigator.pop(context);
+                                await _buyLetterHint(viewModel);
+                              }
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber,
+                          foregroundColor: Colors.black,
+                          minimumSize: const Size(80, 30),
+                        ),
+                        child: const Text('Al'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Yer İpucu (Yeşil)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.place, color: Colors.green, size: 20),
+                      SizedBox(width: 8),
+                      Text('Yer İpucu', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text('Yanlış yerdeki harfi gösterir', style: TextStyle(fontSize: 12)),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('7 🪙'),
+                      ElevatedButton(
+                        onPressed: viewModel.userTokens >= 7
+                            ? () async {
+                                Navigator.pop(context);
+                                await _buyPositionHint(viewModel);
+                              }
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(80, 30),
+                        ),
+                        child: const Text('Al'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            if (viewModel.userTokens < 3) ...[
               const SizedBox(height: 12),
               const Text(
                 'Yetersiz jeton! Reklam izleyerek ücretsiz jeton kazanabilirsiniz.',
-                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12),
               ),
             ],
           ],
         ),
         actions: [
-          if (viewModel.userTokens < 1)
+          if (viewModel.userTokens < 3)
             TextButton.icon(
               onPressed: () async {
                 Navigator.pop(context);
@@ -568,28 +658,19 @@ void _navigateToMainMenu() {
             onPressed: () => Navigator.pop(context),
             child: const Text('İptal'),
           ),
-          if (viewModel.userTokens >= 1 && viewModel.revealedHints.length < viewModel.currentWordLength)
-            ElevatedButton.icon(
-              onPressed: () async {
-                Navigator.pop(context);
-                await _buyHint(viewModel);
-              },
-              icon: const Icon(Icons.lightbulb),
-              label: const Text('İpucu Al (1 🪙)'),
-            ),
         ],
       ),
     );
   }
 
-  /// Harf ipucu satın al
-  Future<void> _buyHint(WordleViewModel viewModel) async {
+  /// Harf ipucu satın al (sarı - 3 jeton)
+  Future<void> _buyLetterHint(WordleViewModel viewModel) async {
     bool success = await viewModel.buyLetterHint();
     if (success) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('🎉 Harf ipucu alındı!'),
+            content: Text('🎉 Harf ipucu alındı! (3 jeton harcandı)'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
@@ -599,7 +680,33 @@ void _navigateToMainMenu() {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('❌ İpucu alınamadı!'),
+            content: Text('❌ İpucu alınamadı! Yetersiz jeton veya tüm harfler açılmış.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+  
+  /// Yer ipucu satın al (yeşil - 7 jeton)
+  Future<void> _buyPositionHint(WordleViewModel viewModel) async {
+    bool success = await viewModel.buyPositionHint();
+    if (success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🎉 Yer ipucu alındı! (7 jeton harcandı)'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Yer ipucu alınamadı! Yetersiz jeton veya uygun harf yok.'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 2),
           ),

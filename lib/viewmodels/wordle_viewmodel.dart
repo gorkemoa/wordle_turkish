@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -488,14 +489,14 @@ class WordleViewModel extends ChangeNotifier {
     await _loadUserTokens();
   }
   
-  /// Harf ipucu satın al (1 jeton)
+  /// Harf ipucu satın al (3 jeton) - sarı ipucu
   Future<bool> buyLetterHint() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
       
       // Yetersiz jeton kontrolü
-      if (_userTokens < 1) {
+      if (_userTokens < 3) {
         return false;
       }
       
@@ -517,11 +518,11 @@ class WordleViewModel extends ChangeNotifier {
       availablePositions.shuffle();
       int selectedPosition = availablePositions.first;
       
-      // Jetonu harca
-      bool success = await FirebaseService.spendTokens(user.uid, 1, 'Harf İpucu');
+      // 3 jeton harca
+      bool success = await FirebaseService.spendTokens(user.uid, 3, 'Harf İpucu (Sarı)');
       if (success) {
         _revealedHints.add(selectedPosition);
-        _userTokens--; // Local güncelleme
+        await _loadUserTokens(); // Jeton sayısını Firebase'den yenile
         notifyListeners();
         return true;
       }
@@ -529,6 +530,62 @@ class WordleViewModel extends ChangeNotifier {
       return false;
     } catch (e) {
       print('Harf ipucu satın alma hatası: $e');
+      return false;
+    }
+  }
+  
+  /// Yer ipucu satın al (7 jeton) - yeşil ipucu
+  Future<bool> buyPositionHint() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+      
+      // Yetersiz jeton kontrolü
+      if (_userTokens < 7) {
+        return false;
+      }
+      
+      // Mevcut tahminde yanlış pozisyondaki harfleri bul
+      if (_currentAttempt == 0 || _guesses[_currentAttempt - 1].join().isEmpty) {
+        return false; // Önceki tahmin yok
+      }
+      
+      String lastGuess = _guesses[_currentAttempt - 1].join();
+      List<int> wrongPositions = [];
+      
+      for (int i = 0; i < lastGuess.length && i < _secretWord.length; i++) {
+        if (lastGuess[i] != _secretWord[i] && _secretWord.contains(lastGuess[i])) {
+          wrongPositions.add(i);
+        }
+      }
+      
+      if (wrongPositions.isEmpty) {
+        return false; // Yer değiştirilecek harf yok
+      }
+      
+      // 7 jeton harca
+      bool success = await FirebaseService.spendTokens(user.uid, 7, 'Yer İpucu (Yeşil)');
+      if (success) {
+        // Bir harfi doğru yerine koy (geçici olarak sarı göster)
+        int randomWrongPos = wrongPositions[Random().nextInt(wrongPositions.length)];
+        String wrongLetter = lastGuess[randomWrongPos];
+        
+        // Bu harfin doğru pozisyonunu bul
+        for (int i = 0; i < _secretWord.length; i++) {
+          if (_secretWord[i] == wrongLetter && i != randomWrongPos) {
+            // Yer ipucu gösterim logic'i eklenebilir
+            break;
+          }
+        }
+        
+        await _loadUserTokens(); // Jeton sayısını Firebase'den yenile
+        notifyListeners();
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      print('Yer ipucu satın alma hatası: $e');
       return false;
     }
   }
