@@ -188,7 +188,7 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         elevation: 0,
         automaticallyImplyLeading: false,
         actions: [
-          // Rakip görünürlük butonları
+          // Güçlendirme butonları
           Consumer<DuelViewModel>(
             builder: (context, viewModel, child) {
               if (viewModel.currentGame?.status != GameStatus.active) {
@@ -198,8 +198,19 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Harf ipucu butonu
+                  _buildPowerUpButton(
+                    'İpucu',
+                    '15',
+                    Icons.lightbulb_outline,
+                    Colors.amber,
+                    () => _buyLetterHint(viewModel),
+                  ),
+                  const SizedBox(width: 6),
+                  
+                  // Rakip görünürlük butonları
                   if (!viewModel.firstRowVisible)
-                    _buildAppBarVisibilityButton(
+                    _buildPowerUpButton(
                       '1.Satır',
                       '10',
                       Icons.visibility,
@@ -207,9 +218,9 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
                       () => _buyFirstRowVisibility(viewModel),
                     ),
                   if (!viewModel.allRowsVisible && viewModel.firstRowVisible)
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                   if (!viewModel.allRowsVisible)
-                    _buildAppBarVisibilityButton(
+                    _buildPowerUpButton(
                       'Tümü',
                       '20',
                       Icons.remove_red_eye,
