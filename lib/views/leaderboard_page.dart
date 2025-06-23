@@ -437,12 +437,12 @@ class LeaderboardTab extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Text(
-                      '${stats.gamesPlayed} oyun • ${stats.gamesWon} galibiyet',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF666666),
-                      ),
+                Text(
+                  '${stats.gamesPlayed} oyun • ${stats.gamesWon} galibiyet',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF666666),
+                  ),
                     ),
                     if (stats.gamesPlayed < 10) ...[
                       const SizedBox(width: 4),
@@ -498,7 +498,7 @@ class LeaderboardTab extends StatelessWidget {
         if (stats.gamesPlayed < 10) {
           return '${viewModel.formatWinRate(stats.adjustedWinRate)} *';
         } else {
-          return viewModel.formatWinRate(stats.winRate);
+        return viewModel.formatWinRate(stats.winRate);
         }
     }
   }

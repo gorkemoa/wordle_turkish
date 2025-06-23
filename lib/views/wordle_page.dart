@@ -487,12 +487,12 @@ void _navigateToMainMenu() {
                       alignment: Alignment.center,
                       children: [
                         Text(
-                          viewModel.guesses[row][col],
-                          style: TextStyle(
-                            fontSize: boxSize * 0.5, // Dinamik font size
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+                      viewModel.guesses[row][col],
+                      style: TextStyle(
+                        fontSize: boxSize * 0.5, // Dinamik font size
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                         ),
                         // İpucu harfini göster (sadece boş kutularda ve mevcut satırda)
                         if (viewModel.guesses[row][col].isEmpty && 

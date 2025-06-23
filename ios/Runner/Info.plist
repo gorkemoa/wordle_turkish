@@ -70,7 +70,16 @@
 			<key>UIStatusBarHidden</key>
 	<false/>
 	<key>GADApplicationIdentifier</key>
-	<string>app-pub-7601198457132530~7853705138</string>
+	<string>ca-app-pub-7601198457132530~7853705138</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsArbitraryLoadsForMedia</key>
+		<true/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>Bu uygulama, size daha alakalı reklamlar göstermek için cihazınızı tanımlar.</string>
 	<key>SKAdNetworkItems</key>

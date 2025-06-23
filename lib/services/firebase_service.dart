@@ -906,7 +906,12 @@ class FirebaseService {
             if (rewardType == 'points') {
               await updateUserStats(uid, {'points': FieldValue.increment(rewardAmount)});
             } else if (rewardType == 'tokens') {
+              // Jetonları hem user_stats hem de users koleksiyonunda güncelle
               await updateUserStats(uid, {'tokens': FieldValue.increment(rewardAmount)});
+              await _firestore.collection('users').doc(uid).update({
+                'tokens': FieldValue.increment(rewardAmount),
+                'lastActiveAt': FieldValue.serverTimestamp(),
+              });
             }
           }
           

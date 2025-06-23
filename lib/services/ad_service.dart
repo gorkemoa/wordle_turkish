@@ -142,6 +142,7 @@ class AdService {
 
     try {
       bool rewardEarned = false;
+      final completer = Completer<bool>();
 
       _rewardedAd!.show(
         onUserEarnedReward: (AdWithoutView ad, RewardItem reward) async {
@@ -150,10 +151,47 @@ class AdService {
           
           // Firebase'e jeton ekle
           await FirebaseService.earnTokensFromAd(userId);
+          
+          if (!completer.isCompleted) {
+            completer.complete(true);
+          }
         },
       );
 
-      return rewardEarned;
+      // Reklam kapanmasını bekle
+      _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdShowedFullScreenContent: (RewardedAd ad) {
+          print('Ödüllü reklam gösterildi');
+        },
+        onAdDismissedFullScreenContent: (RewardedAd ad) {
+          print('Ödüllü reklam kapatıldı');
+          ad.dispose();
+          _rewardedAd = null;
+          _isRewardedAdReady = false;
+          
+          if (!completer.isCompleted) {
+            completer.complete(rewardEarned);
+          }
+          
+          // Yeni reklam yükle
+          loadRewardedAd();
+        },
+        onAdFailedToShowFullScreenContent: (RewardedAd ad, AdError error) {
+          print('Ödüllü reklam gösterme hatası: $error');
+          ad.dispose();
+          _rewardedAd = null;
+          _isRewardedAdReady = false;
+          
+          if (!completer.isCompleted) {
+            completer.complete(false);
+          }
+          
+          // Yeni reklam yükle
+          loadRewardedAd();
+        },
+      );
+
+      return await completer.future;
     } catch (e) {
       print('Reklam gösterme exception: $e');
       return false;

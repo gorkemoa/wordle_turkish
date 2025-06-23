@@ -400,7 +400,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _buildModernHeader(User? user) {
     final level = userStats?['level'] ?? 1;
-    final tokens = userStats?['tokens'] ?? 100;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -471,7 +470,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
           GestureDetector(
             onTap: () => _navigateToTokenShop(),
-            child: _buildStatChip(Icons.monetization_on, tokens.toString(), Colors.amber),
+            child: FutureBuilder<int>(
+              future: user != null ? FirebaseService.getUserTokens(user.uid) : Future.value(0),
+              builder: (context, snapshot) {
+                final tokens = snapshot.data ?? 0;
+                return _buildStatChip(Icons.monetization_on, tokens.toString(), Colors.amber);
+              },
+            ),
           ),
           const SizedBox(width: 8),
           _buildHeaderButton(Icons.brightness_6_outlined, widget.toggleTheme ?? () {}),

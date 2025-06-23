@@ -333,9 +333,9 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
 
   Widget _buildLoadingState() {
     return Center(
-      child: Column(
+            child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+              children: [
           // Animasyonlu düello ikonları
           AnimatedBuilder(
             animation: _pulseAnimation,
@@ -350,7 +350,7 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
                   ),
                   child: const Icon(
                     Icons.sports_martial_arts,
-                    color: Colors.blue,
+            color: Colors.blue,
                     size: 48,
                   ),
                 ),
@@ -365,10 +365,10 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
           const SizedBox(height: 16),
           const Text(
             'Düello Hazırlanıyor...',
-            style: TextStyle(
+                  style: TextStyle(
               color: Colors.white,
               fontSize: 18,
-              fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 8),
@@ -437,18 +437,18 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
                 child: const Text('Tekrar Dene'),
               ),
               const SizedBox(width: 16),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                style: ElevatedButton.styleFrom(
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.grey,
-                  foregroundColor: Colors.white,
+              foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
                 child: const Text('Ana Sayfa'),
               ),
             ],
