@@ -674,9 +674,23 @@ class FirebaseService {
       final user = getCurrentUser();
       if (user == null) return;
 
-      await _firestore.collection('duel_games').doc(gameId).update({
-        'players.${user.uid}.status': PlayerStatus.disconnected.name,
-      });
+      final gameDoc = await _firestore.collection('duel_games').doc(gameId).get();
+      if (gameDoc.exists) {
+        final game = DuelGame.fromFirestore(gameDoc);
+        
+        if (game.players.length <= 1) {
+          // Son oyuncu çıkıyorsa oyunu sil
+          await _firestore.collection('duel_games').doc(gameId).delete();
+          print('Son oyuncu çıktı, oyun silindi: $gameId');
+        } else {
+          // Oyuncu sayısı 1'den fazlaysa oyuncunun durumunu disconnected yap
+          await _firestore.collection('duel_games').doc(gameId).update({
+            'players.${user.uid}.status': PlayerStatus.disconnected.name,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          print('Oyuncu bağlantısı kesildi: ${user.uid}');
+        }
+      }
     } catch (e) {
       print('Oyun terk etme hatası: $e');
     }
@@ -1193,18 +1207,94 @@ class FirebaseService {
 
   // Aktif düello oyuncularını dinle
   static Stream<int> getActiveDuelPlayersCount() {
+    // Son 1 saat içinde oluşturulmuş oyunları al
+    final oneHourAgo = DateTime.now().subtract(const Duration(hours: 1));
+    
     return _firestore
         .collection('duel_games')
         .where('status', whereIn: ['waiting', 'active'])
+        .where('createdAt', isGreaterThan: Timestamp.fromDate(oneHourAgo))
         .snapshots()
         .map((snapshot) {
       int activePlayerCount = 0;
+      print('DEBUG - Son 1 saatteki aktif oyun sayısı: ${snapshot.docs.length}');
+      
       for (final doc in snapshot.docs) {
         final game = DuelGame.fromFirestore(doc);
-        activePlayerCount += game.players.length;
+        
+        // Sadece bağlı oyuncuları say (disconnected olmayanlar)
+        int connectedPlayers = 0;
+        for (final player in game.players.values) {
+          if (player.status != PlayerStatus.disconnected) {
+            connectedPlayers++;
+          }
+        }
+        
+        final createdTime = game.createdAt;
+        final now = DateTime.now();
+        final minutesAgo = now.difference(createdTime).inMinutes;
+        
+        print('DEBUG - Oyun ID: ${game.gameId}, Durum: ${game.status}, $minutesAgo dk önce oluşturuldu, Bağlı oyuncu: $connectedPlayers');
+        activePlayerCount += connectedPlayers;
       }
+      
+      print('DEBUG - Toplam aktif oyuncu sayısı: $activePlayerCount');
       return activePlayerCount;
     });
+  }
+
+    // Eski düello oyunlarını temizle
+  static Future<void> cleanupOldDuelGames() async {
+    try {
+      final oneHourAgo = DateTime.now().subtract(const Duration(hours: 1));
+      
+      // Tüm eski oyunları al (finished olanlar + 1 saatten eski waiting/active olanlar)
+      final finishedGames = await _firestore
+          .collection('duel_games')
+          .where('status', isEqualTo: 'finished')
+          .get();
+      
+      final oldActiveGames = await _firestore
+          .collection('duel_games')
+          .where('status', whereIn: ['waiting', 'active'])
+          .where('createdAt', isLessThan: Timestamp.fromDate(oneHourAgo))
+          .get();
+      
+      final totalOldGames = [...finishedGames.docs, ...oldActiveGames.docs];
+      print('DEBUG - Temizlenecek eski oyun sayısı: ${totalOldGames.length} (${finishedGames.docs.length} finished + ${oldActiveGames.docs.length} eski aktif)');
+      
+      if (totalOldGames.isNotEmpty) {
+        final batch = _firestore.batch();
+        for (final doc in totalOldGames) {
+          batch.delete(doc.reference);
+        }
+        
+        await batch.commit();
+        print('DEBUG - ${totalOldGames.length} eski oyun temizlendi');
+      }
+    } catch (e) {
+      print('DEBUG - Eski oyun temizleme hatası: $e');
+    }
+  }
+
+  // Tüm düello oyunlarını sil (acil durum için)
+  static Future<void> clearAllDuelGames() async {
+    try {
+      final allGames = await _firestore.collection('duel_games').get();
+      print('DEBUG - Silinecek toplam oyun sayısı: ${allGames.docs.length}');
+      
+      if (allGames.docs.isNotEmpty) {
+        final batch = _firestore.batch();
+        for (final doc in allGames.docs) {
+          batch.delete(doc.reference);
+        }
+        
+        await batch.commit();
+        print('DEBUG - Tüm düello oyunları silindi');
+      }
+    } catch (e) {
+      print('DEBUG - Tüm oyunları silme hatası: $e');
+    }
   }
 
   // Kullanıcı seviyesini güncelle

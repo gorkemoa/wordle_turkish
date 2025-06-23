@@ -193,8 +193,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _startListeningToDuelPlayers() {
     _duelPlayersSubscription?.cancel();
     
+    // Stream'i hemen başlat - kullanıcı direkt aktif sayıyı görsün
     _duelPlayersSubscription = FirebaseService.getActiveDuelPlayersCount().listen(
       (count) {
+        print('HomePage - Aktif düello oyuncu sayısı: $count');
         if (mounted) {
           setState(() {
             activeDuelPlayers = count;
@@ -205,6 +207,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         print('Aktif düello oyuncuları dinleme hatası: $error');
       },
     );
+    
+    // Temizlik işlemini arka planda yap
+    _cleanupInBackground();
+  }
+
+  // Arka planda temizlik
+  void _cleanupInBackground() async {
+    try {
+      await FirebaseService.cleanupOldDuelGames();
+      print('Arka plan temizliği tamamlandı');
+    } catch (e) {
+      print('Arka plan temizlik hatası: $e');
+    }
   }
 
   Future<void> _refreshData() async {
@@ -528,7 +543,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       },
       {
         'title': 'DÜELLO',
-        'subtitle': activeDuelPlayers > 0 ? '$activeDuelPlayers oyuncu aktif!' : 'Arkadaşlarınla kapış!',
+        'subtitle': activeDuelPlayers > 1 ? '$activeDuelPlayers oyuncu aktif!' : activeDuelPlayers == 1 ? '1 oyuncu bekliyor!' : 'Arkadaşlarınla kapış!',
         'icon': Icons.sports_esports,
         'pattern': _buildThemedPattern(const Color(0xFFe74c3c), 'duel'),
         'color': const Color(0xFFe74c3c),
