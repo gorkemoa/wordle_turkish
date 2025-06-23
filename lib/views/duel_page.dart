@@ -183,6 +183,40 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         elevation: 0,
         automaticallyImplyLeading: false,
         actions: [
+          // Rakip görünürlük butonları
+          Consumer<DuelViewModel>(
+            builder: (context, viewModel, child) {
+              if (viewModel.currentGame?.status != GameStatus.active) {
+                return const SizedBox.shrink();
+              }
+              
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!viewModel.firstRowVisible)
+                    _buildAppBarVisibilityButton(
+                      '1.Satır',
+                      '10',
+                      Icons.visibility,
+                      Colors.orange,
+                      () => _buyFirstRowVisibility(viewModel),
+                    ),
+                  if (!viewModel.allRowsVisible && viewModel.firstRowVisible)
+                    const SizedBox(width: 4),
+                  if (!viewModel.allRowsVisible)
+                    _buildAppBarVisibilityButton(
+                      'Tümü',
+                      '20',
+                      Icons.remove_red_eye,
+                      Colors.red,
+                      () => _buyAllRowsVisibility(viewModel),
+                    ),
+                  const SizedBox(width: 8),
+                ],
+              );
+            },
+          ),
+          
           // Jeton göstergesi
           Consumer<DuelViewModel>(
             builder: (context, viewModel, child) {
@@ -626,11 +660,9 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
           
           // Rakip oyuncunun tahtası
           Expanded(
-            child: _buildPlayerBoard(
+            child: _buildOpponentBoard(
               title: 'Rakip Tahminleri',
               player: viewModel.opponentPlayer,
-              currentGuess: null,
-              currentColumn: 0,
               viewModel: viewModel,
             ),
           ),
@@ -715,6 +747,164 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildOpponentBoard({
+    required String title,
+    DuelPlayer? player,
+    required DuelViewModel viewModel,
+  }) {
+    return Column(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        
+        Expanded(
+          child: GridView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5,
+              childAspectRatio: 1,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 4,
+            ),
+            itemCount: 30, // 6 satır x 5 sütun
+            itemBuilder: (context, index) {
+              final row = index ~/ 5;
+              final col = index % 5;
+              
+              String letter = '';
+              Color boxColor = const Color(0xFF3A3A3C);
+              Color textColor = Colors.white;
+              
+              // Rakip görünürlük kontrolü
+              bool isRowVisible = viewModel.shouldShowOpponentRow(row);
+              
+              if (player != null && row < player.guesses.length) {
+                // Tamamlanmış tahminler
+                if (row < player.currentAttempt) {
+                  if (isRowVisible) {
+                    letter = player.guesses[row][col] == '_' ? '' : player.guesses[row][col];
+                    boxColor = viewModel.getColorFromString(player.guessColors[row][col]);
+                  } else {
+                    // Sansürlü gösterim
+                    letter = '?';
+                    boxColor = const Color(0xFF4A4A4A);
+                    textColor = Colors.grey;
+                  }
+                }
+              }
+              
+              return Container(
+                decoration: BoxDecoration(
+                  color: boxColor,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: letter.isEmpty ? const Color(0xFF565758) : Colors.transparent,
+                    width: 1,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    letter,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+
+
+  Future<void> _buyFirstRowVisibility(DuelViewModel viewModel) async {
+    final success = await viewModel.buyFirstRowVisibility();
+    if (!success && mounted) {
+      _showErrorDialog('Yetersiz Jeton', 'İlk satırı görmek için 10 jetona ihtiyacınız var.');
+    }
+  }
+
+  Future<void> _buyAllRowsVisibility(DuelViewModel viewModel) async {
+    final success = await viewModel.buyAllRowsVisibility();
+    if (!success && mounted) {
+      _showErrorDialog('Yetersiz Jeton', 'Tüm satırları görmek için 20 jetona ihtiyacınız var.');
+    }
+  }
+
+  Widget _buildAppBarVisibilityButton(
+    String label,
+    String cost,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.6)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 16),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    cost,
+                    style: const TextStyle(
+                      color: Colors.amber,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  const Icon(
+                    Icons.monetization_on,
+                    color: Colors.amber,
+                    size: 10,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

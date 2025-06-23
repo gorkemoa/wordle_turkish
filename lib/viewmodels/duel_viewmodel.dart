@@ -42,6 +42,10 @@ class DuelViewModel extends ChangeNotifier {
   // Klavye harf durumları
   Map<String, String> _keyboardLetters = {};
 
+  // Rakip görünürlük sistemi
+  bool _firstRowVisible = false;
+  bool _allRowsVisible = false;
+
   // Getters
   DuelGame? get currentGame => _currentGame;
   String? get gameId => _gameId;
@@ -84,11 +88,60 @@ class DuelViewModel extends ChangeNotifier {
   bool get isPlayerReady => _isPlayerReady;
   int get readyCountdown => _readyCountdown;
 
+  // Rakip görünürlük getters
+  bool get firstRowVisible => _firstRowVisible;
+  bool get allRowsVisible => _allRowsVisible;
+
   @override
   void dispose() {
     _gameSubscription?.cancel();
     _readyTimer?.cancel();
     super.dispose();
+  }
+
+  // Rakip görünürlük fonksiyonları
+  Future<bool> buyFirstRowVisibility() async {
+    final user = FirebaseService.getCurrentUser();
+    if (user == null) return false;
+
+    final currentTokens = await FirebaseService.getUserTokens(user.uid);
+    if (currentTokens < 10) return false;
+
+    try {
+      await FirebaseService.earnTokens(user.uid, -10, 'Rakip İlk Satır Görünürlük');
+      _firstRowVisible = true;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('İlk satır görünürlük satın alma hatası: $e');
+      return false;
+    }
+  }
+
+  Future<bool> buyAllRowsVisibility() async {
+    final user = FirebaseService.getCurrentUser();
+    if (user == null) return false;
+
+    final currentTokens = await FirebaseService.getUserTokens(user.uid);
+    if (currentTokens < 20) return false;
+
+    try {
+      await FirebaseService.earnTokens(user.uid, -20, 'Rakip Tüm Satırlar Görünürlük');
+      _allRowsVisible = true;
+      _firstRowVisible = true; // Tüm satırlar görünürse ilk satır da görünür
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Tüm satırlar görünürlük satın alma hatası: $e');
+      return false;
+    }
+  }
+
+  // Rakip tahtasında hangi satırların görünür olduğunu kontrol et
+  bool shouldShowOpponentRow(int rowIndex) {
+    if (_allRowsVisible) return true;
+    if (_firstRowVisible && rowIndex == 0) return true;
+    return false;
   }
 
   // Kelime listesini yükle
@@ -153,6 +206,7 @@ class DuelViewModel extends ChangeNotifier {
 
       // Jeton kontrolü (henüz kesme, oyun başladığında kesilecek)
       final currentTokens = await FirebaseService.getUserTokens(user.uid);
+      debugPrint('Düello başlangıcında mevcut jeton: $currentTokens');
       if (currentTokens < 2) {
         debugPrint('Yetersiz jeton: $currentTokens (2 gerekli)');
         return false;
@@ -286,12 +340,15 @@ class DuelViewModel extends ChangeNotifier {
     try {
       final user = FirebaseService.getCurrentUser();
       if (user != null) {
-        final success = await FirebaseService.spendTokens(user.uid, 2, 'Düello Oyunu');
-        if (success) {
-          debugPrint('Oyun başladı - 2 jeton kesildi');
-        } else {
-          debugPrint('Jeton kesme hatası');
-        }
+        // Önce mevcut jetonları logla
+        final tokensBefore = await FirebaseService.getUserTokens(user.uid);
+        debugPrint('Jeton kesme öncesi: $tokensBefore jeton');
+        
+        await FirebaseService.earnTokens(user.uid, -2, 'Düello Oyunu');
+        
+        // Sonra yeni jeton sayısını logla
+        final tokensAfter = await FirebaseService.getUserTokens(user.uid);
+        debugPrint('Jeton kesme sonrası: $tokensAfter jeton (${tokensBefore - tokensAfter} jeton kesildi)');
       }
     } catch (e) {
       debugPrint('Jeton kesme exception: $e');

@@ -11,6 +11,9 @@ import '../services/avatar_service.dart';
 import 'duel_page.dart';
 import 'leaderboard_page.dart';
 import 'token_shop_page.dart';
+import 'wordle_page.dart';
+import 'profile_page.dart';
+import '../viewmodels/wordle_viewmodel.dart';
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'dart:ui';
@@ -447,14 +450,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Column(
                   children: [
                     _buildModernHeader(user),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
+                    // Kompakt jeton alanı
+                    _buildCompactTokenArea(user),
+                    const SizedBox(height: 12),
                     Expanded(
-                      child: Center(
-                        child: _buildGameMenu(context),
-                      ),
+                      child: _buildGameMenu(context),
                     ),
                     _buildStreakInfo(),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -535,19 +539,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ),
 
-          GestureDetector(
-            onTap: () => _navigateToTokenShop(),
-            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
-              stream: user != null 
-                  ? FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots()
-                  : Stream.value(null),
-              builder: (context, snapshot) {
-                int tokens = 0;
-                if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
-                  tokens = (snapshot.data!.data() ?? {})['tokens'] ?? 0;
-                }
-                return _buildStatChip(Icons.monetization_on, tokens.toString(), Colors.amber);
+          Tooltip(
+            message: 'Jeton Satın Al\n🪙 Düello oynamak ve özel özellikler için jeton gerekli',
+            textStyle: const TextStyle(color: Colors.white, fontSize: 12),
+            decoration: BoxDecoration(
+              color: Colors.black87,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _navigateToTokenShop();
               },
+              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
+                stream: user != null 
+                    ? FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots()
+                    : Stream.value(null),
+                builder: (context, snapshot) {
+                  int tokens = 0;
+                  if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
+                    tokens = (snapshot.data!.data() ?? {})['tokens'] ?? 0;
+                  }
+                  return _buildEnhancedTokenChip(tokens);
+                },
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -578,6 +593,223 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildEnhancedTokenChip(int tokens) {
+    final isLowTokens = tokens < 5; // 5'ten az jeton varsa dikkat çek
+    
+    return AnimatedBuilder(
+      animation: _pulseAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: isLowTokens ? _pulseAnimation.value * 1.1 : _pulseAnimation.value,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isLowTokens 
+                  ? [Colors.red.shade300, Colors.red.shade600]
+                  : [Colors.amber.shade300, Colors.amber.shade600],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(25),
+              boxShadow: [
+                BoxShadow(
+                  color: (isLowTokens ? Colors.red : Colors.amber).withOpacity(0.6),
+                  blurRadius: isLowTokens ? 12 : 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+              border: Border.all(
+                color: isLowTokens ? Colors.red.shade200 : Colors.amber.shade200,
+                width: isLowTokens ? 2 : 1.5,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Animasyonlu jeton ikonu
+                AnimatedBuilder(
+                  animation: _animationController,
+                  builder: (context, child) {
+                    return Transform.rotate(
+                      angle: _animationController.value * 2 * math.pi * (isLowTokens ? 0.2 : 0.1),
+                      child: Icon(
+                        isLowTokens ? Icons.warning_amber_rounded : Icons.monetization_on,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 6),
+                // Jeton sayısı
+                Text(
+                  tokens.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                // Plus ikonu - daha belirgin
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 3,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.add,
+                    color: isLowTokens ? Colors.red.shade700 : Colors.amber.shade700,
+                    size: 14,
+                  ),
+                ),
+                if (isLowTokens) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    '!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCompactTokenArea(User? user) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
+      stream: user != null 
+          ? FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots()
+          : Stream.value(null),
+      builder: (context, snapshot) {
+        int tokens = 0;
+        if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
+          tokens = (snapshot.data!.data() ?? {})['tokens'] ?? 0;
+        }
+        
+        final isLowTokens = tokens < 5;
+        
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.indigo.shade700.withOpacity(0.8),
+                Colors.purple.shade700.withOpacity(0.8),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              // Sol: Jeton durumu
+              Expanded(
+                flex: 2,
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isLowTokens ? Colors.red.shade600 : Colors.amber.shade600,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isLowTokens ? Icons.warning : Icons.monetization_on,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Jetonlarınız',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 12,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              tokens.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade600,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Icon(
+                                Icons.monetization_on,
+                                color: Colors.white,
+                                size: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Sağ: Hızlı satın alma butonları
+              Row(
+                children: [
+                  _buildQuickBuyButton(
+                    '10',
+                    'Ücretsiz',
+                    Colors.green,
+                    Icons.play_arrow,
+                    () => _navigateToTokenShop(),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildQuickBuyButton(
+                    '50',
+                    '9.99₺',
+                    Colors.blue,
+                    Icons.star,
+                    () => _showPremiumPurchase('starter'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildHeaderButton(IconData icon, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -593,6 +825,394 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           size: 22,
         ),
       ),
+    );
+  }
+
+  Widget _buildTokenPackage({
+    required String title,
+    required String tokens,
+    required String price,
+    required Color color,
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool isPremium,
+    bool isPopular = false,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        onTap();
+      },
+      child: Stack(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  color.withOpacity(0.8),
+                  color.withOpacity(0.6),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isPremium ? Colors.amber.withOpacity(0.5) : Colors.white.withOpacity(0.3),
+                width: isPremium ? 2 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // İkon
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                
+                // Başlık
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                
+                // Jeton sayısı
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      tokens,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Text(
+                      '🪙',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                
+                // Fiyat
+                Text(
+                  price,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          
+          // Popüler rozeti
+          if (isPopular)
+            Positioned(
+              top: -5,
+              right: -5,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade600,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'POPÜLER',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickBuyButton(
+    String tokens,
+    String price,
+    Color color,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: color.withOpacity(0.5),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: color,
+              size: 16,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              tokens,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              price,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 9,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleMenuButton(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        onTap();
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              color.withOpacity(0.8),
+              color.withOpacity(0.6),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.2),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: Colors.white,
+              size: 32,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 10,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPremiumPurchase(String packageType) {
+    Map<String, dynamic> packageInfo = {};
+    
+    switch (packageType) {
+      case 'starter':
+        packageInfo = {
+          'title': 'Başlangıç Paketi',
+          'tokens': 50,
+          'price': '₺9.99',
+          'description': '50 jeton ile düelloları keşfet!',
+          'color': Colors.blue,
+        };
+        break;
+      case 'pro':
+        packageInfo = {
+          'title': 'Pro Paketi',
+          'tokens': 150,
+          'price': '₺24.99',
+          'description': '150 jeton + %20 bonus! En popüler seçim.',
+          'color': Colors.purple,
+        };
+        break;
+    }
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [packageInfo['color'].shade300, packageInfo['color'].shade600],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.diamond, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      packageInfo['title'],
+                      style: const TextStyle(color: Colors.white, fontSize: 18),
+                    ),
+                    Text(
+                      packageInfo['description'],
+                      style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [packageInfo['color'].withOpacity(0.2), packageInfo['color'].withOpacity(0.1)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          '${packageInfo['tokens']}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text('🪙', style: TextStyle(fontSize: 20)),
+                      ],
+                    ),
+                    Text(
+                      packageInfo['price'],
+                      style: TextStyle(
+                        color: packageInfo['color'],
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '🚀 Anında teslimat\n💎 Premium kalite\n🔒 Güvenli ödeme\n🎮 Sınırsız düello',
+                style: TextStyle(color: Colors.grey.shade300, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('İptal', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _showFeatureComingSoon(context, 'Premium Satın Alma');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: packageInfo['color'],
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text('${packageInfo['price']} - Satın Al'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -625,88 +1245,59 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget _buildGameMenu(BuildContext context) {
     final menuItems = [
       {
-        'title': 'GÜNLÜK MEYDAN OKUMA',
-        'subtitle': 'Her gün yeni bir kelime!',
-        'icon': Icons.calendar_today_outlined,
-        'pattern': _buildThemedPattern(const Color(0xFF2ecc71), 'daily'),
+        'title': 'TEK OYUNCU',
+        'subtitle': 'Günlük kelime bulmaca',
+        'icon': Icons.person,
         'color': const Color(0xFF2ecc71),
-        'onTap': () => Navigator.pushNamed(context, '/wordle_daily'),
-        'isPrimary': false,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => WordlePage(toggleTheme: widget.toggleTheme ?? () {}, gameMode: GameMode.daily))),
       },
       {
         'title': 'DÜELLO',
-        'subtitle': activeUsers > 1 ? '$activeUsers kişi aktif!' : activeUsers == 1 ? '1 kişi aktif!' : 'Arkadaşlarınla kapış!',
+        'subtitle': activeUsers > 1 ? '$activeUsers kişi aktif!' : 'Arkadaşlarınla kapış!',
         'icon': Icons.sports_esports,
-        'pattern': _buildThemedPattern(const Color(0xFFe74c3c), 'duel'),
         'color': const Color(0xFFe74c3c),
         'onTap': () => _startDuel(context),
-        'isPrimary': true,
       },
       {
         'title': 'LİDER TABLOSU',
-        'subtitle': 'En iyiler arasına gir!',
+        'subtitle': 'En iyiler arasına gir',
         'icon': Icons.emoji_events,
-        'pattern': _buildThemedPattern(const Color(0xFF9b59b6), 'leaderboard'),
         'color': const Color(0xFF9b59b6),
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LeaderboardPage())),
-        'isPrimary': false,
       },
       {
-        'title': 'İSTATİSTİKLER',
-        'subtitle': 'Başarılarını takip et.',
-        'icon': Icons.analytics,
-        'pattern': _buildThemedPattern(const Color(0xFF3498db), 'stats'),
+        'title': 'PROFİL',
+        'subtitle': 'Hesap ayarları',
+        'icon': Icons.account_circle,
         'color': const Color(0xFF3498db),
-        'onTap': () => _showFeatureComingSoon(context, 'İstatistikler'),
-        'isPrimary': false,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())),
       },
     ];
 
-    return AnimatedBuilder(
-      animation: _bounceAnimation,
-      builder: (context, child) {
-        return GridView.builder(
-          shrinkWrap: true,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 0.8,
-          ),
-          itemCount: menuItems.length,
-          itemBuilder: (context, index) {
-            final item = menuItems[index];
-
-            final button = _buildMenuButton(
-              context,
-              title: item['title'] as String,
-              subtitle: item['subtitle'] as String,
-              icon: item['icon'] as IconData,
-              pattern: item['pattern'] as Widget,
-              color: item['color'] as Color,
-              onTap: item['onTap'] as VoidCallback,
-            );
-
-            final animatedButton = Transform.scale(
-              scale: _bounceAnimation.value.clamp(0.0, 1.0),
-              child: Opacity(
-                opacity: _bounceAnimation.value.clamp(0.0, 1.0),
-                child: button,
-              ),
-            );
-
-            if (item['isPrimary'] as bool) {
-              return ScaleTransition(
-                scale: _pulseAnimation,
-                child: animatedButton,
-              );
-            }
-
-            return animatedButton;
-          },
-        );
-      },
+    return Container(
+      height: 320,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.1,
+        ),
+        itemCount: menuItems.length,
+        itemBuilder: (context, index) {
+          final item = menuItems[index];
+          return _buildSimpleMenuButton(
+            context,
+            title: item['title'] as String,
+            subtitle: item['subtitle'] as String,
+            icon: item['icon'] as IconData,
+            color: item['color'] as Color,
+            onTap: item['onTap'] as VoidCallback,
+          );
+        },
+      ),
     );
   }
 
