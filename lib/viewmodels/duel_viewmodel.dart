@@ -150,6 +150,54 @@ class DuelViewModel extends ChangeNotifier {
     return false;
   }
 
+  // Harf ipucu satın al (15 jeton)
+  Future<String?> buyLetterHint() async {
+    final user = FirebaseService.getCurrentUser();
+    if (user == null) return null;
+    
+    final currentTokens = await getCurrentUserTokens();
+    if (currentTokens < 15) {
+      debugPrint('Yetersiz jeton: $currentTokens (15 gerekli)');
+      return null;
+    }
+    
+    if (_currentWord.isEmpty) {
+      debugPrint('Gizli kelime henüz belirlenmemiş');
+      return null;
+    }
+    
+    try {
+      // Henüz tahmin edilmemiş harfleri bul
+      final Set<String> guessedLetters = _keyboardLetters.keys.toSet();
+      final List<String> wordLetters = _currentWord.split('');
+      final List<String> unguessedLetters = [];
+      
+      for (String letter in wordLetters) {
+        if (!guessedLetters.contains(letter) && !unguessedLetters.contains(letter)) {
+          unguessedLetters.add(letter);
+        }
+      }
+      
+      if (unguessedLetters.isEmpty) {
+        debugPrint('Tüm harfler zaten tahmin edilmiş');
+        return null;
+      }
+      
+      // Rastgele bir harf seç
+      final random = math.Random();
+      final hintLetter = unguessedLetters[random.nextInt(unguessedLetters.length)];
+      
+      // Jetonu kes
+      await FirebaseService.earnTokens(user.uid, -15, 'Harf İpucu');
+      
+      debugPrint('Harf ipucu satın alındı: $hintLetter');
+      return hintLetter;
+    } catch (e) {
+      debugPrint('Harf ipucu satın alma hatası: $e');
+      return null;
+    }
+  }
+
   // Kelime listesini yükle
   Future<void> loadValidWords() async {
     if (validWordsSet.isNotEmpty) return;
