@@ -143,6 +143,21 @@ class DuelViewModel extends ChangeNotifier {
       }
       debugPrint('Firebase giriş başarılı: ${user.uid}');
 
+      // Jeton kontrolü ve kesme - 2 jeton gerekli
+      final currentTokens = await FirebaseService.getUserTokens(user.uid);
+      if (currentTokens < 2) {
+        debugPrint('Yetersiz jeton: $currentTokens (2 gerekli)');
+        return false;
+      }
+      
+      // 2 jeton kes
+      final success = await FirebaseService.spendTokens(user.uid, 2, 'Düello Girişi');
+      if (!success) {
+        debugPrint('Jeton kesme başarısız');
+        return false;
+      }
+      debugPrint('2 jeton kesildi, düello başlatılıyor');
+
       // Kelime listesini yükle
       await loadValidWords();
       debugPrint('Kelime listesi yüklendi: ${validWordsSet.length} kelime');
@@ -539,15 +554,27 @@ class DuelViewModel extends ChangeNotifier {
       if (user == null || _currentGame == null) return;
 
       final currentPlayer = this.currentPlayer;
+      final opponentPlayer = this.opponentPlayer;
       if (currentPlayer == null) return;
 
-      // Oyuncunun kazanıp kaybettiğini kontrol et
+      // Düello sistemi: Her oyuncu 2 jeton öder, kazanan 4 jeton alır
       bool won = currentPlayer.status == PlayerStatus.won;
+      bool hasOpponent = opponentPlayer != null;
       
-      // Firebase'e jeton güncellemesi gönder
-      await FirebaseService.updateTokensForGameResult(user.uid, won, 'Düello');
+      if (hasOpponent && won) {
+        // Kazanan 4 jeton alır (2 kendi + 2 rakipten)
+        await FirebaseService.earnTokens(user.uid, 4, 'Düello Kazanma');
+        debugPrint('Düello kazandı: +4 jeton');
+      } else if (hasOpponent && !won) {
+        // Kaybeden zaten başta 2 jeton ödemiş, ek ceza yok
+        debugPrint('Düello kaybetti: başta ödenen 2 jeton gitti');
+      } else {
+        // Rakip yoksa başta ödenen 2 jeton geri verilir
+        await FirebaseService.earnTokens(user.uid, 2, 'Düello İptali - Rakip Yok');
+        debugPrint('Düello iptal (rakip yok): +2 jeton geri');
+      }
       
-      debugPrint('Düello jeton güncellemesi: won=$won');
+      debugPrint('Düello jeton güncellemesi: won=$won, hasOpponent=$hasOpponent');
     } catch (e) {
       debugPrint('Düello jeton güncelleme hatası: $e');
     }

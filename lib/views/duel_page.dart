@@ -72,13 +72,25 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       // Kullanıcının online olduğundan emin ol
       await FirebaseService.setUserOnline();
       
+      // Jeton kontrolü
+      final user = FirebaseService.getCurrentUser();
+      if (user != null) {
+        final tokens = await FirebaseService.getUserTokens(user.uid);
+        if (tokens < 2) {
+          _showErrorDialog('Yetersiz Jeton', 
+            'Düello oynamak için 2 jetona ihtiyacınız var. Mevcut jetonunuz: $tokens');
+          return;
+        }
+      }
+      
       final success = await viewModel.startDuelGame();
       
       if (!mounted) return;
       
       if (!success) {
         _showErrorDialog('Oyun başlatılamadı', 
-          'Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.');
+          'Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin. '
+          'Yetersiz jeton varsa, reklam izleyerek jeton kazanabilirsiniz.');
         return;
       }
       

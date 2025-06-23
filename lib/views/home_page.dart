@@ -234,62 +234,35 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
-  void _showFeatureComingSoon(BuildContext context, String title) {
+  void _showFeatureComingSoon(BuildContext context, String feature) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Colors.white,
+          backgroundColor: const Color(0xFF2A2A2A),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
           title: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4285F4),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.info_outline, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
+              Icon(Icons.construction, color: Colors.orange.shade400),
+              const SizedBox(width: 8),
               Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: Color(0xFF333333),
-                ),
+                '$feature Geliyor!',
+                style: const TextStyle(color: Colors.white, fontSize: 18),
               ),
             ],
           ),
-          content: const Text(
-            'Bu özellik henüz hazır değil.\nYakında sizlerle buluşacak! 🚀',
-            style: TextStyle(
-              fontSize: 16,
-              color: Color(0xFF666666),
-              height: 1.5,
-            ),
+          content: Text(
+            'Bu özellik henüz geliştiriliyor. Çok yakında sizlerle buluşacak!',
+            style: TextStyle(color: Colors.grey.shade300, fontSize: 14),
           ),
           actions: [
-            ElevatedButton(
+            TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4285F4),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-              ),
-              child: const Text(
-                'Anladım',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Text(
+                'Tamam',
+                style: TextStyle(color: Colors.blue.shade400),
               ),
             ),
           ],
@@ -308,6 +281,100 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       MaterialPageRoute(
         builder: (context) => const TokenShopPage(),
       ),
+    );
+  }
+
+  void _startDuel(BuildContext context) async {
+    // Jeton kontrolü
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final tokens = await FirebaseService.getUserTokens(user.uid);
+      if (tokens < 2) {
+        _showDuelTokenDialog(context, tokens);
+        return;
+      }
+    }
+    
+    // Jeton yeterli, düello başlat
+    Navigator.push(context, MaterialPageRoute(builder: (context) => const DuelPage()));
+  }
+
+  void _showDuelTokenDialog(BuildContext context, int currentTokens) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.amber),
+              SizedBox(width: 8),
+              Text(
+                'Yetersiz Jeton',
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Düello oynamak için 2 jetona ihtiyacınız var.',
+                style: TextStyle(color: Colors.grey.shade300, fontSize: 14),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Mevcut jetonunuz: $currentTokens 🪙',
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '💡 Düello Sistemi:',
+                      style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '• Her oyuncu 2 jeton öder\n• Kazanan toplam 4 jeton alır\n• Kaybeden hiçbir şey alamaz',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('İptal', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const TokenShopPage()));
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+              ),
+              child: const Text('Jeton Al'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -572,7 +639,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         'icon': Icons.sports_esports,
         'pattern': _buildThemedPattern(const Color(0xFFe74c3c), 'duel'),
         'color': const Color(0xFFe74c3c),
-        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DuelPage())),
+        'onTap': () => _startDuel(context),
         'isPrimary': true,
       },
       {
@@ -1119,6 +1186,8 @@ class _PatternPainter extends CustomPainter {
           canvas.drawPath(path, hazePaint..style=PaintingStyle.stroke..strokeWidth=1);
         }
         break;
+
+        
       case 'leaderboard': // Bubbles / Sparkles
         final bubblePaint = Paint()..color = Colors.yellow.withOpacity(0.3);
         for (int i = 0; i < 15; i++) {

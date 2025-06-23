@@ -8,6 +8,7 @@ import '../viewmodels/wordle_viewmodel.dart';
 import '../widgets/shake_widget.dart';
 import '../widgets/keyboard_widget.dart';
 import '../services/firebase_service.dart';
+import 'wordle_result_page.dart';
 
 class WordlePage extends StatefulWidget {
   final VoidCallback toggleTheme;
@@ -61,210 +62,41 @@ class _WordlePageState extends State<WordlePage> {
     // Başarı tablosu istatistiklerini güncelle
     viewModel.updateLeaderboardStats(context);
 
-    String title;
-    String? content;
-    List<Widget> actions = [];
-
-    if (timeOut && !won) {
-      title = 'Süre Doldu!';
-      content = 'Doğru kelime: ${viewModel.secretWord}';
-      actions.add(
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-            _showReplayOrMainMenuDialog();
-          },
-          child: const Text('Yeniden Başla'),
-        ),
-      );
-      actions.add(
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-            _navigateToMainMenu();
-          },
-          child: const Text('Ana Menü'),
-        ),
-      );
-    } else if (won) {
-      if (viewModel.gameMode == GameMode.challenge && viewModel.currentLevel == viewModel.maxLevel) {
-        // Zorlu modda maksimum seviyeye ulaşıldı
-        _showMaxLevelDialog();
-        return; // Fonksiyondan çık
-      } else if (viewModel.gameMode == GameMode.challenge) {
-        // Zorlu modda sonraki seviyeye geç
-        title = 'Tebrikler!';
-        actions.add(
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Mevcut dialogu kapat
-              _showNextLevelDialog();
-            },
-            child: const Text('Devam'),
-          ),
-        );
-      } else {
-        // Günlük modda kazandınız
-        title = 'Tebrikler!';
-        content = 'Günlük kelimeyi doğru bildiniz!';
-        actions.add(
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _navigateToMainMenu();
-            },
-            child: const Text('Ana Menü'),
-          ),
-        );
-        actions.add(
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Share.share(viewModel.generateShareText());
-            },
-            child: const Text('Paylaş'),
-          ),
-        );
-      }
-    } else {
-      // Kaybettiniz
-      title = 'Kaybettiniz!';
-      content = 'Doğru kelime: ${viewModel.secretWord}';
-      actions.add(
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-            _showReplayOrMainMenuDialog();
-          },
-          child: const Text('Yeniden Başla'),
-        ),
-      );
-      actions.add(
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-            _navigateToMainMenu();
-          },
-          child: const Text('Ana Menü'),
-        ),
-      );
+    // Skor ve jeton hesaplama
+    int score = 0;
+    int tokensEarned = 0;
+    
+    if (won) {
+      final attemptsUsed = viewModel.currentAttempt + 1;
+      final timeBonus = viewModel.totalRemainingSeconds * 2;
+      final attemptBonus = (WordleViewModel.maxAttempts - attemptsUsed) * 50;
+      score = 100 + timeBonus + attemptBonus;
+      tokensEarned = viewModel.gameMode == GameMode.daily ? 3 : 1; // Farklı mod bonusları
+    } else if (!timeOut) {
+      score = viewModel.currentAttempt * 10;
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Kullanıcının dışarıya tıklayarak kapatmasını engeller
-      builder: (_) => AlertDialog(
-        title: Text(title),
-        content: content != null ? Text(content!) : null,
-        actions: actions,
-      ),
-    );
-  }
-
-  void _showNextLevelDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Kullanıcının dışarıya tıklayarak kapatmasını engeller
-      builder: (_) => AlertDialog(
-        title: const Text('Seviye Atladınız!'),
-        content: const Text('Bir sonraki seviyeye geçmek ister misiniz?'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Mevcut dialogu kapat
-              _viewModel.goToNextLevel();
-              setState(() {
-                _hasShownDialog = false; // Yeni seviyede dialog gösterimini tekrar etkinleştir
-              });
-            },
-            child: const Text('Devam'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _navigateToMainMenu();
-            },
-            child: const Text('Ana Menü'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showMaxLevelDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Kullanıcının dışarıya tıklayarak kapatmasını engeller
-      builder: (_) => AlertDialog(
-        title: const Text('Maksimum Seviyeye Ulaşıldı!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.celebration,
-              color: Colors.blue,
-              size: 50,
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Tüm seviyeleri tamamladınız. Tebrikler!',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
-            ),
-          ],
+    // Yeni sonuç sayfasına yönlendir
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => WordleResultPage(
+          isWinner: won,
+          isTimeOut: timeOut,
+          secretWord: viewModel.secretWord,
+          attempts: viewModel.currentAttempt + 1,
+          timeSpent: WordleViewModel.totalGameSeconds - viewModel.totalRemainingSeconds,
+          gameMode: viewModel.gameMode,
+          currentLevel: viewModel.currentLevel,
+          maxLevel: viewModel.maxLevel,
+          shareText: viewModel.generateShareText(),
+          tokensEarned: tokensEarned,
+          score: score,
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _navigateToMainMenu();
-            },
-            child: const Text('Ana Menü'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _hasShownDialog = false; // Yeni oyun için dialog gösterimini tekrar etkinleştir
-              });
-              _viewModel.resetGame();
-            },
-            child: const Text('Tekrar Oyna'),
-          ),
-        ],
       ),
     );
   }
 
-  void _showReplayOrMainMenuDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Kullanıcının dışarıya tıklayarak kapatmasını engeller
-      builder: (_) => AlertDialog(
-        title: const Text('Ne Yapmak İstersiniz?'),
-        content: const Text('Oyunu yeniden başlatmak veya ana menüye dönmek ister misiniz?'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _hasShownDialog = false; // Yeni oyun için dialog gösterimini tekrar etkinleştir
-              });
-              _viewModel.resetGame();
-            },
-            child: const Text('Yeniden Başla'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _navigateToMainMenu();
-            },
-            child: const Text('Ana Menü'),
-          ),
-        ],
-      ),
-    );
-  }
+
 
 void _navigateToMainMenu() {
   debugPrint('Ana Menüye Dönüldü');

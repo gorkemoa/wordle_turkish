@@ -35,29 +35,13 @@ class AdService {
   /// AdMob'u başlat
   static Future<void> initialize() async {
     try {
-      // iOS için App Tracking Transparency izni iste
-      if (Platform.isIOS) {
-        try {
-          final ConsentRequestParameters params = ConsentRequestParameters();
-          ConsentInformation.instance.requestConsentInfoUpdate(
-            params,
-            () async {
-              try {
-                if (await ConsentInformation.instance.isConsentFormAvailable()) {
-                  _loadConsentForm();
-                }
-              } catch (e) {
-                print('Consent form availability check error: $e');
-              }
-            },
-            (FormError error) {
-              print('Consent info update error: ${error.errorCode} - ${error.message}');
-              // Consent hatası olsa bile AdMob'u başlat
-            },
-          );
-        } catch (e) {
-          print('Consent request setup error: $e');
-        }
+      // Geliştirme aşamasında consent kontrolünü atla
+      const bool isProduction = false; // Production'da true yapın
+      
+      if (isProduction) {
+        await _handleConsent();
+      } else {
+        print('Geliştirme modu: Consent kontrolü atlandı');
       }
       
       await MobileAds.instance.initialize();
@@ -67,6 +51,60 @@ class AdService {
       print('AdMob başlatma hatası: $e');
       // Plugin yüklenmemişse sessizce devam et
       return;
+    }
+  }
+
+  /// Consent işlemlerini yönet (geliştirme dostu)
+  static Future<void> _handleConsent() async {
+    try {
+      // Basit consent parametreleri
+      final ConsentRequestParameters params = ConsentRequestParameters();
+
+      // Consent bilgisini güncelle
+      final completer = Completer<void>();
+      
+      ConsentInformation.instance.requestConsentInfoUpdate(
+        params,
+        () async {
+          print('Consent bilgisi güncellendi');
+          try {
+            final status = await ConsentInformation.instance.getConsentStatus();
+            print('Consent durumu: $status');
+            
+            if (await ConsentInformation.instance.isConsentFormAvailable()) {
+              _loadConsentForm();
+            } else {
+              print('Consent form mevcut değil - devam ediliyor');
+            }
+          } catch (e) {
+            print('Consent form kontrol hatası: $e');
+          }
+          
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+        },
+        (FormError error) {
+          print('Consent güncelleme hatası: ${error.errorCode} - ${error.message}');
+          print('Hata detayı: Bu genellikle AdMob hesap yapılandırması eksikliğinden kaynaklanır');
+          print('Geliştirme aşamasında bu hata göz ardı edilebilir');
+          
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+        },
+      );
+
+      // Maksimum 10 saniye bekle
+      await completer.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('Consent işlemi timeout - devam ediliyor');
+        },
+      );
+    } catch (e) {
+      print('Consent işlemi genel hatası: $e');
+      // Hata olsa bile devam et
     }
   }
 
