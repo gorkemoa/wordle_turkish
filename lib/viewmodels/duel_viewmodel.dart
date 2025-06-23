@@ -92,6 +92,12 @@ class DuelViewModel extends ChangeNotifier {
   bool get firstRowVisible => _firstRowVisible;
   bool get allRowsVisible => _allRowsVisible;
 
+  Future<int> getCurrentUserTokens() async {
+    final user = FirebaseService.getCurrentUser();
+    if (user == null) return 0;
+    return await FirebaseService.getUserTokens(user.uid);
+  }
+
   @override
   void dispose() {
     _gameSubscription?.cancel();

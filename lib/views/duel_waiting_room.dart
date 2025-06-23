@@ -14,10 +14,14 @@ class DuelWaitingRoom extends StatefulWidget {
 class _DuelWaitingRoomState extends State<DuelWaitingRoom> 
     with TickerProviderStateMixin {
   
-  late AnimationController _pulseController;
   late AnimationController _rotationController;
-  late Animation<double> _pulseAnimation;
+  late AnimationController _slideFadeController;
+  late AnimationController _collisionController;
+  
   late Animation<double> _rotationAnimation;
+  late Animation<double> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+  late CurvedAnimation _collisionAnimation;
   
   // Navigation flag - sadece bir kez pop yapmak için
   bool _hasNavigated = false;
@@ -26,19 +30,33 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
   void initState() {
     super.initState();
     
-    // Pulse animasyonu
-    _pulseController = AnimationController(
-      duration: const Duration(seconds: 2),
+    // Slide/Fade animasyonu (giriş efekti için)
+    _slideFadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    _pulseAnimation = Tween<double>(
-      begin: 0.3,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
-    ));
-    _pulseController.repeat(reverse: true);
+    _slideAnimation = Tween<double>(begin: 30.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _slideFadeController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _slideFadeController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    
+    // Çarpışma animasyonu (tek seferlik, elastik)
+    _collisionController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _collisionAnimation = CurvedAnimation(
+      parent: _collisionController,
+      curve: Curves.elasticOut,
+    );
     
     // Rotation animasyonu
     _rotationController = AnimationController(
@@ -53,12 +71,22 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
       curve: Curves.linear,
     ));
     _rotationController.repeat();
+
+    // Giriş animasyonunu başlat
+    _slideFadeController.forward();
+    // Gecikmeli çarpışma animasyonunu başlat
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _collisionController.forward(from: 0.0);
+      }
+    });
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
     _rotationController.dispose();
+    _slideFadeController.dispose();
+    _collisionController.dispose();
     super.dispose();
   }
 
@@ -153,7 +181,13 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
           }
 
           // Bekleme odası
-          return _buildWaitingRoom(game, viewModel);
+          return WillPopScope(
+            onWillPop: () async {
+              _showExitDialog();
+              return false; // Geri tuşunu manuel yöneteceğiz
+            },
+            child: _buildWaitingRoom(context, game, viewModel),
+          );
         },
       ),
     );
@@ -166,9 +200,9 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
         children: [
           // Ana logo/icon
           AnimatedBuilder(
-            animation: _pulseAnimation,
+            animation: _rotationAnimation,
             builder: (context, child) {
-              final scaleValue = (_pulseAnimation.value * 0.3 + 0.8).clamp(0.8, 1.1);
+              final scaleValue = (0.8 + 0.2 * math.sin(math.pi * _rotationAnimation.value * 0.5));
               return Transform.scale(
                 scale: scaleValue,
                 child: Container(
@@ -282,156 +316,77 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
     );
   }
 
-  Widget _buildWaitingRoom(DuelGame game, DuelViewModel viewModel) {
-    final currentPlayer = viewModel.currentPlayer;
-    final playerCount = game.players.length;
-    final isWaitingForOpponent = playerCount == 1;
-    
+  Widget _buildWaitingRoom(BuildContext context, DuelGame game, DuelViewModel viewModel) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        title: const Text(
-          '🎮 Düello Bekleme Odası',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: const Color(0xFF1E1E1E),
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.blue.shade600.withOpacity(0.3),
-                Colors.purple.shade600.withOpacity(0.3),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // Durum göstergesi - Üst kısım
-              _buildStatusIndicator(isWaitingForOpponent),
-              
-              const SizedBox(height: 12),
-              
-              // Oyuncular kartı - Kompakt
-              _buildPlayersCard(game, viewModel),
-              
-              const SizedBox(height: 12),
-              
-              // Oyun bilgileri - Kompakt tasarım
-              _buildCompactGameInfo(game),
-              
-              const SizedBox(height: 12),
-              
-              // Jeton bilgisi - Yeni responsive card
-              _buildTokenInfo(),
-              
-              const SizedBox(height: 12),
-              
-              // Onay sistemi veya bekleme durumu - Alt merkez
-              if (isWaitingForOpponent)
-                _buildWaitingStatus()
-              else
-                _buildReadySystem(viewModel),
-              
-              const SizedBox(height: 16),
-              
-              // Başka rakip bul butonu (sadece rakip beklenirken göster)
-              if (isWaitingForOpponent)
-                _buildFindNewOpponentButton(viewModel),
-              
-              if (isWaitingForOpponent)
-                const SizedBox(height: 12),
-              
-              // Çıkış butonu - En alt
-              _buildExitButton(isWaitingForOpponent),
-              
-              // Alt padding
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusIndicator(bool isWaitingForOpponent) {
-    return AnimatedBuilder(
-      animation: _rotationAnimation,
-      builder: (context, child) {
-        final rotationValue = _rotationAnimation.value.clamp(0.0, 1.0);
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Transform.rotate(
-              angle: rotationValue * 2 * math.pi,
-              child: Icon(
-                isWaitingForOpponent ? Icons.search : Icons.people,
-                color: isWaitingForOpponent ? Colors.orange : Colors.green,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              isWaitingForOpponent 
-                ? 'Rakip Aranıyor...' 
-                : 'Rakip Bulundu!',
-              style: TextStyle(
-                color: isWaitingForOpponent ? Colors.orange : Colors.green,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildCompactGameInfo(DuelGame game) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+      backgroundColor: const Color(0xFF0D0F14),
+      body: Stack(
         children: [
-          _buildQuickInfoItem(Icons.text_fields, '5 Harf', Colors.blue),
-          Container(width: 1, height: 20, color: Colors.grey.withOpacity(0.3)),
-          _buildQuickInfoItem(Icons.casino, '6 Deneme', Colors.green),
-          Container(width: 1, height: 20, color: Colors.grey.withOpacity(0.3)),
-          _buildQuickInfoItem(Icons.tag, game.gameId.substring(0, 4).toUpperCase(), Colors.purple),
+          // Hareketli Arka Plan
+          _buildAnimatedBackground(),
+
+          // Ana İçerik
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              child: AnimatedBuilder(
+                animation: _slideFadeController,
+                builder: (context, child) {
+                  return Transform.translate(
+                    offset: Offset(0, _slideAnimation.value),
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: child,
+                    ),
+                  );
+                },
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildHeader(),
+                    _buildPlayersCard(game, viewModel),
+                    _buildTokenInfo(),
+                    _buildFooter(viewModel),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildQuickInfoItem(IconData icon, String value, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+  Widget _buildAnimatedBackground() {
+    return AnimatedBuilder(
+      animation: _rotationAnimation,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: _CyberGridPainter(_rotationAnimation.value),
+          child: Container(),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader() {
+    return const Column(
       children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 6),
         Text(
-          value,
-          style: const TextStyle(
+          'Rakip Bekleniyor...',
+          style: TextStyle(
+            fontFamily: 'RussoOne',
+            fontSize: 28,
             color: Colors.white,
-            fontSize: 12,
             fontWeight: FontWeight.bold,
+          ),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'Sana en uygun rakip aranıyor, lütfen bekle.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.white70,
           ),
         ),
       ],
@@ -439,556 +394,145 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
   }
 
   Widget _buildTokenInfo() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Responsive tasarım için ekran genişliğini kontrol et
-        final isSmallScreen = constraints.maxWidth < 350;
-        final iconSize = isSmallScreen ? 18.0 : 20.0;
-        final fontSize = isSmallScreen ? 12.0 : 14.0;
-        final titleFontSize = isSmallScreen ? 14.0 : 16.0;
-        
-        return Container(
-          width: double.infinity,
-          padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.amber.shade600.withOpacity(0.15),
-                Colors.orange.shade600.withOpacity(0.15),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.amber.shade600.withOpacity(0.4),
-              width: 1.5,
-            ),
-          ),
-          child: Column(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // Başlık
-              Row(
+              _buildTokenInfoItem('Giriş Ücreti', '2', Colors.red.shade400),
+              _buildTokenInfoItem('Potansiyel Kazanç', '4', Colors.green.shade400),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(color: Colors.grey.shade800),
+          const SizedBox(height: 8),
+          FutureBuilder<int>(
+            future: Provider.of<DuelViewModel>(context, listen: false).getCurrentUserTokens(),
+            builder: (context, snapshot) {
+              final tokens = snapshot.data ?? 0;
+              return Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.monetization_on,
-                    color: Colors.amber.shade400,
-                    size: iconSize,
+                  const Text(
+                    'Mevcut Jetonun: ',
+                    style: TextStyle(fontSize: 14, color: Colors.white70),
                   ),
-                  SizedBox(width: isSmallScreen ? 6 : 8),
                   Text(
-                    'Düello Jeton Sistemi',
-                    style: TextStyle(
-                      color: Colors.amber.shade200,
-                      fontSize: titleFontSize,
+                    tokens.toString(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.amber,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.monetization_on, color: Colors.amber, size: 16),
                 ],
-              ),
-              
-              SizedBox(height: isSmallScreen ? 8 : 12),
-              
-              // Responsive grid layout
-              if (isSmallScreen)
-                // Küçük ekranlar için dikey liste
-                Column(
-                  children: [
-                    _buildTokenInfoRow(
-                      Icons.payment,
-                      'Giriş Ücreti',
-                      '2 Jeton',
-                      Colors.red.shade400,
-                      fontSize,
-                      iconSize,
-                    ),
-                    SizedBox(height: 6),
-                    _buildTokenInfoRow(
-                      Icons.emoji_events,
-                      'Kazanç',
-                      '4 Jeton',
-                      Colors.green.shade400,
-                      fontSize,
-                      iconSize,
-                    ),
-                    SizedBox(height: 6),
-                    _buildTokenInfoRow(
-                      Icons.schedule,
-                      'Kesim Zamanı',
-                      'Oyun Başlangıcı',
-                      Colors.blue.shade400,
-                      fontSize,
-                      iconSize,
-                    ),
-                  ],
-                )
-              else
-                // Büyük ekranlar için yatay grid
-                Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTokenInfoRow(
-                            Icons.payment,
-                            'Giriş Ücreti',
-                            '2 Jeton',
-                            Colors.red.shade400,
-                            fontSize,
-                            iconSize,
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: _buildTokenInfoRow(
-                            Icons.emoji_events,
-                            'Kazanç',
-                            '4 Jeton',
-                            Colors.green.shade400,
-                            fontSize,
-                            iconSize,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    _buildTokenInfoRow(
-                      Icons.schedule,
-                      'Kesim Zamanı',
-                      'Oyun Başlangıcı',
-                      Colors.blue.shade400,
-                      fontSize,
-                      iconSize,
-                    ),
-                  ],
-                ),
-              
-              SizedBox(height: isSmallScreen ? 6 : 8),
-              
-              // Uyarı mesajı
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isSmallScreen ? 8 : 12,
-                  vertical: isSmallScreen ? 4 : 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade600.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.orange.shade600.withOpacity(0.5),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Colors.orange.shade300,
-                      size: isSmallScreen ? 14 : 16,
-                    ),
-                    SizedBox(width: isSmallScreen ? 4 : 6),
-                    Flexible(
-                      child: Text(
-                        'Jetonlar oyun başladığında kesilir',
-                        style: TextStyle(
-                          color: Colors.orange.shade200,
-                          fontSize: isSmallScreen ? 10 : 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildTokenInfoRow(
-    IconData icon,
-    String label,
-    String value,
-    Color color,
-    double fontSize,
-    double iconSize,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: iconSize),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: Colors.grey.shade300,
-                    fontSize: fontSize - 2,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  value,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
         ],
       ),
     );
   }
 
+  Widget _buildTokenInfoItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.white70,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.monetization_on, color: color, size: 20),
+          ],
+        ),
+      ],
+    );
+  }
 
+  Widget _buildFooter(DuelViewModel viewModel) {
+    return SizedBox(
+      height: 50, // Buton için sabit alan
+      child: ElevatedButton.icon(
+        onPressed: _showExitDialog,
+        icon: const Icon(Icons.cancel, color: Colors.white),
+        label: const Text('Aramayı İptal Et'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red.shade800.withOpacity(0.8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+          shadowColor: Colors.red.shade800,
+          elevation: 8,
+        ),
+      ),
+    );
+  }
 
   Widget _buildPlayersCard(DuelGame game, DuelViewModel viewModel) {
     final currentPlayer = viewModel.currentPlayer;
-    final playerCount = game.players.length;
-    
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.withOpacity(0.3)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Başlık
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.green.shade600, Colors.blue.shade600],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.people, color: Colors.white, size: 18),
-                const SizedBox(width: 4),
-                Text(
-                  'Oyuncular ($playerCount/2)',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 12),
-          
-          // Oyuncular - Yatay düzen
-          if (playerCount == 2)
-            Row(
-              children: [
-                // Sol oyuncu
-                Expanded(
-                  child: _buildCompactPlayerCard(
-                    game.players.values.where((p) => p.playerId == currentPlayer?.playerId).first,
-                    true,
-                  ),
-                ),
-                
-                const SizedBox(width: 16),
-                
-                // VS Göstergesi
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade600,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Text(
-                    'VS',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(width: 16),
-                
-                // Sağ oyuncu
-                Expanded(
-                  child: _buildCompactPlayerCard(
-                    game.players.values.where((p) => p.playerId != currentPlayer?.playerId).first,
-                    false,
-                  ),
-                ),
-              ],
-            )
-          else
-            // Tek oyuncu durumu
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildCompactPlayerCard(
-                  game.players.values.first,
-                  true,
-                ),
-                const SizedBox(height: 12),
-                _buildEmptyPlayerSlot(),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
+    final opponentPlayer = viewModel.opponentPlayer;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final finalOffset = screenWidth * 0.25; // Kartın merkezden son uzaklığı
 
-  Widget _buildCompactPlayerCard(DuelPlayer player, bool isCurrentPlayer) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: isCurrentPlayer 
-          ? Colors.blue.shade600.withOpacity(0.2) 
-          : const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(10),
-        border: isCurrentPlayer 
-          ? Border.all(color: Colors.blue.shade600, width: 2)
-          : Border.all(color: Colors.grey.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          // Avatar
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: isCurrentPlayer 
-                  ? [Colors.blue.shade400, Colors.blue.shade600]
-                  : [Colors.grey.shade600, Colors.grey.shade800],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Icon(
-              isCurrentPlayer ? Icons.person : Icons.person_outline,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-          
-          const SizedBox(height: 6),
-          
-          // Oyuncu adı
-          Text(
-            player.playerName,
-            style: TextStyle(
-              color: isCurrentPlayer ? Colors.blue.shade200 : Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          
-          const SizedBox(height: 2),
-          
-          Text(
-            isCurrentPlayer ? 'Sen' : 'Rakip',
-            style: TextStyle(
-              color: Colors.grey.shade400,
-              fontSize: 10,
-            ),
-          ),
-          
-          const SizedBox(height: 4),
-          
-          // Durum göstergesi
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: player.status == PlayerStatus.ready 
-                ? Colors.green.shade600.withOpacity(0.2)
-                : Colors.orange.shade600.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: player.status == PlayerStatus.ready 
-                  ? Colors.green.shade600
-                  : Colors.orange.shade600,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  player.status == PlayerStatus.ready 
-                    ? Icons.check_circle_outline
-                    : Icons.hourglass_empty,
-                  color: player.status == PlayerStatus.ready 
-                    ? Colors.green.shade300 
-                    : Colors.orange.shade300,
-                  size: 12,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  player.status == PlayerStatus.ready ? 'Hazır' : 'Beklemede',
-                  style: TextStyle(
-                    color: player.status == PlayerStatus.ready 
-                      ? Colors.green.shade300 
-                      : Colors.orange.shade300,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-  Widget _buildEmptyPlayerSlot() {
     return AnimatedBuilder(
-      animation: _pulseAnimation,
+      animation: _collisionAnimation,
       builder: (context, child) {
-        return Opacity(
-          opacity: _pulseAnimation.value.clamp(0.0, 1.0),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2A2A2A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.grey.withOpacity(0.3),
-                style: BorderStyle.solid,
-              ),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.grey.shade700,
-                  ),
-                  child: Icon(
-                    Icons.person_add,
-                    color: Colors.grey.shade500,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Rakip Bekleniyor...',
-                  style: TextStyle(
-                    color: Colors.grey.shade400,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Biri katılsın',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade600.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade600),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.more_horiz,
-                        color: Colors.grey.shade400,
-                        size: 12,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Boş',
-                        style: TextStyle(
-                          color: Colors.grey.shade400,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+        // Kartların başlangıç pozisyonu (ekran dışı) ve animasyonlu hareketi
+        final startOffset = screenWidth / 2;
+        final currentPosition = startOffset * (1 - _collisionAnimation.value);
 
-  Widget _buildWaitingStatus() {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        final pulseValue = (_pulseAnimation.value * 0.3 + 0.7).clamp(0.3, 1.0);
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.orange.shade600.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.orange.shade600.withOpacity(pulseValue),
-              width: 2,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+        // VS logosunun animasyonu: Belirli bir anda parlayıp sönecek
+        final vsAnimation = (_collisionAnimation.value > 0.4 && _collisionAnimation.value < 0.7)
+            ? (1 - ((_collisionAnimation.value - 0.4) / 0.3 - 0.5).abs() * 2)
+            : 0.0;
+
+        return SizedBox(
+          height: 250,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Icon(
-                Icons.hourglass_empty,
-                color: Colors.orange.shade400,
-                size: 20,
+              // Oyuncu 1 (Soldan gelip sola yerleşir)
+              Transform.translate(
+                offset: Offset(-finalOffset - currentPosition, 0),
+                child: _buildPlayerAvatar(currentPlayer, isOpponent: false),
               ),
-              const SizedBox(width: 12),
-              Text(
-                'Rakip Oyuncu Bekleniyor...',
-                style: TextStyle(
-                  color: Colors.orange.shade200,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+              
+              // Oyuncu 2 (Sağdan gelip sağa yerleşir)
+              Transform.translate(
+                offset: Offset(finalOffset + currentPosition, 0),
+                child: _buildPlayerAvatar(opponentPlayer, isOpponent: true),
+              ),
+
+              // VS Ayırıcı (Animasyonlu)
+              Transform.scale(
+                scale: 1.0 + (vsAnimation * 0.5),
+                child: Opacity(
+                  opacity: vsAnimation,
+                  child: _buildVsSeparator(),
                 ),
               ),
             ],
@@ -998,119 +542,143 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
     );
   }
 
-  Widget _buildReadySystem(DuelViewModel viewModel) {
-    final isReady = viewModel.isPlayerReady;
-    final countdown = viewModel.readyCountdown;
+  Widget _buildPlayerAvatar(DuelPlayer? player, {required bool isOpponent}) {
+    final avatar = player?.avatar ?? (isOpponent ? '❓' : '🤔');
+    final name = player?.playerName ?? (isOpponent ? 'Aranıyor...' : 'Sen');
+    final bgColor = isOpponent ? Colors.red.shade900 : Colors.blue.shade900;
     
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isReady 
-          ? Colors.green.shade600.withOpacity(0.15)
-          : Colors.blue.shade600.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isReady ? Colors.green.shade600 : Colors.blue.shade600,
+    return SizedBox(
+      width: 140,
+      height: 175,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: bgColor.withOpacity(0.5), width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: bgColor.withOpacity(0.3),
+              blurRadius: 15,
+              spreadRadius: 2,
+            )
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [bgColor, Colors.black.withOpacity(0.1)],
+                  center: Alignment.center,
+                  radius: 0.8,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  avatar,
+                  style: const TextStyle(fontSize: 40),
+                ),
+              ),
+            ),
+            Text(
+              name,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
-      child: Row(
+    );
+  }
+
+  Widget _buildVsSeparator() {
+    const double vsFontSize = 64;
+    const fontFamily = 'RussoOne';
+
+    return SizedBox(
+      width: 150,
+      height: 150,
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          // Sol taraf - Icon ve durum
-          Expanded(
-            flex: 2,
-            child: Column(
-              children: [
-                Icon(
-                  isReady ? Icons.check_circle : Icons.play_circle_outline,
-                  color: isReady ? Colors.green.shade400 : Colors.blue.shade400,
-                  size: 40,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  isReady ? 'Hazırsın!' : 'Hazır mısın?',
-                  style: TextStyle(
-                    color: isReady ? Colors.green.shade200 : Colors.blue.shade200,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+          // Katman 1: En dıştaki, bulanık alev parlaması
+          Text(
+            'VS',
+            style: TextStyle(
+              fontFamily: fontFamily,
+              fontSize: vsFontSize,
+              color: Colors.transparent,
+              shadows: [
+                for (int i = 1; i <= 4; i++)
+                  Shadow(
+                    color: Colors.red.withOpacity(0.3),
+                    blurRadius: i * 12.0,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                if (countdown > 0) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    '${countdown}s',
-                    style: TextStyle(
-                      color: Colors.orange.shade400,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
-          
-          const SizedBox(width: 16),
-          
-          // Sağ taraf - Buton
-          Expanded(
-            flex: 3,
-            child: Column(
-              children: [
-                if (!isReady)
-                  ElevatedButton.icon(
-                    onPressed: () => viewModel.setPlayerReady(true),
-                    icon: const Icon(Icons.check, color: Colors.white, size: 20),
-                    label: const Text(
-                      'Hazırım!',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade600,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                    ),
-                  )
-                else
-                  Column(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () => viewModel.setPlayerReady(false),
-                        icon: const Icon(Icons.close, color: Colors.white, size: 18),
-                        label: const Text(
-                          'Bekle',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange.shade600,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Rakip bekleniyor...',
-                        style: TextStyle(
-                          color: Colors.grey.shade400,
-                          fontSize: 12,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
+
+          // Katman 2: İçteki, keskin şimşek parlaması
+          Text(
+            'VS',
+            style: TextStyle(
+              fontFamily: fontFamily,
+              fontSize: vsFontSize,
+              color: Colors.transparent,
+              shadows: [
+                Shadow(
+                  color: Colors.yellowAccent.withOpacity(0.8),
+                  blurRadius: 25,
+                ),
+                Shadow(
+                  color: Colors.white.withOpacity(0.7),
+                  blurRadius: 15,
+                ),
               ],
+            ),
+          ),
+
+          // Katman 3: Ana metnin kendisi (Ateşli renk geçişi)
+          ShaderMask(
+            shaderCallback: (bounds) => LinearGradient(
+              colors: [
+                Colors.yellow.shade300,
+                Colors.orange.shade600,
+                Colors.red.shade800
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ).createShader(bounds),
+            child: const Text(
+              'VS',
+              style: TextStyle(
+                fontFamily: fontFamily,
+                fontSize: vsFontSize,
+                color: Colors.white, // Bu renk önemsiz, shader kullanılacak
+              ),
+            ),
+          ),
+          
+          // Katman 4: Metne derinlik katan ince dış çizgi
+          Text(
+            'VS',
+            style: TextStyle(
+              fontFamily: fontFamily,
+              fontSize: vsFontSize,
+              foreground: Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 2.5
+                ..color = Colors.black.withOpacity(0.4),
             ),
           ),
         ],
@@ -1118,114 +686,59 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
     );
   }
 
-  Widget _buildFindNewOpponentButton(DuelViewModel viewModel) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () async {
-          // Loading dialog göster
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                backgroundColor: const Color(0xFF2A2A2A),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(color: Colors.blue),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Başka rakip aranıyor...',
-                      style: TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
+}
 
-          try {
-            final success = await viewModel.findNewOpponent();
-            
-            // Dialog'u kapat
-            if (mounted) {
-              Navigator.of(context).pop();
-            }
-            
-            if (!success && mounted) {
-              // Hata mesajı göster
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Başka rakip bulunamadı. Tekrar deneyin.'),
-                  backgroundColor: Colors.red.shade600,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            }
-          } catch (e) {
-            // Dialog'u kapat
-            if (mounted) {
-              Navigator.of(context).pop();
-            }
-            
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Bir hata oluştu. Tekrar deneyin.'),
-                  backgroundColor: Colors.red.shade600,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            }
-          }
-        },
-        icon: const Icon(Icons.refresh, color: Colors.white),
-        label: const Text(
-          'Başka Rakip Bul',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.orange.shade600,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
+class _CyberGridPainter extends CustomPainter {
+  final double rotation;
+  _CyberGridPainter(this.rotation);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.max(size.width, size.height) * 0.7;
+
+    // Arka Plan Renkleri
+    final backgroundPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xff1a237e).withOpacity(0.5), // Indigo
+          const Color(0xff4a148c).withOpacity(0.3), // Purple
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), backgroundPaint);
+
+    // Izgara
+    final gridPaint = Paint()
+      ..color = Colors.cyan.withOpacity(0.1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    final ringPaint = Paint()
+      ..color = Colors.cyan.withOpacity(0.2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(rotation * math.pi / 12); // Daha yavaş dönüş
+    canvas.translate(-center.dx, -center.dy);
+
+    const gridSize = 40.0;
+    for (double i = 0; i <= size.width + gridSize; i += gridSize) {
+      canvas.drawLine(Offset(i, -gridSize), Offset(i, size.height + gridSize), gridPaint);
+    }
+    for (double i = 0; i <= size.height + gridSize; i += gridSize) {
+      canvas.drawLine(Offset(-gridSize, i), Offset(size.width + gridSize, i), gridPaint);
+    }
+    
+    canvas.drawCircle(center, radius * 0.25, ringPaint);
+    canvas.drawCircle(center, radius * 0.5, ringPaint);
+
+    canvas.restore();
   }
 
-  Widget _buildExitButton(bool isWaitingForOpponent) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: _showExitDialog,
-        icon: const Icon(Icons.exit_to_app, color: Colors.white),
-        label: Text(
-          isWaitingForOpponent ? 'Aramayı İptal Et' : 'Bekleme Odasından Çık',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.red.shade600,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
-  }
-
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
