@@ -145,10 +145,7 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
             TextButton(
               onPressed: () {
                 try {
-                  Navigator.pop(context); // Dialog'u kapat
-                  if (mounted) {
-                    Navigator.pop(context); // Ana sayfaya dön
-                  }
+                  Navigator.pop(context); // Sadece dialog'u kapat
                 } catch (e) {
                   debugPrint('Error dialog close error: $e');
                 }
@@ -160,6 +157,72 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       );
     } catch (e) {
       debugPrint('Error dialog show error: $e');
+    }
+  }
+
+  void _showPowerUpErrorDialog(String title, String message) {
+    if (!mounted) {
+      debugPrint('DuelPage - Widget mounted değil, power-up error dialog gösterilmiyor');
+      return;
+    }
+    
+    try {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(color: Colors.white, fontSize: 18)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(message, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: const Column(
+                  children: [
+                    Text(
+                      '💡 Jeton Kazanma Yolları:',
+                      style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '• Düello kazanarak 4 jeton\n• Reklam izleyerek\n• Jeton mağazasından satın al',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                try {
+                  Navigator.pop(context); // Sadece dialog'u kapat
+                } catch (e) {
+                  debugPrint('Power-up error dialog close error: $e');
+                }
+              },
+              child: const Text('Anladım', style: TextStyle(color: Colors.blue)),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint('Power-up error dialog show error: $e');
     }
   }
 
@@ -899,14 +962,14 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   Future<void> _buyFirstRowVisibility(DuelViewModel viewModel) async {
     final success = await viewModel.buyFirstRowVisibility();
     if (!success && mounted) {
-      _showErrorDialog('Yetersiz Jeton', 'İlk satırı görmek için 10 jetona ihtiyacınız var.');
+      _showPowerUpErrorDialog('Yetersiz Jeton', 'İlk satırı görmek için 10 jetona ihtiyacınız var.');
     }
   }
 
   Future<void> _buyAllRowsVisibility(DuelViewModel viewModel) async {
     final success = await viewModel.buyAllRowsVisibility();
     if (!success && mounted) {
-      _showErrorDialog('Yetersiz Jeton', 'Tüm satırları görmek için 20 jetona ihtiyacınız var.');
+      _showPowerUpErrorDialog('Yetersiz Jeton', 'Tüm satırları görmek için 20 jetona ihtiyacınız var.');
     }
   }
 
@@ -924,23 +987,23 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       
       if (hintLetter == 'INSUFFICIENT_TOKENS') {
         debugPrint('DuelPage - Yetersiz jeton durumu');
-        _showErrorDialog('Yetersiz Jeton', 'Harf ipucu için 15 jetona ihtiyacınız var. Mevcut jetonunuz yetersiz.');
+        _showPowerUpErrorDialog('Yetersiz Jeton', 'Harf ipucu için 15 jetona ihtiyacınız var. Mevcut jetonunuz yetersiz.');
       } else if (hintLetter == 'ALL_LETTERS_GUESSED') {
         debugPrint('DuelPage - Tüm harfler tahmin edilmiş durumu');
-        _showErrorDialog('İpucu Yok', 'Kelimedeki tüm harfler zaten tahmin edilmiş. İpucu verilecek harf kalmadı.');
+        _showPowerUpErrorDialog('İpucu Yok', 'Kelimedeki tüm harfler zaten tahmin edilmiş. İpucu verilecek harf kalmadı.');
       } else if (hintLetter != null && hintLetter.length == 1) {
         debugPrint('DuelPage - Başarılı ipucu: $hintLetter');
         _showHintDialog(hintLetter);
       } else {
         debugPrint('DuelPage - Genel hata durumu');
-        _showErrorDialog('Hata', 'İpucu alınırken bir hata oluştu. Lütfen tekrar deneyin.');
+        _showPowerUpErrorDialog('Hata', 'İpucu alınırken bir hata oluştu. Lütfen tekrar deneyin.');
       }
       
       debugPrint('DuelPage - Harf ipucu işlemi tamamlandı');
     } catch (e) {
       debugPrint('DuelPage - Harf ipucu button hatası: $e');
       if (mounted) {
-        _showErrorDialog('Hata', 'İpucu alınırken beklenmeyen bir hata oluştu: $e');
+        _showPowerUpErrorDialog('Hata', 'İpucu alınırken beklenmeyen bir hata oluştu: $e');
       }
     }
   }
