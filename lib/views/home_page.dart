@@ -280,8 +280,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
     }
     
-    // Jeton yeterli, düello başlat
-    Navigator.push(context, MaterialPageRoute(builder: (context) => const DuelPage()));
+    // Jeton yeterli, düello başlat - Her seferinde yeni key ile
+    Navigator.push(context, MaterialPageRoute(builder: (context) => DuelPage(key: UniqueKey())));
   }
 
   void _showDuelTokenDialog(BuildContext context, int currentTokens) {

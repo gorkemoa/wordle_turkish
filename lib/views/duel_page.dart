@@ -38,25 +38,30 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
     ));
     _pulseController.repeat(reverse: true);
     
-    // Sadece bir kez oyun başlat
-    if (!_hasStartedGame) {
-      _hasStartedGame = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _startGame();
-      });
+    // ViewModel'i temizle ve başlat
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Önce ViewModel'i temizle
+      final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+      viewModel.resetForNewGame();
       
-      // 15 saniye timeout ekle
-      Future.delayed(const Duration(seconds: 15), () {
-        if (mounted && !_hasTimedOut) {
-          final viewModel = Provider.of<DuelViewModel>(context, listen: false);
-          if (viewModel.currentGame == null) {
-            setState(() {
-              _hasTimedOut = true;
-            });
-          }
+      // Sonra oyunu başlat
+      if (!_hasStartedGame) {
+        _hasStartedGame = true;
+        _startGame();
+      }
+    });
+    
+    // 15 saniye timeout ekle
+    Future.delayed(const Duration(seconds: 15), () {
+      if (mounted && !_hasTimedOut) {
+        final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+        if (viewModel.currentGame == null) {
+          setState(() {
+            _hasTimedOut = true;
+          });
         }
-      });
-    }
+      }
+    });
   }
 
   @override

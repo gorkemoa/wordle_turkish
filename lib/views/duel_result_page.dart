@@ -897,7 +897,7 @@ class _DuelResultPageState extends State<DuelResultPage>
             Icons.refresh_rounded,
             Colors.green.shade600,
             () => Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => const DuelPage()),
+              MaterialPageRoute(builder: (context) => DuelPage(key: UniqueKey())),
             ),
           ),
         ),

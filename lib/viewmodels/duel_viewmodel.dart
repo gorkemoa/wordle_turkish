@@ -560,6 +560,21 @@ class DuelViewModel extends ChangeNotifier {
     _allRowsVisible = false;
   }
 
+  // Yeni oyun için tamamen sıfırla (public metod)
+  void resetForNewGame() {
+    // Mevcut subscription'ı temizle
+    _gameSubscription?.cancel();
+    _gameSubscription = null;
+    
+    // Oyun durumunu sıfırla
+    _resetGameState();
+    
+    // Notifiers'ı güncelle
+    notifyListeners();
+    
+    debugPrint('DuelViewModel - Yeni oyun için sıfırlandı');
+  }
+
   // Oyuncunun onay vermesi
   Future<void> setPlayerReady([bool? ready]) async {
     if (_gameId == null) return;
