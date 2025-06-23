@@ -426,6 +426,17 @@ class FirebaseService {
         });
 
         print('Mevcut oyuna başarıyla katıldı');
+        
+        // İki oyuncu da katıldıysa oyunu başlat
+        final updatedGameDoc = await _firestore.collection('duel_games').doc(gameId).get();
+        if (updatedGameDoc.exists) {
+          final updatedGame = DuelGame.fromFirestore(updatedGameDoc);
+          if (updatedGame.players.length == 2) {
+            print('İki oyuncu da katıldı, oyun başlatılıyor...');
+            await startGame(gameId);
+          }
+        }
+        
         return gameId;
       } else {
         // Yeni oyun oluştur
@@ -1178,6 +1189,22 @@ class FirebaseService {
   static int calculateLevel(int totalPoints) {
     // Her 500 puan = 1 seviye
     return (totalPoints / 500).floor() + 1;
+  }
+
+  // Aktif düello oyuncularını dinle
+  static Stream<int> getActiveDuelPlayersCount() {
+    return _firestore
+        .collection('duel_games')
+        .where('status', whereIn: ['waiting', 'active'])
+        .snapshots()
+        .map((snapshot) {
+      int activePlayerCount = 0;
+      for (final doc in snapshot.docs) {
+        final game = DuelGame.fromFirestore(doc);
+        activePlayerCount += game.players.length;
+      }
+      return activePlayerCount;
+    });
   }
 
   // Kullanıcı seviyesini güncelle

@@ -26,6 +26,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Map<String, dynamic>? userStats;
   bool isLoading = true;
+  int activeDuelPlayers = 0;
   late AnimationController _animationController;
   late AnimationController _pulseController;
   late AnimationController _bounceController;
@@ -35,6 +36,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late AnimationController _dailyChallengePulseController;
   late Animation<double> _dailyChallengePulseAnimation;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userStatsSubscription;
+  StreamSubscription<int>? _duelPlayersSubscription;
   final List<WordleParticle> _particles = [];
   final _random = math.Random();
   late AnimationController _sheenController;
@@ -105,6 +107,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _dailyChallengePulseController.dispose();
     _sheenController.dispose();
     _userStatsSubscription?.cancel();
+    _duelPlayersSubscription?.cancel();
     super.dispose();
   }
 
@@ -140,6 +143,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       // Real-time veri dinlemeyi başlat
       _startListeningToUserStats(user.uid);
+      _startListeningToDuelPlayers();
 
     } catch (e) {
       print('Veri yükleme hatası: $e');
@@ -184,6 +188,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         });
       }
     });
+  }
+
+  void _startListeningToDuelPlayers() {
+    _duelPlayersSubscription?.cancel();
+    
+    _duelPlayersSubscription = FirebaseService.getActiveDuelPlayersCount().listen(
+      (count) {
+        if (mounted) {
+          setState(() {
+            activeDuelPlayers = count;
+          });
+        }
+      },
+      onError: (error) {
+        print('Aktif düello oyuncuları dinleme hatası: $error');
+      },
+    );
   }
 
   Future<void> _refreshData() async {
@@ -507,7 +528,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       },
       {
         'title': 'DÜELLO',
-        'subtitle': 'Arkadaşlarınla kapış!',
+        'subtitle': activeDuelPlayers > 0 ? '$activeDuelPlayers oyuncu aktif!' : 'Arkadaşlarınla kapış!',
         'icon': Icons.sports_esports,
         'pattern': _buildThemedPattern(const Color(0xFFe74c3c), 'duel'),
         'color': const Color(0xFFe74c3c),
