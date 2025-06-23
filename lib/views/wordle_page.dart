@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import '../widgets/shake_widget.dart';
@@ -98,10 +97,6 @@ class _WordlePageState extends State<WordlePage> {
 
 
 
-void _navigateToMainMenu() {
-  debugPrint('Ana Menüye Dönüldü');
-  Navigator.pushReplacementNamed(context, '/home'); // Ana menü rotası olarak '/home' kullanıldı
-}
 
   Future<void> _saveGameResult(WordleViewModel viewModel, bool won, bool timeOut) async {
     try {

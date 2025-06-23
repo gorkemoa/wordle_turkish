@@ -6,7 +6,6 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../models/duel_game.dart';
 import '../services/firebase_service.dart';
 import '../viewmodels/wordle_viewmodel.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class DuelViewModel extends ChangeNotifier {
   static const int maxAttempts = 6;
@@ -45,6 +44,7 @@ class DuelViewModel extends ChangeNotifier {
   // Rakip görünürlük sistemi
   bool _firstRowVisible = false;
   bool _allRowsVisible = false;
+  bool _tokensDeducted = false; // Jetonların kesilip kesilmediğini takip et
 
   // Getters
   DuelGame? get currentGame => _currentGame;
@@ -202,10 +202,10 @@ class DuelViewModel extends ChangeNotifier {
     try {
       debugPrint('Düello oyunu başlatılıyor...');
       
-      // Firebase'e giriş yap
-      final user = await FirebaseService.signInAnonymously();
+      // Mevcut kullanıcıyı kontrol et
+      final user = FirebaseService.getCurrentUser();
       if (user == null) {
-        debugPrint('Firebase giriş başarısız');
+        debugPrint('Kullanıcı giriş yapmamış');
         return false;
       }
       debugPrint('Firebase giriş başarılı: ${user.uid}');
@@ -344,6 +344,12 @@ class DuelViewModel extends ChangeNotifier {
   // Oyun başladığında jeton kes
   Future<void> _deductGameTokens() async {
     try {
+      // Jetonlar zaten kesildi mi kontrol et
+      if (_tokensDeducted) {
+        debugPrint('Jetonlar zaten kesilmiş, tekrar kesim yapılmıyor');
+        return;
+      }
+      
       final user = FirebaseService.getCurrentUser();
       if (user != null) {
         // Önce mevcut jetonları logla
@@ -355,6 +361,9 @@ class DuelViewModel extends ChangeNotifier {
         // Sonra yeni jeton sayısını logla
         final tokensAfter = await FirebaseService.getUserTokens(user.uid);
         debugPrint('Jeton kesme sonrası: $tokensAfter jeton (${tokensBefore - tokensAfter} jeton kesildi)');
+        
+        // Flag'i set et
+        _tokensDeducted = true;
       }
     } catch (e) {
       debugPrint('Jeton kesme exception: $e');
@@ -546,6 +555,9 @@ class DuelViewModel extends ChangeNotifier {
     _currentColumn = 0;
     _currentGuess = List.filled(wordLength, '');
     _keyboardLetters = {}; // Klavye renklerini sıfırla
+    _tokensDeducted = false; // Jeton kesim flag'ini sıfırla
+    _firstRowVisible = false; // Görünürlük flag'lerini sıfırla
+    _allRowsVisible = false;
   }
 
   // Oyuncunun onay vermesi
@@ -643,7 +655,8 @@ class DuelViewModel extends ChangeNotifier {
 
       // Düello sistemi: Her oyuncu 2 jeton öder, kazanan 4 jeton alır
       bool won = currentPlayer.status == PlayerStatus.won;
-      bool hasOpponent = opponentPlayer != null;
+      bool hasOpponent = opponentPlayer != null && 
+                         opponentPlayer.status != PlayerStatus.disconnected;
       
       if (hasOpponent && won) {
         // Kazanan 4 jeton alır (2 kendi + 2 rakipten)
@@ -652,10 +665,10 @@ class DuelViewModel extends ChangeNotifier {
       } else if (hasOpponent && !won) {
         // Kaybeden zaten başta 2 jeton ödemiş, ek ceza yok
         debugPrint('Düello kaybetti: başta ödenen 2 jeton gitti');
-      } else {
-        // Rakip yoksa başta ödenen 2 jeton geri verilir
+      } else if (!hasOpponent) {
+        // Rakip yoksa veya bağlantı kesilirse başta ödenen 2 jeton geri verilir
         await FirebaseService.earnTokens(user.uid, 2, 'Düello İptali - Rakip Yok');
-        debugPrint('Düello iptal (rakip yok): +2 jeton geri');
+        debugPrint('Düello iptal (rakip yok/disconnected): +2 jeton geri');
       }
       
       debugPrint('Düello jeton güncellemesi: won=$won, hasOpponent=$hasOpponent');

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:math' as math;
 import '../viewmodels/wordle_viewmodel.dart';
-import '../services/firebase_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class WordleResultPage extends StatefulWidget {
   final bool isWinner;

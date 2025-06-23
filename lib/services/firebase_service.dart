@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -205,19 +204,30 @@ class FirebaseService {
       // Kullanıcı için deterministik avatar oluştur
       String userAvatar = AvatarService.generateAvatar(user.uid);
       
-      await _firestore.collection('users').doc(user.uid).set({
+      // Önce mevcut kullanıcı profilini kontrol et
+      final existingDoc = await _firestore.collection('users').doc(user.uid).get();
+      
+      final profileData = {
         'uid': user.uid,
         'displayName': displayName,
         'email': email,
         'photoURL': user.photoURL,
         'avatar': userAvatar,
         'isAnonymous': user.isAnonymous,
-        'createdAt': FieldValue.serverTimestamp(),
         'lastActiveAt': FieldValue.serverTimestamp(),
-        'gamesPlayed': 0,
-        'gamesWon': 0,
-        'tokens': 2, // Yeni üyeler 2 jetonla başlar
-      }, SetOptions(merge: true));
+      };
+      
+      // Sadece yeni kullanıcılar için varsayılan değerleri ekle
+      if (!existingDoc.exists) {
+        profileData.addAll({
+          'createdAt': FieldValue.serverTimestamp(),
+          'gamesPlayed': 0,
+          'gamesWon': 0,
+          'tokens': 2, // Yeni üyeler 2 jetonla başlar
+        });
+      }
+      
+      await _firestore.collection('users').doc(user.uid).set(profileData, SetOptions(merge: true));
 
       // Kullanıcı istatistiklerini ve günlük görevlerini başlat
       await initializeUserStats(user.uid);
@@ -1537,14 +1547,14 @@ class FirebaseService {
       if (won) {
         await earnTokens(uid, 1, '$gameType Kazanma');
       } else {
-        // Sadece düello modunda kaybedince jeton kes
-        if (gameType.contains('Düello')) {
+        // Sadece tek oyuncu modunda kaybedince jeton kes
+        if (!gameType.contains('Düello')) {
           final currentTokens = await getUserTokens(uid);
           if (currentTokens > 0) {
             await spendTokens(uid, 1, '$gameType Kaybetme');
           }
         }
-        // Tek oyuncu modunda jeton kesme
+        // Düello modunda jeton kesimi oyun başında yapılır
       }
     } catch (e) {
       print('Oyun sonucu jeton güncelleme hatası: $e');
