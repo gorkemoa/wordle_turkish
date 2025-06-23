@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'firebase_service.dart';
@@ -7,13 +8,27 @@ class AdService {
   static bool _isRewardedAdReady = false;
   static bool _isLoading = false;
 
-  // Gerçek reklam ID'leri
+  // Test ve gerçek reklam ID'leri
   static String get _rewardedAdUnitId {
-    if (Platform.isAndroid) {
-      return 'app-pub-7601198457132530/6133429357'; // ReklamJetonVideoca (Android)
-    } else if (Platform.isIOS) {
-      return 'app-pub-7601198457132530/6540623462'; // JetonKazanVideoca (iOS)
+    // Geliştirme sırasında test ID'leri kullan
+    const bool isDebug = true; // Test reklamlarını kullan - gerçek reklamlar henüz hazır değil
+    
+    if (isDebug) {
+      // Test reklam ID'leri
+      if (Platform.isAndroid) {
+        return 'ca-app-pub-3940256099942544/5224354917'; // Android test rewarded ad unit ID
+      } else if (Platform.isIOS) {
+        return 'ca-app-pub-3940256099942544/1712485313'; // iOS test rewarded ad unit ID
+      }
+    } else {
+      // Gerçek reklam ID'leri
+      if (Platform.isAndroid) {
+        return 'app-pub-7601198457132530/6133429357'; // ReklamJetonVideoca (Android)
+      } else if (Platform.isIOS) {
+        return 'app-pub-7601198457132530/6540623462'; // JetonKazanVideoca (iOS)
+      }
     }
+    
     throw UnsupportedError('Desteklenmeyen platform');
   }
 
@@ -22,18 +37,27 @@ class AdService {
     try {
       // iOS için App Tracking Transparency izni iste
       if (Platform.isIOS) {
-        final ConsentRequestParameters params = ConsentRequestParameters();
-        ConsentInformation.instance.requestConsentInfoUpdate(
-          params,
-          () async {
-            if (await ConsentInformation.instance.isConsentFormAvailable()) {
-              _loadConsentForm();
-            }
-          },
-          (FormError error) {
-            print('Consent form error: $error');
-          },
-        );
+        try {
+          final ConsentRequestParameters params = ConsentRequestParameters();
+          ConsentInformation.instance.requestConsentInfoUpdate(
+            params,
+            () async {
+              try {
+                if (await ConsentInformation.instance.isConsentFormAvailable()) {
+                  _loadConsentForm();
+                }
+              } catch (e) {
+                print('Consent form availability check error: $e');
+              }
+            },
+            (FormError error) {
+              print('Consent info update error: ${error.errorCode} - ${error.message}');
+              // Consent hatası olsa bile AdMob'u başlat
+            },
+          );
+        } catch (e) {
+          print('Consent request setup error: $e');
+        }
       }
       
       await MobileAds.instance.initialize();
@@ -48,21 +72,33 @@ class AdService {
 
   /// iOS için consent form yükle
   static void _loadConsentForm() {
-    ConsentForm.loadConsentForm(
-      (ConsentForm consentForm) async {
-        var status = await ConsentInformation.instance.getConsentStatus();
-        if (status == ConsentStatus.required) {
-          consentForm.show(
-            (FormError? formError) {
-              _loadConsentForm();
-            },
-          );
-        }
-      },
-      (FormError formError) {
-        print('Consent form load error: $formError');
-      },
-    );
+    try {
+      ConsentForm.loadConsentForm(
+        (ConsentForm consentForm) async {
+          try {
+            var status = await ConsentInformation.instance.getConsentStatus();
+            if (status == ConsentStatus.required) {
+              consentForm.show(
+                (FormError? formError) {
+                  if (formError != null) {
+                    print('Consent form show error: ${formError.errorCode} - ${formError.message}');
+                  }
+                  // Hata olsa bile devam et
+                },
+              );
+            }
+          } catch (e) {
+            print('Consent status check error: $e');
+          }
+        },
+        (FormError formError) {
+          print('Consent form load error: ${formError.errorCode} - ${formError.message}');
+          // Form yüklenemese bile AdMob'u devam ettir
+        },
+      );
+    } catch (e) {
+      print('Consent form setup error: $e');
+    }
   }
 
   /// Ödüllü reklam yükle
@@ -70,7 +106,9 @@ class AdService {
     if (_isLoading) return;
     
     _isLoading = true;
-    print('Ödüllü reklam yükleniyor...');
+    print('DEBUG - Ödüllü reklam yükleniyor...');
+    print('DEBUG - Platform: ${Platform.operatingSystem}');
+    print('DEBUG - Ad Unit ID: $_rewardedAdUnitId');
 
     try {
       RewardedAd.load(
@@ -78,27 +116,33 @@ class AdService {
         request: const AdRequest(),
         rewardedAdLoadCallback: RewardedAdLoadCallback(
           onAdLoaded: (RewardedAd ad) {
-            print('Ödüllü reklam yüklendi');
+            print('DEBUG - Ödüllü reklam başarıyla yüklendi');
             _rewardedAd = ad;
             _isRewardedAdReady = true;
             _isLoading = false;
             _setFullScreenContentCallback();
           },
           onAdFailedToLoad: (LoadAdError error) {
-            print('Ödüllü reklam yükleme hatası: $error');
+            print('DEBUG - Ödüllü reklam yükleme hatası:');
+            print('  Code: ${error.code}');
+            print('  Domain: ${error.domain}');
+            print('  Message: ${error.message}');
+            print('  Response Info: ${error.responseInfo}');
             _rewardedAd = null;
             _isRewardedAdReady = false;
             _isLoading = false;
             
             // 30 saniye sonra tekrar dene
             Future.delayed(const Duration(seconds: 30), () {
+              print('DEBUG - 30 saniye sonra reklam yeniden yüklenecek');
               loadRewardedAd();
             });
           },
         ),
       );
     } catch (e) {
-      print('Reklam yükleme exception: $e');
+      print('DEBUG - Reklam yükleme exception: $e');
+      print('DEBUG - Exception type: ${e.runtimeType}');
       _isLoading = false;
       _isRewardedAdReady = false;
     }
