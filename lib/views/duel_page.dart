@@ -199,33 +199,39 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Harf ipucu butonu
-                  _buildPowerUpButton(
-                    'İpucu',
-                    '15',
-                    Icons.lightbulb_outline,
-                    Colors.amber,
-                    () => _buyLetterHint(viewModel),
+                  Tooltip(
+                    message: 'Kelimeden rastgele bir harf göster',
+                    child: _buildPowerUpButton(
+                      '15',
+                      Icons.lightbulb_outline,
+                      Colors.amber,
+                      () => _buyLetterHint(viewModel),
+                    ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   
                   // Rakip görünürlük butonları
                   if (!viewModel.firstRowVisible)
-                    _buildPowerUpButton(
-                      '1.Satır',
-                      '10',
-                      Icons.visibility,
-                      Colors.orange,
-                      () => _buyFirstRowVisibility(viewModel),
+                    Tooltip(
+                      message: 'Rakibin ilk tahminini gör',
+                      child: _buildPowerUpButton(
+                        '10',
+                        Icons.visibility,
+                        Colors.orange,
+                        () => _buyFirstRowVisibility(viewModel),
+                      ),
                     ),
                   if (!viewModel.allRowsVisible && viewModel.firstRowVisible)
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 4),
                   if (!viewModel.allRowsVisible)
-                    _buildPowerUpButton(
-                      'Tümü',
-                      '20',
-                      Icons.remove_red_eye,
-                      Colors.red,
-                      () => _buyAllRowsVisibility(viewModel),
+                    Tooltip(
+                      message: 'Rakibin tüm tahminlerini gör',
+                      child: _buildPowerUpButton(
+                        '20',
+                        Icons.remove_red_eye,
+                        Colors.red,
+                        () => _buyAllRowsVisibility(viewModel),
+                      ),
                     ),
                   const SizedBox(width: 8),
                 ],
@@ -863,11 +869,37 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   }
 
   Future<void> _buyLetterHint(DuelViewModel viewModel) async {
-    final hintLetter = await viewModel.buyLetterHint();
-    if (hintLetter != null && mounted) {
-      _showHintDialog(hintLetter);
-    } else if (mounted) {
-      _showErrorDialog('İpucu Alınamadı', 'Harf ipucu için 15 jetona ihtiyacınız var veya tüm harfler tahmin edildi.');
+    try {
+      debugPrint('DuelPage - Harf ipucu butonu tıklandı');
+      
+      final hintLetter = await viewModel.buyLetterHint();
+      debugPrint('DuelPage - buyLetterHint sonucu: $hintLetter');
+      
+      if (!mounted) {
+        debugPrint('DuelPage - Widget artık mounted değil, işlem iptal edildi');
+        return;
+      }
+      
+      if (hintLetter == 'INSUFFICIENT_TOKENS') {
+        debugPrint('DuelPage - Yetersiz jeton durumu');
+        _showErrorDialog('Yetersiz Jeton', 'Harf ipucu için 15 jetona ihtiyacınız var. Mevcut jetonunuz yetersiz.');
+      } else if (hintLetter == 'ALL_LETTERS_GUESSED') {
+        debugPrint('DuelPage - Tüm harfler tahmin edilmiş durumu');
+        _showErrorDialog('İpucu Yok', 'Kelimedeki tüm harfler zaten tahmin edilmiş. İpucu verilecek harf kalmadı.');
+      } else if (hintLetter != null && hintLetter.length == 1) {
+        debugPrint('DuelPage - Başarılı ipucu: $hintLetter');
+        _showHintDialog(hintLetter);
+      } else {
+        debugPrint('DuelPage - Genel hata durumu');
+        _showErrorDialog('Hata', 'İpucu alınırken bir hata oluştu. Lütfen tekrar deneyin.');
+      }
+      
+      debugPrint('DuelPage - Harf ipucu işlemi tamamlandı');
+    } catch (e) {
+      debugPrint('DuelPage - Harf ipucu button hatası: $e');
+      if (mounted) {
+        _showErrorDialog('Hata', 'İpucu alınırken beklenmeyen bir hata oluştu: $e');
+      }
     }
   }
 
@@ -961,7 +993,6 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   }
 
   Widget _buildPowerUpButton(
-    String label,
     String cost,
     IconData icon,
     Color color,
@@ -970,68 +1001,33 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              color.withOpacity(0.3),
-              color.withOpacity(0.1),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFF2A2A2A),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: color.withOpacity(0.7),
-            width: 1.5,
+            color: color.withOpacity(0.4),
+            width: 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.2),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
-        child: Column(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(height: 2),
+            Icon(icon, color: color, size: 14),
+            const SizedBox(width: 6),
             Text(
-              label,
+              cost,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 2),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    cost,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                  const Icon(
-                    Icons.monetization_on,
-                    color: Colors.black,
-                    size: 9,
-                  ),
-                ],
-              ),
+            const SizedBox(width: 2),
+            const Icon(
+              Icons.monetization_on,
+              color: Colors.amber,
+              size: 12,
             ),
           ],
         ),

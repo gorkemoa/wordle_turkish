@@ -152,23 +152,34 @@ class DuelViewModel extends ChangeNotifier {
 
   // Harf ipucu satın al (15 jeton)
   Future<String?> buyLetterHint() async {
-    final user = FirebaseService.getCurrentUser();
-    if (user == null) return null;
-    
-    final currentTokens = await getCurrentUserTokens();
-    if (currentTokens < 15) {
-      debugPrint('Yetersiz jeton: $currentTokens (15 gerekli)');
-      return null;
-    }
-    
-    if (_currentWord.isEmpty) {
-      debugPrint('Gizli kelime henüz belirlenmemiş');
-      return null;
-    }
-    
     try {
+      debugPrint('=== HARF İPUCU SATIN ALMA BAŞLADI ===');
+      
+      final user = FirebaseService.getCurrentUser();
+      if (user == null) {
+        debugPrint('HATA: Kullanıcı bulunamadı');
+        return null;
+      }
+      
+      final currentTokens = await getCurrentUserTokens();
+      debugPrint('Mevcut jeton sayısı: $currentTokens');
+      
+      if (currentTokens < 15) {
+        debugPrint('YETERSIZ JETON: $currentTokens < 15 - İşlem iptal edildi');
+        return 'INSUFFICIENT_TOKENS'; // Özel string döndür
+      }
+      
+      if (_currentWord.isEmpty) {
+        debugPrint('HATA: Gizli kelime henüz belirlenmemiş');
+        return null;
+      }
+      
+      debugPrint('Gizli kelime: $_currentWord');
+      
       // Henüz tahmin edilmemiş harfleri bul
       final Set<String> guessedLetters = _keyboardLetters.keys.toSet();
+      debugPrint('Tahmin edilen harfler: $guessedLetters');
+      
       final List<String> wordLetters = _currentWord.split('');
       final List<String> unguessedLetters = [];
       
@@ -178,22 +189,31 @@ class DuelViewModel extends ChangeNotifier {
         }
       }
       
+      debugPrint('Tahmin edilmemiş harfler: $unguessedLetters');
+      
       if (unguessedLetters.isEmpty) {
-        debugPrint('Tüm harfler zaten tahmin edilmiş');
-        return null;
+        debugPrint('TÜM HARFLER ZATEN TAHMİN EDİLMİŞ');
+        return 'ALL_LETTERS_GUESSED'; // Özel string döndür
       }
       
       // Rastgele bir harf seç
       final random = math.Random();
       final hintLetter = unguessedLetters[random.nextInt(unguessedLetters.length)];
+      debugPrint('Seçilen ipucu harfi: $hintLetter');
       
-      // Jetonu kes
+      // SADECE BAŞARILI OLACAĞINI BİLİYORSAK JETON KES
+      debugPrint('Jeton kesimi başlıyor...');
       await FirebaseService.earnTokens(user.uid, -15, 'Harf İpucu');
       
-      debugPrint('Harf ipucu satın alındı: $hintLetter');
+      final newTokens = await getCurrentUserTokens();
+      debugPrint('Jeton kesimi sonrası: $newTokens jeton');
+      
+      debugPrint('=== HARF İPUCU BAŞARIYLA SATIN ALINDI: $hintLetter ===');
       return hintLetter;
+      
     } catch (e) {
-      debugPrint('Harf ipucu satın alma hatası: $e');
+      debugPrint('=== HARF İPUCU SATIN ALMA HATASI: $e ===');
+      debugPrint('Hata stack trace: ${StackTrace.current}');
       return null;
     }
   }
@@ -291,13 +311,25 @@ class DuelViewModel extends ChangeNotifier {
       // Oyun durumunu dinlemeye başla
       _gameSubscription = FirebaseService.listenToGame(_gameId!).listen(
         (game) {
-          debugPrint('Oyun güncellemesi alındı');
+          debugPrint('=== OYUN GÜNCELLEMESİ ALINDI ===');
+          debugPrint('Oyun durumu: ${game?.status}');
+          debugPrint('Oyuncu sayısı: ${game?.players.length}');
+          debugPrint('Oyun ID: ${game?.gameId}');
+          
           _currentGame = game;
           _updateGameState();
           notifyListeners();
+          
+          debugPrint('=== OYUN GÜNCELLEMESİ İŞLENDİ ===');
         },
         onError: (error) {
-          debugPrint('Oyun dinleme hatası: $error');
+          debugPrint('=== OYUN DİNLEME HATASI: $error ===');
+          debugPrint('Hata tipi: ${error.runtimeType}');
+          debugPrint('Hata stack trace: ${StackTrace.current}');
+        },
+        onDone: () {
+          debugPrint('=== OYUN SUBSCRIPTION KAPANDI ===');
+          debugPrint('Firebase stream\'i kapatıldı');
         },
       );
 
@@ -509,13 +541,39 @@ class DuelViewModel extends ChangeNotifier {
 
   // Oyundan çık
   Future<void> leaveGame() async {
-    if (_gameId != null) {
-      await FirebaseService.leaveGame(_gameId!);
+    try {
+      debugPrint('=== OYUNDAN ÇIKMA İŞLEMİ BAŞLADI ===');
+      debugPrint('Mevcut oyun ID: $_gameId');
+      debugPrint('Oyun durumu: ${_currentGame?.status}');
+      debugPrint('Oyuncu sayısı: ${_currentGame?.players.length}');
+      
+      if (_gameId != null) {
+        debugPrint('Firebase\'den oyunu terk etme isteği gönderiliyor...');
+        await FirebaseService.leaveGame(_gameId!);
+        debugPrint('Firebase oyunu terk etme tamamlandı');
+      } else {
+        debugPrint('Oyun ID null, Firebase çağrısı yapılmadı');
+      }
+      
+      debugPrint('Subscription iptal ediliyor...');
+      _gameSubscription?.cancel();
+      
+      debugPrint('Oyun state sıfırlanıyor...');
+      _resetGameState();
+      
+      debugPrint('Listeners güncelleniyor...');
+      notifyListeners();
+      
+      debugPrint('=== OYUNDAN ÇIKMA İŞLEMİ TAMAMLANDI ===');
+    } catch (e) {
+      debugPrint('=== OYUNDAN ÇIKMA HATASI: $e ===');
+      debugPrint('Hata stack trace: ${StackTrace.current}');
+      
+      // Hata olsa bile state'i temizle
+      _gameSubscription?.cancel();
+      _resetGameState();
+      notifyListeners();
     }
-    
-    _gameSubscription?.cancel();
-    _resetGameState();
-    notifyListeners();
   }
 
   // Onay sistemi başlat

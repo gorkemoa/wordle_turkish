@@ -437,7 +437,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     _buildCompactTokenArea(user),
                     const SizedBox(height: 12),
                     Expanded(
-                      child: _buildGameMenu(context),
+                        child: _buildGameMenu(context),
                     ),
                     _buildStreakInfo(),
                     const SizedBox(height: 8),
@@ -533,17 +533,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 HapticFeedback.lightImpact();
                 _navigateToTokenShop();
               },
-              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
-                stream: user != null 
-                    ? FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots()
-                    : Stream.value(null),
-                builder: (context, snapshot) {
-                  int tokens = 0;
-                  if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
-                    tokens = (snapshot.data!.data() ?? {})['tokens'] ?? 0;
-                  }
+            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
+              stream: user != null 
+                  ? FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots()
+                  : Stream.value(null),
+              builder: (context, snapshot) {
+                int tokens = 0;
+                if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
+                  tokens = (snapshot.data!.data() ?? {})['tokens'] ?? 0;
+                }
                   return _buildEnhancedTokenChip(tokens);
-                },
+              },
               ),
             ),
           ),
@@ -565,7 +565,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           scale: isLowTokens ? _pulseAnimation.value * 1.1 : _pulseAnimation.value,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
+      decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: isLowTokens 
                   ? [Colors.red.shade300, Colors.red.shade600]
@@ -585,10 +585,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 color: isLowTokens ? Colors.red.shade200 : Colors.amber.shade200,
                 width: isLowTokens ? 2 : 1.5,
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
                 // Animasyonlu jeton ikonu
                 AnimatedBuilder(
                   animation: _animationController,
@@ -635,8 +635,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ),
                 if (isLowTokens) ...[
-                  const SizedBox(width: 4),
-                  Text(
+          const SizedBox(width: 4),
+          Text(
                     '!',
                     style: TextStyle(
                       color: Colors.white,
@@ -692,14 +692,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
                         color: isLowTokens ? Colors.red.shade600 : Colors.amber.shade600,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
                         isLowTokens ? Icons.warning : Icons.monetization_on,
-                        color: Colors.white,
+          color: Colors.white,
                         size: 20,
                       ),
                     ),
@@ -856,10 +856,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         HapticFeedback.mediumImpact();
         onTap();
       },
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
               color.withOpacity(0.8),
               color.withOpacity(0.6),
             ],
@@ -879,9 +879,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
             Icon(
               icon,
               color: Colors.white,
@@ -889,28 +889,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
             const SizedBox(height: 8),
             Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
+                                title,
+                                style: const TextStyle(
+                                  color: Colors.white,
                 fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
+                                  fontWeight: FontWeight.bold,
+                                ),
               textAlign: TextAlign.center,
-            ),
+                              ),
             const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(
+                          Text(
+                            subtitle,
+                            style: TextStyle(
                 color: Colors.white.withOpacity(0.8),
                 fontSize: 10,
-              ),
+                            ),
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
+                          ),
+                        ],
+                      ),
+                    ),
     );
   }
 
@@ -981,8 +981,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
                     colors: [packageInfo['color'].withOpacity(0.2), packageInfo['color'].withOpacity(0.1)],
                   ),
                   borderRadius: BorderRadius.circular(12),
