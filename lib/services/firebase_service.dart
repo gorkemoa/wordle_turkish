@@ -1537,11 +1537,14 @@ class FirebaseService {
       if (won) {
         await earnTokens(uid, 1, '$gameType Kazanma');
       } else {
-        // Kaybedince jeton kaybetme (minimum 0'a düşebilir)
-        final currentTokens = await getUserTokens(uid);
-        if (currentTokens > 0) {
-          await spendTokens(uid, 1, '$gameType Kaybetme');
+        // Sadece düello modunda kaybedince jeton kes
+        if (gameType.contains('Düello')) {
+          final currentTokens = await getUserTokens(uid);
+          if (currentTokens > 0) {
+            await spendTokens(uid, 1, '$gameType Kaybetme');
+          }
         }
+        // Tek oyuncu modunda jeton kesme
       }
     } catch (e) {
       print('Oyun sonucu jeton güncelleme hatası: $e');
