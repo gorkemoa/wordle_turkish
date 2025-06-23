@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
+import 'services/firebase_service.dart';
 import 'viewmodels/wordle_viewmodel.dart';
 import 'viewmodels/duel_viewmodel.dart';
 import 'viewmodels/leaderboard_viewmodel.dart';
@@ -18,9 +19,21 @@ import 'widgets/video_splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  
+  // Firebase zaten initialize edilmiş mi kontrol et
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    if (e.toString().contains('duplicate-app')) {
+      print('Firebase app zaten mevcut, devam ediliyor...');
+    } else {
+      print('Firebase initialization hatası: $e');
+      rethrow;
+    }
+  }
+  
   runApp(
     MultiProvider(
       providers: [
@@ -102,6 +115,8 @@ class _MyAppState extends State<MyApp> {
           }
 
           if (snapshot.hasData && snapshot.data != null) {
+            // Kullanıcı giriş yaptığında online durumunu ayarla
+            FirebaseService.setUserOnline();
             return HomePage(toggleTheme: _toggleTheme);
           } else {
             return const LoginPage();

@@ -77,6 +77,44 @@ class LeaderboardStats {
   double get winRate => gamesPlayed > 0 ? (gamesWon / gamesPlayed) * 100 : 0.0;
   double get averageAttempts => gamesPlayed > 0 ? totalAttempts / gamesPlayed : 0.0;
 
+  // Güvenilirlik faktörlü kazanma oranı (Wilson Score Interval benzeri)
+  double get adjustedWinRate {
+    if (gamesPlayed == 0) return 0.0;
+    
+    // Temel kazanma oranı
+    double baseWinRate = (gamesWon / gamesPlayed) * 100;
+    
+    // Güvenilirlik faktörü (minimum 10 oyun için tam puan)
+    const int minGamesForFullScore = 10;
+    double reliabilityFactor = gamesPlayed >= minGamesForFullScore 
+        ? 1.0 
+        : gamesPlayed / minGamesForFullScore;
+    
+    // Wilson Score benzeri düzeltme
+    // Az oyun oynayan oyuncuların puanını %50'ye yaklaştır
+    const double globalAverage = 50.0; // Genel ortalama %50 varsayımı
+    double adjustedRate = (baseWinRate * reliabilityFactor) + 
+                         (globalAverage * (1 - reliabilityFactor));
+    
+    return adjustedRate;
+  }
+
+  // Sıralama için kullanılacak puan (oyun sayısı + kazanma oranı kombinasyonu)
+  double get rankingScore {
+    if (gamesPlayed == 0) return 0.0;
+    
+    // Temel kazanma oranı
+    double baseWinRate = (gamesWon / gamesPlayed) * 100;
+    
+    // Oyun sayısı bonusu (logaritmik ölçek)
+    double gameCountBonus = gamesPlayed >= 50 
+        ? 1.0 
+        : 0.5 + (gamesPlayed / 100.0); // 50 oyunda 1.0, 0 oyunda 0.5
+    
+    // Kombine puan
+    return baseWinRate * gameCountBonus;
+  }
+
   factory LeaderboardStats.fromFirestore(Map<String, dynamic> data) {
     return LeaderboardStats(
       playerId: data['playerId'] ?? '',

@@ -47,6 +47,32 @@ class DuelGame {
     );
   }
 
+  factory DuelGame.fromRealtimeDatabase(Map<dynamic, dynamic> data) {
+    Map<String, DuelPlayer> players = {};
+    if (data['players'] != null) {
+      (data['players'] as Map<dynamic, dynamic>).forEach((key, value) {
+        players[key.toString()] = DuelPlayer.fromRealtimeMap(value);
+      });
+    }
+
+    return DuelGame(
+      gameId: data['gameId'] ?? '',
+      secretWord: data['secretWord'] ?? '',
+      status: GameStatus.values.byName(data['status'] ?? 'waiting'),
+      createdAt: data['createdAt'] != null 
+        ? DateTime.fromMillisecondsSinceEpoch(data['createdAt'] as int)
+        : DateTime.now(),
+      startedAt: data['startedAt'] != null 
+        ? DateTime.fromMillisecondsSinceEpoch(data['startedAt'] as int)
+        : null,
+      finishedAt: data['finishedAt'] != null 
+        ? DateTime.fromMillisecondsSinceEpoch(data['finishedAt'] as int)
+        : null,
+      winnerId: data['winnerId'],
+      players: players,
+    );
+  }
+
   Map<String, dynamic> toFirestore() {
     Map<String, dynamic> playersMap = {};
     players.forEach((key, value) {
@@ -74,6 +100,7 @@ class DuelPlayer {
   final int currentAttempt;
   final DateTime? finishedAt;
   final int score; // Doğru tahmin + kalan süre bonusu
+  final String? avatar; // Avatar bilgisi
 
   DuelPlayer({
     required this.playerId,
@@ -84,6 +111,7 @@ class DuelPlayer {
     required this.currentAttempt,
     this.finishedAt,
     required this.score,
+    this.avatar,
   });
 
   factory DuelPlayer.fromMap(Map<String, dynamic> data) {
@@ -111,6 +139,34 @@ class DuelPlayer {
       currentAttempt: data['currentAttempt'] ?? 0,
       finishedAt: data['finishedAt'] != null ? (data['finishedAt'] as Timestamp).toDate() : null,
       score: data['score'] ?? 0,
+      avatar: data['avatar'],
+    );
+  }
+
+  factory DuelPlayer.fromRealtimeMap(Map<dynamic, dynamic> data) {
+    // Realtime Database'den gelen veriyi parse et
+    List<List<String>> parseList(dynamic fieldData) {
+      if (fieldData is List) {
+        return List<List<String>>.from(fieldData.map((x) => List<String>.from(x.map((e) => e.toString()))));
+      }
+      return [];
+    }
+
+    final guessesList = parseList(data['guesses']);
+    final guessColorsList = parseList(data['guessColors']);
+
+    return DuelPlayer(
+      playerId: data['playerId']?.toString() ?? '',
+      playerName: data['playerName']?.toString() ?? '',
+      status: PlayerStatus.values.byName(data['status']?.toString() ?? 'waiting'),
+      guesses: guessesList.isNotEmpty ? guessesList : List.generate(6, (_) => List.filled(5, '_')),
+      guessColors: guessColorsList.isNotEmpty ? guessColorsList : List.generate(6, (_) => List.filled(5, 'empty')),
+      currentAttempt: data['currentAttempt'] ?? 0,
+      finishedAt: data['finishedAt'] != null 
+        ? DateTime.fromMillisecondsSinceEpoch(data['finishedAt'] as int)
+        : null,
+      score: data['score'] ?? 0,
+      avatar: data['avatar']?.toString(),
     );
   }
 
@@ -124,6 +180,7 @@ class DuelPlayer {
       'currentAttempt': currentAttempt,
       'finishedAt': finishedAt != null ? Timestamp.fromDate(finishedAt!) : null,
       'score': score,
+      'avatar': avatar,
     };
   }
 } 
