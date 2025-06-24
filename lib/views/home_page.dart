@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import '../services/firebase_service.dart';
+import '../services/haptic_service.dart';
 
 import 'duel_page.dart';
 import 'leaderboard_page.dart';
@@ -49,6 +50,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     super.initState();
     _initializeAnimations();
     _loadData();
+    HapticService.loadHapticSettings(); // Titreşim ayarlarını yükle
   }
 
   void _initializeAnimations() {
@@ -548,7 +550,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(width: 8),
-          _buildHeaderButton(Icons.brightness_6_outlined, widget.toggleTheme ?? () {}),
+          _buildHapticToggleButton(),
         ],
       ),
     );
@@ -790,6 +792,56 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildHapticToggleButton() {
+    return StreamBuilder<bool>(
+      stream: Stream.periodic(const Duration(milliseconds: 100), (_) => HapticService.isHapticEnabled),
+      builder: (context, snapshot) {
+        final isEnabled = HapticService.isHapticEnabled;
+        
+        return GestureDetector(
+          onTap: () async {
+            HapticService.triggerLightHaptic(); // Test titreşimi
+            await HapticService.toggleHapticSetting();
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  HapticService.isHapticEnabled 
+                    ? '📳 Titreşim açıldı' 
+                    : '🔇 Titreşim kapandı',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                backgroundColor: HapticService.isHapticEnabled 
+                  ? Colors.green.shade700 
+                  : Colors.red.shade700,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isEnabled 
+                ? Colors.green.withOpacity(0.2)
+                : Colors.red.withOpacity(0.2),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isEnabled 
+                  ? Colors.green.withOpacity(0.5)
+                  : Colors.red.withOpacity(0.5),
+              ),
+            ),
+            child: Icon(
+              isEnabled ? Icons.vibration : Icons.phonelink_erase,
+              color: isEnabled ? Colors.green.shade300 : Colors.red.shade300,
+              size: 22,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
 
   Widget _buildQuickBuyButton(
     String tokens,
@@ -800,7 +852,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   ) {
     return GestureDetector(
       onTap: () {
-        HapticFeedback.lightImpact();
+        HapticService.triggerLightHaptic();
         onTap();
       },
       child: Container(
@@ -853,7 +905,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }) {
     return GestureDetector(
       onTap: () {
-        HapticFeedback.mediumImpact();
+        HapticService.triggerMediumHaptic();
         onTap();
       },
               child: Container(

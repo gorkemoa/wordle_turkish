@@ -7,6 +7,7 @@ import '../viewmodels/wordle_viewmodel.dart';
 import '../widgets/shake_widget.dart';
 import '../widgets/keyboard_widget.dart';
 import '../services/firebase_service.dart';
+
 import 'wordle_result_page.dart';
 
 class WordlePage extends StatefulWidget {
@@ -206,10 +207,7 @@ class _WordlePageState extends State<WordlePage> {
                     ),
                   ),
                 ),
-              IconButton(
-                icon: const Icon(Icons.brightness_6),
-                onPressed: widget.toggleTheme,
-              ),
+
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: () {
@@ -350,6 +348,8 @@ class _WordlePageState extends State<WordlePage> {
     final remainingSeconds = seconds % 60;
     return "${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}";
   }
+
+
 
   /// İpucu dialog'unu göster
   void _showHintDialog(WordleViewModel viewModel) {

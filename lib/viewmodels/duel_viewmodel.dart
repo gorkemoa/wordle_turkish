@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import '../services/haptic_service.dart';
 import '../models/duel_game.dart';
 import '../services/firebase_service.dart';
 import '../viewmodels/wordle_viewmodel.dart';
@@ -45,6 +46,9 @@ class DuelViewModel extends ChangeNotifier {
   bool _firstRowVisible = false;
   bool _allRowsVisible = false;
   bool _tokensDeducted = false; // Jetonların kesilip kesilmediğini takip et
+  
+  // Titreme animasyonu
+  bool _needsShake = false;
 
   // Getters
   DuelGame? get currentGame => _currentGame;
@@ -57,6 +61,7 @@ class DuelViewModel extends ChangeNotifier {
   bool get isLoadingWords => _isLoadingWords;
   bool get showingCountdown => _showingCountdown;
   Map<String, String> get keyboardLetters => _keyboardLetters;
+  bool get needsShake => _needsShake;
 
   // Oyun süresi hesaplama
   Duration get gameDuration {
@@ -465,6 +470,11 @@ class DuelViewModel extends ChangeNotifier {
     _currentGuess[_currentColumn] = letter.toTurkishUpperCase();
     _currentColumn++;
     notifyListeners();
+    
+    // Kelime tamamlandıysa otomatik olarak gönder
+    if (_currentColumn == wordLength) {
+      onEnter();
+    }
   }
 
   // Harf sil
@@ -491,7 +501,9 @@ class DuelViewModel extends ChangeNotifier {
     // Kelime geçerliliğini kontrol et
     if (!_isValidWord(guess)) {
       // Geçersiz kelime animasyonu göster
-      // TODO: Shake animasyonu ekle
+      _needsShake = true;
+      HapticService.triggerErrorHaptic(); // Yeni service kullan
+      notifyListeners();
       return;
     }
 
@@ -513,6 +525,14 @@ class DuelViewModel extends ChangeNotifier {
   bool _isValidWord(String word) {
     return validWordsSet.contains(word);
   }
+
+  // Titreme animasyonunu sıfırla
+  void resetShake() {
+    _needsShake = false;
+    notifyListeners();
+  }
+
+
 
   // Tahmini değerlendir ve renkleri hesapla
   List<String> _evaluateGuess(String guess) {
@@ -669,6 +689,7 @@ class DuelViewModel extends ChangeNotifier {
     _tokensDeducted = false; // Jeton kesim flag'ini sıfırla
     _firstRowVisible = false; // Görünürlük flag'lerini sıfırla
     _allRowsVisible = false;
+    _needsShake = false; // Titreme flag'ini sıfırla
   }
 
   // Yeni oyun için tamamen sıfırla (public metod)

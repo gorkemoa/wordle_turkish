@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import '../services/haptic_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'leaderboard_viewmodel.dart';
@@ -237,6 +238,7 @@ class WordleViewModel extends ChangeNotifier {
 
     if (!isValidWord(guess)) {
       _needsShake = true;
+      HapticService.triggerErrorHaptic(); // Yeni service kullan
       notifyListeners();
       return;
     }
@@ -248,6 +250,8 @@ class WordleViewModel extends ChangeNotifier {
     _needsShake = false;
     notifyListeners();
   }
+
+
 
   bool isValidWord(String word) {
     return validWordsSet.contains(word);

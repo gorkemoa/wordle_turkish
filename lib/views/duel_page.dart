@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../viewmodels/duel_viewmodel.dart';
 import '../models/duel_game.dart';
 import '../services/firebase_service.dart';
+import '../widgets/shake_widget.dart';
 import 'duel_waiting_room.dart';
 import 'duel_result_page.dart';
 
@@ -774,12 +775,18 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         children: [
           // Mevcut oyuncunun tahtası
           Expanded(
-            child: _buildPlayerBoard(
-              title: 'Senin Tahminlerin',
-              player: viewModel.currentPlayer,
-              currentGuess: viewModel.currentGuess,
-              currentColumn: viewModel.currentColumn,
-              viewModel: viewModel,
+            child: ShakeWidget(
+              shake: viewModel.needsShake,
+              onShakeComplete: () {
+                viewModel.resetShake();
+              },
+              child: _buildPlayerBoard(
+                title: 'Senin Tahminlerin',
+                player: viewModel.currentPlayer,
+                currentGuess: viewModel.currentGuess,
+                currentColumn: viewModel.currentColumn,
+                viewModel: viewModel,
+              ),
             ),
           ),
           
@@ -1274,7 +1281,7 @@ class _DuelKeyboardWidget extends StatelessWidget {
   final List<List<String>> keyboardRows = const [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'Ğ', 'Ü'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ş', 'İ'],
-    ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'Ö', 'Ç', 'BACK'],
+    ['Z', 'X', 'C', 'V', 'B', 'N', 'M', 'Ö', 'Ç', 'BACK'],
   ];
 
   @override
@@ -1334,17 +1341,6 @@ class _DuelKeyboardWidget extends StatelessWidget {
           icon: Icons.backspace_rounded,
           onTap: viewModel.onBackspace,
           color: Colors.red.shade600,
-          keyHeight: keyHeight,
-          fontSize: fontSize,
-          spacing: spacing,
-          flex: rowIndex == 2 ? 1.5 : 1, // Son satırda biraz büyük
-        ));
-      } else if (key == 'ENTER') {
-        keys.add(_buildSpecialKey(
-          context,
-          label: 'GİR',
-          onTap: viewModel.onEnter,
-          color: Colors.green.shade600,
           keyHeight: keyHeight,
           fontSize: fontSize,
           spacing: spacing,
