@@ -1,4 +1,4 @@
-package com.example.wordle_turkish
+package com.rivorya.kelime
 
 import androidx.multidex.MultiDexApplication
 

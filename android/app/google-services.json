@@ -1,23 +1,24 @@
 {
   "project_info": {
     "project_number": "581364962777",
+    "firebase_url": "https://kelimebul-5a4d0-default-rtdb.europe-west1.firebasedatabase.app",
     "project_id": "kelimebul-5a4d0",
     "storage_bucket": "kelimebul-5a4d0.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:581364962777:android:d8f2be418bab252407f5c8",
+        "mobilesdk_app_id": "1:581364962777:android:ea9c6f634735c66607f5c8",
         "android_client_info": {
-          "package_name": "com.example.wordle_turkish"
+          "package_name": "com.rivorya.kelime"
         }
       },
       "oauth_client": [
         {
-          "client_id": "581364962777-jjj1qbchf8ht5poitpjln24lf81mg0vu.apps.googleusercontent.com",
+          "client_id": "581364962777-fvaah55nmaqo99u043b3vff8na74en2b.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.wordle_turkish",
+            "package_name": "com.rivorya.kelime",
             "certificate_hash": "f29ea19bd5648dff61e4257b362a2e9c593ac8be"
           }
         },
@@ -39,10 +40,10 @@
               "client_type": 3
             },
             {
-              "client_id": "581364962777-mhugmmhk0ptrbcf7sa18fgckep5825jf.apps.googleusercontent.com",
+              "client_id": "581364962777-acafkghnlq80icnqkvujglq6dmqd41ta.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.wordleTurkish"
+                "bundle_id": "com.rivorya.kelime"
               }
             }
           ]

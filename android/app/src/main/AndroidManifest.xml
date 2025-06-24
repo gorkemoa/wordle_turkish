@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.wordle_turkish">
+    package="com.rivorya.kelime">
     
     <!-- İnternet izinleri -->
     <uses-permission android:name="android.permission.INTERNET" />

@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace "com.example.wordle_turkish" // Burada namespace'i belirtiyoruz
+    namespace "com.rivorya.kelime" // Burada namespace'i belirtiyoruz
     compileSdkVersion 35
 
     defaultConfig {
-        applicationId "com.example.wordle_turkish"
+        applicationId "com.rivorya.kelime"
         minSdkVersion 23
         targetSdkVersion 35
         versionCode 1

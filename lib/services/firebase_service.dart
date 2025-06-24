@@ -1247,9 +1247,13 @@ class FirebaseService {
       final presence = event.snapshot.value as Map<dynamic, dynamic>;
       int activeCount = 0;
       
+      // DEBUG: Aktif kullanıcıları listele
+      print('DEBUG - Presence verileri:');
       for (final entry in presence.entries) {
         final userData = entry.value as Map<dynamic, dynamic>;
         final isOnline = userData['isOnline'] as bool? ?? false;
+        final lastSeen = userData['lastSeen'];
+        print('  UID: ${entry.key}, Online: $isOnline, LastSeen: $lastSeen');
         if (isOnline) {
           activeCount++;
         }
@@ -1258,6 +1262,16 @@ class FirebaseService {
       print('DEBUG - Aktif kullanıcı sayısı: $activeCount');
       return activeCount;
     });
+  }
+
+  // Test için presence verilerini temizle
+  static Future<void> clearAllPresenceData() async {
+    try {
+      await _database.ref('presence').remove();
+      print('DEBUG - Tüm presence verileri temizlendi');
+    } catch (e) {
+      print('DEBUG - Presence temizleme hatası: $e');
+    }
   }
 
   // Kullanıcının online durumunu kaydet (Realtime Database)

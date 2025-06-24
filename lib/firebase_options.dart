@@ -65,6 +65,6 @@ class DefaultFirebaseOptions {
     projectId: 'kelimebul-5a4d0',
     storageBucket: 'kelimebul-5a4d0.firebasestorage.app',
     databaseURL: 'https://kelimebul-5a4d0-default-rtdb.europe-west1.firebasedatabase.app',
-    iosBundleId: 'com.example.wordleTurkish',
+    iosBundleId: 'com.rivorya.kelime',
   );
 }
