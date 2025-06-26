@@ -29,7 +29,9 @@ extension TurkishCaseExtension on String {
 
 enum GameMode {
   daily,    // Günlük mod - hep 5 harfli
-  challenge // Zorlu mod - 4'ten 8'e kademeli
+  challenge, // Zorlu mod - 4'ten 8'e kademeli
+  timeRush, // Zamana Karşı - 60 saniyede mümkün olduğunca çok kelime
+  themed    // Tema Modları - kategoriye özel kelimeler
 }
 
 class WordleViewModel extends ChangeNotifier {
@@ -65,6 +67,18 @@ class WordleViewModel extends ChangeNotifier {
   int _currentLevel = 1;
   int _currentWordLength = 5;
   int _currentColumn = 0; // Yeni eklendi
+
+  // Tema modu için
+  String _currentTheme = '';
+  String _themeName = '';
+  String _themeEmoji = '';
+  
+  // Zamana karşı modu için
+  int _wordsGuessedCount = 0;
+  int _timeRushScore = 0;
+  Timer? _timeRushTimer;
+  int _timeRushSeconds = 60; // 60 saniye
+  bool _timeRushActive = false;
 
   // High scores
   int _bestTime = 9999; // in seconds
@@ -113,8 +127,17 @@ class WordleViewModel extends ChangeNotifier {
   int get userTokens => _userTokens;
   List<int> get revealedHints => _revealedHints;
   int get currentColumn => _currentColumn;
+  
+  // Yeni getter'lar
+  String get currentTheme => _currentTheme;
+  String get themeName => _themeName;
+  String get themeEmoji => _themeEmoji;
+  int get wordsGuessedCount => _wordsGuessedCount;
+  int get timeRushScore => _timeRushScore;
+  int get timeRushSeconds => _timeRushSeconds;
+  bool get timeRushActive => _timeRushActive;
 
-  Future<void> resetGame({GameMode? mode}) async {
+  Future<void> resetGame({GameMode? mode, String? themeId}) async {
     _gameOver = false;
     _needsShake = false;
     _keyboardColors.clear();
@@ -122,18 +145,43 @@ class WordleViewModel extends ChangeNotifier {
     _currentColumn = 0; // Sıfırla
     _revealedHints.clear(); // İpuçlarını sıfırla
 
+    // Zamana karşı modunu temizle
+    _timeRushTimer?.cancel();
+    _timeRushActive = false;
+    _wordsGuessedCount = 0;
+    _timeRushScore = 0;
+    _timeRushSeconds = 60;
+
     // Mod ayarla
     if (mode != null) {
       _gameMode = mode;
     }
 
-    // Mod bazında kelime uzunluğunu ayarla
-    if (_gameMode == GameMode.daily) {
-      _currentWordLength = 5; // Günlük mod her zaman 5 harfli
-      _currentLevel = 1; // Günlük modda seviye yok
-    } else {
-      // Zorlu mod - seviye bazında kelime uzunluğunu ayarla
-      _currentWordLength = challengeModeWordLength[_currentLevel] ?? 5;
+    // Mod bazında kelime uzunluğunu ve özel ayarları belirle
+    switch (_gameMode) {
+      case GameMode.daily:
+        _currentWordLength = 5; // Günlük mod her zaman 5 harfli
+        _currentLevel = 1; // Günlük modda seviye yok
+        break;
+      case GameMode.challenge:
+        // Zorlu mod - seviye bazında kelime uzunluğunu ayarla
+        _currentWordLength = challengeModeWordLength[_currentLevel] ?? 5;
+        break;
+      case GameMode.timeRush:
+        _currentWordLength = 5; // Zamana karşı modda 5 harfli
+        _currentLevel = 1;
+        _timeRushActive = true;
+        _timeRushSeconds = 60;
+        break;
+      case GameMode.themed:
+        _currentWordLength = 5; // Tema modunda varsayılan 5 harfli
+        _currentLevel = 1;
+        // Tema bilgilerini yükle
+        if (themeId != null) {
+          _currentTheme = themeId;
+          await _loadThemeInfo(themeId);
+        }
+        break;
     }
 
     // Tahminler ve renkler listesini güncelle
@@ -147,30 +195,45 @@ class WordleViewModel extends ChangeNotifier {
 
     // Gizli kelimeyi seç
     _secretWord = selectRandomWord();
-    debugPrint('Gizli Kelime: $_secretWord (${_gameMode == GameMode.daily ? 'Günlük' : 'Zorlu'} Mod)'); // Gizli kelimeyi debug konsoluna yazdır
+    debugPrint('Gizli Kelime: $_secretWord ($_gameMode Mod)');
     notifyListeners();
 
-    // Toplam oyun zamanlayıcısını başlat
-    _startTotalTimer();
+    // Zamanlayıcıyı başlat
+    if (_gameMode == GameMode.timeRush) {
+      _startTimeRushTimer();
+    } else {
+      _startTotalTimer();
+    }
   }
 
  Future<void> loadValidWords() async {
   try {
-    // JSON dosyasını yükle
-    final String data = await rootBundle.loadString('assets/kelimeler.json');
+    if (_gameMode == GameMode.themed && _currentTheme.isNotEmpty) {
+      // Tema modunda Firebase'den tema kelimelerini yükle
+      final themedWords = await FirebaseService.getThemedWords(_currentTheme);
+      validWordsSet = themedWords
+          .where((word) => word.trim().length == _currentWordLength)
+          .map((word) => word.trim().toTurkishUpperCase())
+          .toSet();
+      debugPrint('${validWordsSet.length} adet $_currentWordLength harfli tema kelimesi yüklendi ($_currentTheme)');
+    } else {
+      // Normal modlarda JSON dosyasını yükle
+      final String data = await rootBundle.loadString('assets/kelimeler.json');
 
-    // JSON verisini bir listeye dönüştür
-    final List<dynamic> jsonWords = json.decode(data);
+      // JSON verisini bir listeye dönüştür
+      final List<dynamic> jsonWords = json.decode(data);
 
-    // Listeyi String olarak filtrele ve uygun uzunluktaki kelimeleri al
-    final List<String> words = jsonWords
-        .whereType<String>() // Sadece String olanları filtrele
-        .map((word) => word.trim().toTurkishUpperCase())
-        .where((word) => word.length == _currentWordLength)
-        .toList();
+      // Listeyi String olarak filtrele ve uygun uzunluktaki kelimeleri al
+      final List<String> words = jsonWords
+          .whereType<String>() // Sadece String olanları filtrele
+          .map((word) => word.trim().toTurkishUpperCase())
+          .where((word) => word.length == _currentWordLength)
+          .toList();
 
-    // Kelimeleri bir sete dönüştür
-    validWordsSet = words.toSet();
+      // Kelimeleri bir sete dönüştür
+      validWordsSet = words.toSet();
+      debugPrint('${validWordsSet.length} adet $_currentWordLength harfli kelime yüklendi');
+    }
   } catch (e) {
     // Hata durumunda yedek kelime listesi
     debugPrint('Kelime listesi yüklenirken hata oluştu: $e');
@@ -285,11 +348,16 @@ class WordleViewModel extends ChangeNotifier {
     notifyListeners();
 
     if (guess == _secretWord) {
-      _gameOver = true;
-      _stopTotalTimer();
-      _updateHighScores();
-      notifyListeners();
-      // Oyun bittiğinde UI'da dialog gösterilecek
+      if (_gameMode == GameMode.timeRush && _timeRushActive) {
+        // Zamana karşı modunda doğru tahminde yeni kelimeye geç
+        nextTimeRushWord();
+      } else {
+        _gameOver = true;
+        _stopTotalTimer();
+        _updateHighScores();
+        notifyListeners();
+        // Oyun bittiğinde UI'da dialog gösterilecek
+      }
     } else {
       if (_currentAttempt == maxAttempts - 1) {
         _gameOver = true;
@@ -628,5 +696,122 @@ class WordleViewModel extends ChangeNotifier {
       return _secretWord[position];
     }
     return '';
+  }
+
+  // ============= TEMA MODU METOTLARİ =============
+
+  Future<void> _loadThemeInfo(String themeId) async {
+    try {
+      // Tema bilgilerini belirle
+      switch (themeId) {
+        case 'food':
+          _themeName = 'Yiyecek & İçecek';
+          _themeEmoji = '🍎';
+          break;
+        case 'animals':
+          _themeName = 'Hayvanlar';
+          _themeEmoji = '🐱';
+          break;
+        case 'cities':
+          _themeName = 'Şehirler';
+          _themeEmoji = '🏙️';
+          break;
+        case 'sports':
+          _themeName = 'Spor';
+          _themeEmoji = '⚽';
+          break;
+        case 'music':
+          _themeName = 'Müzik';
+          _themeEmoji = '🎵';
+          break;
+        case 'random':
+          // Rastgele tema seç
+          final randomTheme = await FirebaseService.getRandomTheme();
+          _currentTheme = randomTheme;
+          await _loadThemeInfo(randomTheme);
+          return;
+        default:
+          _themeName = 'Genel';
+          _themeEmoji = '🔤';
+          break;
+      }
+      debugPrint('Tema yüklendi: $_themeName $_themeEmoji');
+    } catch (e) {
+      debugPrint('Tema bilgisi yükleme hatası: $e');
+      _themeName = 'Genel';
+      _themeEmoji = '🔤';
+    }
+  }
+
+  // ============= ZAMANA KARŞI MODU METOTLARİ =============
+
+  void _startTimeRushTimer() {
+    _timeRushActive = true;
+    _timeRushSeconds = 60;
+    notifyListeners();
+
+    _timeRushTimer?.cancel();
+    _timeRushTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_timeRushSeconds > 0 && !_gameOver) {
+        _timeRushSeconds--;
+        notifyListeners();
+      } else {
+        timer.cancel();
+        _timeRushActive = false;
+        _handleTimeRushEnd();
+      }
+    });
+  }
+
+  void _handleTimeRushEnd() async {
+    _gameOver = true;
+    _timeRushActive = false;
+    notifyListeners();
+
+    // Skorunu Firebase'e kaydet
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseService.saveTimeRushScore(
+          user.uid, 
+          _wordsGuessedCount, 
+          60, // Toplam süre
+          _timeRushScore
+        );
+        
+        // Jeton ödülü
+        if (_wordsGuessedCount > 0) {
+          await FirebaseService.earnTokens(user.uid, _wordsGuessedCount, 'Zamana Karşı Modu');
+        }
+      }
+    } catch (e) {
+      debugPrint('Zamana karşı skor kaydetme hatası: $e');
+    }
+  }
+
+  void nextTimeRushWord() {
+    // Skoru güncelle
+    _timeRushScore += (60 - _timeRushSeconds) * 10; // Hızlı bulma bonusu
+    _wordsGuessedCount++;
+    
+    // Yeni kelime seç
+    _secretWord = selectRandomWord();
+    
+    // Oyun durumunu sıfırla
+    _currentAttempt = 0;
+    _currentColumn = 0;
+    _keyboardColors.clear();
+    _guesses = List.generate(maxAttempts, (_) => List.filled(_currentWordLength, ''));
+    _guessColors = List.generate(maxAttempts, (_) => List.filled(_currentWordLength, Colors.transparent));
+    
+    debugPrint('Yeni zamana karşı kelime: $_secretWord (Skor: $_timeRushScore)');
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _totalTimer?.cancel();
+    _timeRushTimer?.cancel();
+    super.dispose();
   }
 }

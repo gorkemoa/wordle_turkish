@@ -13,8 +13,9 @@ import 'wordle_result_page.dart';
 class WordlePage extends StatefulWidget {
   final VoidCallback toggleTheme;
   final GameMode gameMode;
+  final String? themeId;
 
-  const WordlePage({Key? key, required this.toggleTheme, required this.gameMode}) : super(key: key);
+  const WordlePage({Key? key, required this.toggleTheme, required this.gameMode, this.themeId}) : super(key: key);
 
   @override
   State<WordlePage> createState() => _WordlePageState();
@@ -42,7 +43,7 @@ class _WordlePageState extends State<WordlePage> {
     
     // Oyun modunu build tamamlandıktan sonra ayarla
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _viewModel.resetGame(mode: widget.gameMode);
+      _viewModel.resetGame(mode: widget.gameMode, themeId: widget.themeId);
     });
   }
 

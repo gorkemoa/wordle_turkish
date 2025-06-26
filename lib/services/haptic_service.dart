@@ -1,15 +1,25 @@
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 
 class HapticService {
   static const String _hapticEnabledKey = 'haptic_enabled';
   static bool _isHapticEnabled = true;
 
+  static final ValueNotifier<bool> hapticEnabledNotifier = ValueNotifier(_isHapticEnabled);
+
   // Titreşim ayarını yükle
   static Future<void> loadHapticSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    _isHapticEnabled = prefs.getBool(_hapticEnabledKey) ?? true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _isHapticEnabled = prefs.getBool(_hapticEnabledKey) ?? true;
+      hapticEnabledNotifier.value = _isHapticEnabled;
+    } catch (e) {
+      debugPrint('Titreşim ayarları yüklenemedi: $e');
+      _isHapticEnabled = true; // Hata durumunda varsayılan olarak aç
+      hapticEnabledNotifier.value = true;
+    }
   }
 
   // Titreşim ayarını kaydet
@@ -17,6 +27,7 @@ class HapticService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_hapticEnabledKey, enabled);
     _isHapticEnabled = enabled;
+    hapticEnabledNotifier.value = _isHapticEnabled;
   }
 
   // Titreşim durumunu al
@@ -66,6 +77,17 @@ class HapticService {
 
   // Ayar değiştirme 
   static Future<void> toggleHapticSetting() async {
-    await setHapticEnabled(!_isHapticEnabled);
+    _isHapticEnabled = !_isHapticEnabled;
+    hapticEnabledNotifier.value = _isHapticEnabled;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_hapticEnabledKey, _isHapticEnabled);
+      // Ayar değiştiğinde hafif bir titreşimle geri bildirim ver
+      if (_isHapticEnabled) {
+        HapticFeedback.lightImpact();
+      }
+    } catch (e) {
+      debugPrint('Titreşim ayarı kaydedilemedi: $e');
+    }
   }
 } 

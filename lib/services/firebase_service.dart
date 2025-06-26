@@ -1574,4 +1574,217 @@ class FirebaseService {
       print('Oyun sonucu jeton güncelleme hatası: $e');
     }
   }
+
+  // ============= TEMA MODLARİ =============
+  
+  /// Tema kategorilerine göre kelime listesi al
+  static Future<List<String>> getThemedWords(String themeId) async {
+    try {
+      final doc = await _firestore.collection('themed_words').doc(themeId).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        final words = List<String>.from(data['words'] ?? []);
+        return words.where((word) => word.length >= 4 && word.length <= 8).toList();
+      } else {
+        // Tema bulunamazsa, varsayılan kelime listesi döndür
+        print('Tema bulunamadı: $themeId, varsayılan liste döndürülüyor');
+        return await _getDefaultThemedWords(themeId);
+      }
+    } catch (e) {
+      print('Tema kelimesi alma hatası: $e');
+      return await _getDefaultThemedWords(themeId);
+    }
+  }
+  
+  /// Varsayılan tema kelimeleri (Firebase'e bağlanmazsa)
+  static Future<List<String>> _getDefaultThemedWords(String themeId) async {
+    switch (themeId) {
+      case 'food':
+        return ['ELMA', 'ARMUT', 'KEBAP', 'PILAV', 'ÇORBA', 'PASTA', 'SALATA', 'MEYVE', 'SEBZE', 'EKMEK'];
+      case 'animals':
+        return ['KEDI', 'KÖPEK', 'KUŞU', 'BALIK', 'ASLAN', 'KAPLAN', 'AYISI', 'TAVŞAN', 'KARTAL', 'YILAN'];
+      case 'cities':
+        return ['ANKARA', 'İSTANBUL', 'İZMİR', 'BURSA', 'ANTALYA', 'KONYA', 'ADANA', 'SAMSUN', 'KAYSERI', 'ESKİŞEHİR'];
+      case 'sports':
+        return ['FUTBOL', 'BASKETBOL', 'VOLEYBOL', 'TENİS', 'YÜZME', 'KOŞU', 'GÜREŞ', 'OKÇULUK', 'JİMNASTİK', 'ATLETIZM'];
+      case 'music':
+        return ['ŞARKI', 'MÜZIK', 'ENSTRÜMAN', 'GITAR', 'PIYANO', 'DAVUL', 'FLÜT', 'KLARNET', 'SAKSAFON', 'KEMAN'];
+      default:
+        return ['KELIME', 'OYUNU', 'EĞLENCE', 'ZEKA', 'TAHMIN', 'BULMACA', 'ÇÖZÜM', 'BAŞARI', 'KAZANMA', 'YARIŞMA'];
+    }
+  }
+  
+  /// Rastgele tema seç
+  static Future<String> getRandomTheme() async {
+    try {
+      final themes = ['food', 'animals', 'cities', 'sports', 'music'];
+      themes.shuffle();
+      return themes.first;
+    } catch (e) {
+      print('Rastgele tema seçim hatası: $e');
+      return 'food';
+    }
+  }
+  
+  /// Günün temasını al
+  static Future<Map<String, dynamic>> getDailyTheme() async {
+    try {
+      final today = DateTime.now();
+      final dayOfYear = today.difference(DateTime(today.year, 1, 1)).inDays;
+      
+      final themeData = await _firestore.collection('daily_themes').doc('current').get();
+      
+      if (themeData.exists) {
+        final data = themeData.data()!;
+        final lastUpdate = (data['lastUpdate'] as Timestamp?)?.toDate();
+        
+        // Son güncelleme bugün değilse yeni tema belirle
+        if (lastUpdate == null || 
+            lastUpdate.day != today.day || 
+            lastUpdate.month != today.month || 
+            lastUpdate.year != today.year) {
+          
+          final themes = {
+            'food': {'name': 'Meyve Günü', 'emoji': '🍓'},
+            'animals': {'name': 'Hayvan Dostu', 'emoji': '🐾'},
+            'cities': {'name': 'Şehir Rehberi', 'emoji': '🏙️'},
+            'sports': {'name': 'Spor Zamanı', 'emoji': '⚽'},
+            'music': {'name': 'Müzik Festivali', 'emoji': '🎵'},
+          };
+          
+          final themeKeys = themes.keys.toList();
+          final selectedTheme = themeKeys[dayOfYear % themeKeys.length];
+          
+          final result = {
+            'themeId': selectedTheme,
+            'name': themes[selectedTheme]!['name'],
+            'emoji': themes[selectedTheme]!['emoji'],
+            'date': today,
+          };
+          
+          // Firebase'e güncellemeyi kaydet
+          await _firestore.collection('daily_themes').doc('current').set({
+            'themeId': selectedTheme,
+            'name': result['name'],
+            'emoji': result['emoji'],
+            'lastUpdate': FieldValue.serverTimestamp(),
+          });
+          
+          return result;
+        } else {
+          return {
+            'themeId': data['themeId'],
+            'name': data['name'],
+            'emoji': data['emoji'],
+            'date': lastUpdate,
+          };
+        }
+      } else {
+        // İlk kez çalışıyorsa varsayılan tema
+        const defaultTheme = {
+          'themeId': 'food',
+          'name': 'Meyve Günü',
+          'emoji': '🍓',
+        };
+        
+        await _firestore.collection('daily_themes').doc('current').set({
+          ...defaultTheme,
+          'lastUpdate': FieldValue.serverTimestamp(),
+        });
+        
+        return {...defaultTheme, 'date': today};
+      }
+    } catch (e) {
+      print('Günlük tema alma hatası: $e');
+      return {
+        'themeId': 'food',
+        'name': 'Meyve Günü',
+        'emoji': '🍓',
+        'date': DateTime.now(),
+      };
+    }
+  }
+  
+  // ============= ZAMANA KARŞI MODU =============
+  
+  /// Zamana karşı mod için kelime skorunu kaydet
+  static Future<void> saveTimeRushScore(String uid, int wordsGuessed, int totalTime, int score) async {
+    try {
+      await _firestore.collection('time_rush_scores').add({
+        'uid': uid,
+        'wordsGuessed': wordsGuessed,
+        'totalTime': totalTime,
+        'score': score,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      
+      // Kullanıcı istatistiklerini güncelle
+      await _firestore.collection('user_stats').doc(uid).update({
+        'timeRushGames': FieldValue.increment(1),
+        'bestTimeRushScore': FieldValue.arrayUnion([score]),
+        'totalWordsGuessed': FieldValue.increment(wordsGuessed),
+      });
+      
+      print('Zamana karşı skor kaydedildi: $score');
+    } catch (e) {
+      print('Zamana karşı skor kaydetme hatası: $e');
+    }
+  }
+  
+  /// Zamana karşı mod liderlik tablosu
+  static Future<List<Map<String, dynamic>>> getTimeRushLeaderboard({int limit = 10}) async {
+    try {
+      final query = await _firestore
+          .collection('time_rush_scores')
+          .orderBy('score', descending: true)
+          .limit(limit)
+          .get();
+      
+      List<Map<String, dynamic>> leaderboard = [];
+      
+      for (var doc in query.docs) {
+        final data = doc.data();
+        final uid = data['uid'];
+        
+        // Kullanıcı bilgilerini al
+        final userDoc = await _firestore.collection('users').doc(uid).get();
+        final userData = userDoc.data() ?? {};
+        
+        leaderboard.add({
+          'uid': uid,
+          'displayName': userData['displayName'] ?? 'Anonim',
+          'avatar': userData['avatar'] ?? '',
+          'score': data['score'],
+          'wordsGuessed': data['wordsGuessed'],
+          'totalTime': data['totalTime'],
+          'timestamp': data['timestamp'],
+        });
+      }
+      
+      return leaderboard;
+    } catch (e) {
+      print('Zamana karşı liderlik tablosu alma hatası: $e');
+      return [];
+    }
+  }
+  
+  /// Kullanıcının en iyi zamana karşı skorunu al
+  static Future<int> getUserBestTimeRushScore(String uid) async {
+    try {
+      final query = await _firestore
+          .collection('time_rush_scores')
+          .where('uid', isEqualTo: uid)
+          .orderBy('score', descending: true)
+          .limit(1)
+          .get();
+      
+      if (query.docs.isNotEmpty) {
+        return query.docs.first.data()['score'] ?? 0;
+      }
+      return 0;
+    } catch (e) {
+      print('En iyi zamana karşı skor alma hatası: $e');
+      return 0;
+    }
+  }
 } 
