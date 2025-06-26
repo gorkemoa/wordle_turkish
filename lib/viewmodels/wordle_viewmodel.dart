@@ -238,26 +238,14 @@ class WordleViewModel extends ChangeNotifier {
     // Hata durumunda yedek kelime listesi
     debugPrint('Kelime listesi yüklenirken hata oluştu: $e');
     List<String> backupWords = [
-      'ELMA', 'ARMUT', 'MASKE', 'CAMLI', 'KEBAP',
-      'BILGI', 'YAZAR', 'OYUNU', 'SIHIR', 'UCMAK',
-      'AKREP', 'SALON', 'ÇAMUR', 'KAPLI', 'ÖRDEK'
+      
     ];
     validWordsSet = backupWords.where((word) => word.length == _currentWordLength).toSet();
   }
 }
 
   String selectRandomWord() {
-    if (validWordsSet.isEmpty) {
-      // Yedek kelime listesi, eğer yükleme başarısızsa
-      List<String> backupWords = [
-        'ELMA', 'ARMUT', 'MASKE', 'CAMLI', 'KEBAP',
-        'BILGI', 'YAZAR', 'OYUNU', 'SIHIR', 'UCMAK',
-        'AKREP', 'SALON', 'ÇAMUR', 'KAPLI', 'ÖRDEK'
-      ];
-      backupWords = backupWords.where((word) => word.length == _currentWordLength).toList();
-      backupWords.shuffle();
-      return backupWords.first.toTurkishUpperCase();
-    }
+    
     List<String> words = validWordsSet.toList();
     words.shuffle();
     return words.first.toTurkishUpperCase();

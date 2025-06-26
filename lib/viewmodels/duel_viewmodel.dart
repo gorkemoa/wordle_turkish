@@ -244,10 +244,7 @@ class DuelViewModel extends ChangeNotifier {
     } catch (e) {
       debugPrint('Kelime listesi yüklenirken hata: $e');
       // Yedek kelime listesi
-      validWordsSet = {
-        'ELMA', 'ARMUT', 'MASKE', 'KEBAP', 'SALON', 
-        'BILGI', 'YAZAR', 'OYUNU', 'SIHIR', 'KALEM'
-      }.toSet();
+    
     }
 
     _isLoadingWords = false;

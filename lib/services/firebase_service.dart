@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -1580,49 +1581,70 @@ class FirebaseService {
   /// Tema kategorilerine göre kelime listesi al
   static Future<List<String>> getThemedWords(String themeId) async {
     try {
+      // Önce Firebase'den deneme
       final doc = await _firestore.collection('themed_words').doc(themeId).get();
       if (doc.exists) {
         final data = doc.data()!;
         final words = List<String>.from(data['words'] ?? []);
-        return words.where((word) => word.length >= 4 && word.length <= 8).toList();
-      } else {
-        // Tema bulunamazsa, varsayılan kelime listesi döndür
-        print('Tema bulunamadı: $themeId, varsayılan liste döndürülüyor');
-        return await _getDefaultThemedWords(themeId);
+        final filteredWords = words.where((word) => word.length >= 4 && word.length <= 8).toList();
+        if (filteredWords.isNotEmpty) {
+          print('Firebase\'den kelimeler alındı: ${filteredWords.length} kelime');
+          return filteredWords;
+        }
       }
+      
+      // Firebase'de yoksa veya boşsa JSON'dan oku
+      print('Firebase\'de tema bulunamadı: $themeId, JSON\'dan okunuyor...');
+      return await _getDefaultThemedWords(themeId);
     } catch (e) {
-      print('Tema kelimesi alma hatası: $e');
+      print('Firebase tema kelimesi alma hatası: $e, JSON\'dan okunuyor...');
       return await _getDefaultThemedWords(themeId);
     }
   }
   
   /// Varsayılan tema kelimeleri (Firebase'e bağlanmazsa)
   static Future<List<String>> _getDefaultThemedWords(String themeId) async {
-    switch (themeId) {
-      case 'food':
-        return ['ELMA', 'ARMUT', 'KEBAP', 'PILAV', 'ÇORBA', 'PASTA', 'SALATA', 'MEYVE', 'SEBZE', 'EKMEK'];
-      case 'animals':
-        return ['KEDI', 'KÖPEK', 'KUŞU', 'BALIK', 'ASLAN', 'KAPLAN', 'AYISI', 'TAVŞAN', 'KARTAL', 'YILAN'];
-      case 'cities':
-        return ['ANKARA', 'İSTANBUL', 'İZMİR', 'BURSA', 'ANTALYA', 'KONYA', 'ADANA', 'SAMSUN', 'KAYSERI', 'ESKİŞEHİR'];
-      case 'sports':
-        return ['FUTBOL', 'BASKETBOL', 'VOLEYBOL', 'TENİS', 'YÜZME', 'KOŞU', 'GÜREŞ', 'OKÇULUK', 'JİMNASTİK', 'ATLETIZM'];
-      case 'music':
-        return ['ŞARKI', 'MÜZIK', 'ENSTRÜMAN', 'GITAR', 'PIYANO', 'DAVUL', 'FLÜT', 'KLARNET', 'SAKSAFON', 'KEMAN'];
-      default:
-        return ['KELIME', 'OYUNU', 'EĞLENCE', 'ZEKA', 'TAHMIN', 'BULMACA', 'ÇÖZÜM', 'BAŞARI', 'KAZANMA', 'YARIŞMA'];
+    try {
+      // JSON dosyasından kelime listesini yükle
+      final String jsonString = await rootBundle.loadString('assets/kelimeler.json');
+      final Map<String, dynamic> wordsData = jsonDecode(jsonString);
+      
+      if (wordsData.containsKey(themeId)) {
+        final List<dynamic> words = wordsData[themeId];
+        return words.cast<String>().where((word) => word.length >= 4 && word.length <= 8).toList();
+      } else {
+        // Tema bulunamazsa varsayılan genel kelimeler
+        print('Tema bulunamadı: $themeId, genel kelimeler döndürülüyor');
+        return _getFallbackWords();
+      }
+    } catch (e) {
+      print('JSON kelime dosyası okuma hatası: $e');
+      return _getFallbackWords();
     }
+  }
+  
+  /// Acil durum kelime listesi (JSON okuma başarısız olursa)
+  static List<String> _getFallbackWords() {
+    return ['KELIME', 'OYUNU', 'EGLENCE', 'ZEKA', 'TAHMIN', 'BULMACA', 'COZUM', 'BASARI', 'KAZANMA', 'YARISMA',
+            'MUZIK', 'SARKI', 'GITAR', 'PIYANO', 'DAVUL', 'FLUT', 'KEMAN', 'ORKESTRA', 'KONSER', 'FESTIVAL'];
   }
   
   /// Rastgele tema seç
   static Future<String> getRandomTheme() async {
     try {
+      // JSON dosyasından mevcut temaları al
+      final String jsonString = await rootBundle.loadString('assets/kelimeler.json');
+      final Map<String, dynamic> wordsData = jsonDecode(jsonString);
+      
+      final List<String> availableThemes = wordsData.keys.toList();
+      availableThemes.shuffle();
+      return availableThemes.first;
+    } catch (e) {
+      print('Rastgele tema seçim hatası: $e');
+      // Fallback tema listesi
       final themes = ['food', 'animals', 'cities', 'sports', 'music'];
       themes.shuffle();
       return themes.first;
-    } catch (e) {
-      print('Rastgele tema seçim hatası: $e');
-      return 'food';
     }
   }
   
@@ -1645,11 +1667,17 @@ class FirebaseService {
             lastUpdate.year != today.year) {
           
           final themes = {
-            'food': {'name': 'Meyve Günü', 'emoji': '🍓'},
+            'food': {'name': 'Yiyecek Günü', 'emoji': '🍓'},
             'animals': {'name': 'Hayvan Dostu', 'emoji': '🐾'},
             'cities': {'name': 'Şehir Rehberi', 'emoji': '🏙️'},
             'sports': {'name': 'Spor Zamanı', 'emoji': '⚽'},
             'music': {'name': 'Müzik Festivali', 'emoji': '🎵'},
+            'nature': {'name': 'Doğa Günü', 'emoji': '🌿'},
+            'technology': {'name': 'Teknoloji Günü', 'emoji': '💻'},
+            'colors': {'name': 'Renk Günü', 'emoji': '🌈'},
+            'education': {'name': 'Eğitim Günü', 'emoji': '📚'},
+            'house': {'name': 'Ev Günü', 'emoji': '🏠'},
+            'travel': {'name': 'Seyahat Günü', 'emoji': '✈️'},
           };
           
           final themeKeys = themes.keys.toList();
@@ -1683,7 +1711,7 @@ class FirebaseService {
         // İlk kez çalışıyorsa varsayılan tema
         const defaultTheme = {
           'themeId': 'food',
-          'name': 'Meyve Günü',
+          'name': 'Yiyecek Günü',
           'emoji': '🍓',
         };
         
@@ -1698,7 +1726,7 @@ class FirebaseService {
       print('Günlük tema alma hatası: $e');
       return {
         'themeId': 'food',
-        'name': 'Meyve Günü',
+        'name': 'Yiyecek Günü',
         'emoji': '🍓',
         'date': DateTime.now(),
       };
