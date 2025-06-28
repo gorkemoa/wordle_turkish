@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -224,6 +225,14 @@ class DuelViewModel extends ChangeNotifier {
     _gameSubscription = FirebaseService.listenToGame(_gameId!).listen(
       (game) {
         debugPrint('🎮 Game update alındı: ${game?.status}');
+        
+        // Oyuncu çıkış kontrolü
+        if (game != null && _checkPlayerLeft(game)) {
+          debugPrint('🚪 Rakip oyunu terk etti, yeni rakip aranıyor...');
+          _handleOpponentLeft();
+          return;
+        }
+        
         _currentGame = game;
         _updateGameState();
         notifyListeners();
@@ -234,6 +243,59 @@ class DuelViewModel extends ChangeNotifier {
         notifyListeners();
       },
     );
+  }
+
+  // Oyuncu çıkış kontrolü
+  bool _checkPlayerLeft(DuelGame game) {
+    // Eğer oyun başlamamışsa ve oyuncu sayısı 1'e düştüyse
+    if (game.status == GameStatus.waiting && game.players.length == 1) {
+      final currentUser = FirebaseService.getCurrentUser();
+      if (currentUser != null && game.players.containsKey(currentUser.uid)) {
+        return true; // Rakip çıktı
+      }
+    }
+    return false;
+  }
+
+  // Rakip çıkış durumu
+  void _handleOpponentLeft() async {
+    try {
+      debugPrint('🔄 Rakip çıktı, yeni eşleştirme başlatılıyor...');
+      
+      // Mevcut oyunu temizle
+      _currentGame = null;
+      _gameId = null;
+      _opponentFound = false;
+      _preGameTimer?.cancel();
+      
+      // State'i searching'e çevir
+      _gameState = GameState.searching;
+      notifyListeners();
+      
+      // Yeni rakip ara
+      final user = FirebaseService.getCurrentUser();
+      if (user != null) {
+        final userProfile = await FirebaseService.getUserProfile(user.uid);
+        final playerName = userProfile?['displayName'] ?? user.displayName ?? 'Oyuncu${user.uid.substring(0, 4)}';
+        final secretWord = _selectRandomWord();
+        
+        final result = await FirebaseService.findOrCreateGame(playerName, secretWord);
+        if (result != null) {
+          if (result == user.uid) {
+            _startMatchmakingListener(user.uid);
+          } else {
+            _gameId = result;
+            _gameState = GameState.waitingRoom;
+            _startGameListener();
+          }
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Rakip çıkış handle hatası: $e');
+      _gameState = GameState.error;
+      notifyListeners();
+    }
   }
 
   // Oyun durumu güncelle - Yeniden yazıldı
@@ -249,12 +311,12 @@ class DuelViewModel extends ChangeNotifier {
     
     switch (gameStatus) {
       case GameStatus.waiting:
-        if (playerCount == 2 && !_opponentFound) {
+        if (playerCount == 2 && _gameState != GameState.opponentFound && _gameState != GameState.gameStarting) {
           debugPrint('👥 İki oyuncu da hazır, opponent found sequence başlatılıyor');
           debugPrint('🎯 OPPONENT FOUND STATE\'E GEÇİLİYOR!');
           _gameState = GameState.opponentFound;
           _startOpponentFoundSequence();
-        } else {
+        } else if (playerCount < 2) {
           // Eğer yeni waiting room state'ine geçiyorsak callback çağır
           if (_gameState != GameState.waitingRoom) {
             debugPrint('🏠 _updateGameState - Waiting room state\'e geçiliyor (playerCount: $playerCount)');
@@ -306,26 +368,31 @@ class DuelViewModel extends ChangeNotifier {
 
   // Rakip bulundu sekansi - İyileştirilmiş
   void _startOpponentFoundSequence() {
-    debugPrint('🎉 Opponent found sequence başlatıldı');
+    debugPrint('🎉 === OPPONENT FOUND SEQUENCE BAŞLADI ===');
+    debugPrint('🎯 GameState: $_gameState');
+    debugPrint('👥 Oyuncu sayısı: ${_currentGame?.players.length}');
     
     _opponentFound = true;
     _preGameCountdown = 8; // 8 saniye olarak artırıldı
+    
+    debugPrint('⏰ Pre-game countdown başlatıldı: $_preGameCountdown saniye');
     
     _preGameTimer?.cancel();
     _preGameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_preGameCountdown > 1) {
         _preGameCountdown--;
-        debugPrint('⏰ Countdown: $_preGameCountdown');
+        debugPrint('⏰ Countdown: $_preGameCountdown saniye kaldı');
       } else {
         timer.cancel();
         _preGameTimer = null;
-        debugPrint('✅ Countdown bitti, oyun başlatılıyor');
+        debugPrint('✅ Opponent found countdown bitti, oyun başlatılıyor');
         _startGameAfterCountdown();
       }
       notifyListeners();
     });
     
     notifyListeners();
+    debugPrint('🎉 Opponent found sequence kuruldu, UI güncellendi');
   }
 
   // Countdown sonrası oyun başlat
@@ -476,22 +543,45 @@ class DuelViewModel extends ChangeNotifier {
     return false;
   }
 
-  // Kelime yükleme
+  // Kelime yükleme - JSON dosyasından 5 harfli kelimeler
   Future<void> loadValidWords() async {
     if (_isLoadingWords || validWordsSet.isNotEmpty) return;
     
     try {
       _isLoadingWords = true;
-      final String response = await rootBundle.loadString('assets/turkce_kelime_listesi.txt');
-      final List<String> words = response.split('\n')
-          .map((word) => word.trim().toUpperCase())
-          .where((word) => word.length == wordLength)
-          .toList();
-      validWordsSet = words.toSet();
+      
+      // JSON dosyasını yükle
+      final String jsonString = await rootBundle.loadString('assets/kelimeler.json');
+      final Map<String, dynamic> wordsData = json.decode(jsonString);
+      
+      // Tüm kategorilerden 5 harfli kelimeleri topla
+      Set<String> allWords = {};
+      for (var category in wordsData.values) {
+        if (category is List) {
+          for (var word in category) {
+            if (word is String && word.trim().length == wordLength) {
+              allWords.add(word.trim().toUpperCase());
+            }
+          }
+        }
+      }
+      
+      validWordsSet = allWords;
       _isLoadingWords = false;
+      
+      debugPrint('✅ ${validWordsSet.length} adet 5 harfli kelime yüklendi');
     } catch (e) {
       _isLoadingWords = false;
-      debugPrint('Kelime yükleme hatası: $e');
+      debugPrint('❌ Kelime yükleme hatası: $e');
+      
+      // Fallback kelimeler - 5 harfli
+      validWordsSet = {
+        'ELMA', 'ARMUT', 'KEBAP', 'PİLAV', 'ÇORBA', 'PASTA', 'SALATA', 'MEYVE', 'SEBZE', 'EKMEK',
+        'KÖPEK', 'KEDI', 'BALIK', 'ASLAN', 'KAPLAN', 'TAVUK', 'HOROZ', 'ÖRDEK', 'KARTAL', 'YILAN',
+        'ANKARA', 'İZMİR', 'BURSA', 'KONYA', 'ADANA', 'SAMSUN', 'TRABZON', 'MERSİN', 'BODRUM', 'ALANYA',
+        'FUTBOL', 'TENİS', 'YÜZME', 'KOŞU', 'GÜREŞ', 'JUDO', 'KARATE', 'BOKS', 'GOLF', 'RUGBY',
+        'ŞARKI', 'MÜZİK', 'GİTAR', 'PİYANO', 'DAVUL', 'FLÜT', 'KEMAN', 'KANUN', 'ZURNA', 'KLARNET'
+      };
     }
   }
 

@@ -39,18 +39,7 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       curve: Curves.easeInOut,
     ));
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      try {
-        final viewModel = Provider.of<DuelViewModel>(context, listen: false);
-        if (viewModel.gameState != GameState.playing) {
-          debugPrint("⚠️ DuelPage'e oyun başlamadan gelindi, ana sayfaya dönülüyor.");
-          if(Navigator.canPop(context)) Navigator.of(context).pop();
-        }
-      } catch (e) {
-        debugPrint('❌ DuelPage initState error: $e');
-      }
-    });
+    // DuelPage artık her durumda açık kalacak - oyun durumuna göre UI gösterecek
   }
 
   @override
@@ -234,32 +223,45 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
           final gameState = viewModel.gameState;
           final game = viewModel.currentGame;
           
-          if (gameState == GameState.playing && game != null) {
-            return Column(
-              children: [
-                _buildPlayersInfo(viewModel),
-                Expanded(
-                  child: _buildGameBoard(viewModel),
-                ),
-                if (viewModel.isGameActive)
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                    child: _DuelKeyboardWidget(viewModel: viewModel),
-                  ),
-              ],
-            );
-          }
+          debugPrint('🎮 DuelPage build - GameState: $gameState, Game: ${game != null}');
           
-          if (gameState == GameState.finished && game != null) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted && !_hasNavigatedToResult) {
-                _navigateToResultPage(game);
+          // Oyun durumuna göre UI göster
+          switch (gameState) {
+            case GameState.gameStarting:
+              return _buildGameStartingState();
+              
+            case GameState.playing:
+              if (game != null) {
+                return Column(
+                  children: [
+                    _buildPlayersInfo(viewModel),
+                    Expanded(
+                      child: _buildGameBoard(viewModel),
+                    ),
+                    if (viewModel.isGameActive)
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                        child: _DuelKeyboardWidget(viewModel: viewModel),
+                      ),
+                  ],
+                );
               }
-            });
-            return _buildGameFinishedState();
+              return _buildLoadingState();
+              
+            case GameState.finished:
+              if (game != null) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && !_hasNavigatedToResult) {
+                    _navigateToResultPage(game);
+                  }
+                });
+                return _buildGameFinishedState();
+              }
+              return _buildLoadingState();
+              
+            default:
+              return _buildLoadingState();
           }
-
-          return _buildLoadingState();
         },
       ),
     ));
@@ -360,6 +362,47 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGameStartingState() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.green.shade800, Colors.green.shade600],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.play_circle_filled,
+              color: Colors.white,
+              size: 80,
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Oyun Başlıyor!',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Hazır ol...',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

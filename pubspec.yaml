@@ -36,7 +36,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/turkce_kelime_listesi.txt
     - assets/kelimeler.json
     - assets/ixel.mp4
     - assets/winner/

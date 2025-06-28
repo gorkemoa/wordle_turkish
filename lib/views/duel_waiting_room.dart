@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../viewmodels/duel_viewmodel.dart';
 import '../models/duel_game.dart';
 import '../services/firebase_service.dart';
+import '../services/avatar_service.dart';
 import 'dart:async';
 import 'duel_page.dart';
 
@@ -376,40 +377,47 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             // Game State'e göre UI render et
             switch (gameState) {
               case GameState.initializing:
+                debugPrint('🔄 DuelWaitingRoom - Initializing state');
+                return _buildLoadingState();
+                
               case GameState.searching:
               case GameState.waitingRoom:
-                debugPrint('🔍 DuelWaitingRoom - Waiting/Searching state, game: ${game != null}');
-                if (game == null) {
-                  return _buildLoadingState();
-                }
+                debugPrint('🔍 DuelWaitingRoom - Searching/Waiting state, game: ${game != null}');
                 return _buildWaitingRoom(context, game, viewModel);
                 
               case GameState.opponentFound:
-                debugPrint('🎯 DuelWaitingRoom - OPPONENT FOUND STATE GÖSTERİLİYOR!');
+                debugPrint('🎯 === OPPONENT FOUND STATE RENDER EDİLİYOR ===');
+                debugPrint('🎯 OpponentFound: ${viewModel.opponentFound}');
+                debugPrint('🎯 PreGameCountdown: ${viewModel.preGameCountdown}');
+                debugPrint('🎯 CurrentPlayer: ${viewModel.currentPlayer?.playerName}');
+                debugPrint('🎯 OpponentPlayer: ${viewModel.opponentPlayer?.playerName}');
                 return _buildOpponentFoundState(viewModel);
                 
               case GameState.gameStarting:
-                // Oyun başlıyor, DuelPage'e dön
+                // Oyun başlıyor, DuelPage'e git
                 if (!_hasNavigated) {
-                  debugPrint('🚀 DuelWaitingRoom - Oyun başlıyor, DuelPage\'e dönülüyor');
+                  debugPrint('🚀 DuelWaitingRoom - Oyun başlıyor, DuelPage\'e gidiliyor');
                   _hasNavigated = true;
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) {
-                      debugPrint('📤 DuelWaitingRoom - Navigator.pop(true) çağrılıyor');
-                      Navigator.of(context).pop(true); // Oyun başladı sinyali
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (context) => const DuelPage()),
+                      );
                     }
                   });
                 }
                 return _buildGameStartingState();
                 
               case GameState.playing:
-                // Oyun çoktan başlamış, DuelPage'e dön
+                // Oyun çoktan başlamış, DuelPage'e git
                 if (!_hasNavigated) {
-                  debugPrint('🎮 DuelWaitingRoom - Oyun çoktan başlamış, DuelPage\'e dönülüyor');
+                  debugPrint('🎮 DuelWaitingRoom - Oyun çoktan başlamış, DuelPage\'e gidiliyor');
                   _hasNavigated = true;
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) {
-                      Navigator.of(context).pop(true);
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (context) => const DuelPage()),
+                      );
                     }
                   });
                 }
@@ -422,6 +430,31 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
         ),
       ),
     );
+  }
+
+  Future<Map<String, dynamic>> _getCurrentUserInfo() async {
+    final user = FirebaseService.getCurrentUser();
+    if (user == null) {
+      return {'name': 'Sen', 'avatar': '👤'};
+    }
+    
+    try {
+      final userProfile = await FirebaseService.getUserProfile(user.uid);
+      
+      // Avatar'ı Realtime Database'den al
+      final avatarData = await FirebaseService.getDatabase()
+          .ref('users/${user.uid}/avatar')
+          .get();
+      final avatar = avatarData.value as String? ?? '👤';
+      
+      return {
+        'name': userProfile?['displayName'] ?? user.displayName ?? 'Sen',
+        'avatar': avatar,
+      };
+    } catch (e) {
+      debugPrint('❌ Kullanıcı bilgileri alınamadı: $e');
+      return {'name': 'Sen', 'avatar': '👤'};
+    }
   }
 
   Widget _buildLoadingState() {
@@ -660,42 +693,49 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
     );
   }
 
-  Widget _buildWaitingRoom(BuildContext context, DuelGame game, DuelViewModel viewModel) {
+  Widget _buildWaitingRoom(BuildContext context, DuelGame? game, DuelViewModel viewModel) {
     return Scaffold(
       backgroundColor: const Color(0xFF0D0F14),
-      body: Stack(
-        children: [
-          // Hareketli Arka Plan
-          _buildAnimatedBackground(),
-
-          // Ana İçerik
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-              child: AnimatedBuilder(
-                animation: _slideFadeController,
-                builder: (context, child) {
-                  return Transform.translate(
-                    offset: Offset(0, _slideAnimation.value),
-                    child: FadeTransition(
-                      opacity: _fadeAnimation,
-                      child: child,
-                    ),
-                  );
-                },
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildHeader(),
-                    _buildPlayersCard(game, viewModel),
-                    _buildTokenInfo(),
-                    _buildFooter(viewModel),
-                  ],
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF0D0F14),
+              const Color(0xFF1A1A2E),
+              const Color(0xFF16213E),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              children: [
+                // Başlık
+                _buildSimpleHeader(),
+                
+                const SizedBox(height: 40),
+                
+                // VS Bölümü
+                Expanded(
+                  child: _buildVSSection(game, viewModel),
                 ),
-              ),
+                
+                const SizedBox(height: 40),
+                
+                // Token Bilgisi
+                _buildTokenInfo(),
+                
+                const SizedBox(height: 20),
+                
+                // Çıkış Butonu
+                _buildFooter(viewModel),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -712,28 +752,332 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
     );
   }
 
-  Widget _buildHeader() {
-    return const Column(
-      children: [
-        Text(
-          'Rakip Bekleniyor...',
-          style: TextStyle(
-            fontFamily: 'RussoOne',
-            fontSize: 28,
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+  Widget _buildSimpleHeader() {
+    return AnimatedBuilder(
+      animation: _rotationAnimation,
+      builder: (context, child) {
+        final glowIntensity = 0.5 + (math.sin(_rotationAnimation.value * math.pi * 3) * 0.2);
+        return Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.purple.shade800,
+                    Colors.blue.shade700,
+                    Colors.purple.shade800,
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.purple.withOpacity(glowIntensity),
+                    blurRadius: 20,
+                    spreadRadius: 3,
+                  ),
+                ],
+              ),
+              child: const Text(
+                '⚔️ DÜELLO ODASI',
+                style: TextStyle(
+                  fontSize: 26,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black54,
+                      blurRadius: 4,
+                      offset: Offset(2, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Rakip aranıyor...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade300,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildVSSection(DuelGame? game, DuelViewModel viewModel) {
+    final opponentPlayer = viewModel.opponentPlayer;
+    final hasOpponent = opponentPlayer != null;
+    
+    return Center(
+      child: Row(
+        children: [
+          // Sol Oyuncu (Sen) - Direkt bilgiler
+          Expanded(
+            child: FutureBuilder<Map<String, dynamic>>(
+              future: _getCurrentUserInfo(),
+              builder: (context, snapshot) {
+                final userInfo = snapshot.data;
+                return _buildPlayerCard(
+                  userInfo?['name'] ?? 'Sen',
+                  userInfo?['avatar'] ?? '👤',
+                  Colors.blue,
+                  isCurrentPlayer: true,
+                );
+              },
+            ),
           ),
-        ),
-        SizedBox(height: 8),
-        Text(
-          'Sana en uygun rakip aranıyor, lütfen bekle.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.white70,
+          
+          // Ortada VS - Gelişmiş animasyon
+          Container(
+            width: 100,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedBuilder(
+                  animation: _rotationAnimation,
+                  builder: (context, child) {
+                    final pulseScale = 1.0 + (math.sin(_rotationAnimation.value * math.pi * 4) * 0.1);
+                    final glowIntensity = 0.6 + (math.sin(_rotationAnimation.value * math.pi * 5) * 0.3);
+                    
+                    return Transform.scale(
+                      scale: pulseScale,
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              Colors.yellow.shade400,
+                              Colors.orange.shade600,
+                              Colors.red.shade800,
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.orange.withOpacity(glowIntensity),
+                              blurRadius: 25,
+                              spreadRadius: 8,
+                            ),
+                            BoxShadow(
+                              color: Colors.red.withOpacity(0.3),
+                              blurRadius: 40,
+                              spreadRadius: 12,
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'VS',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black54,
+                                  blurRadius: 4,
+                                  offset: Offset(2, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                if (!hasOpponent)
+                  AnimatedBuilder(
+                    animation: _rotationAnimation,
+                    builder: (context, child) {
+                      return Transform.rotate(
+                        angle: _rotationAnimation.value * math.pi * 2,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.orange.shade400,
+                                Colors.red.shade600,
+                              ],
+                            ),
+                          ),
+                          child: const CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 3,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ),
           ),
+          
+          // Sağ Oyuncu (Rakip)
+          Expanded(
+            child: hasOpponent
+                ? _buildPlayerCard(
+                    opponentPlayer.playerName,
+                    opponentPlayer.avatar ?? '❓',
+                    Colors.red,
+                    isCurrentPlayer: false,
+                  )
+                : _buildSearchingCard(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlayerCard(String name, String avatar, Color themeColor, {required bool isCurrentPlayer}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: themeColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: themeColor.withOpacity(0.3),
+          width: 2,
         ),
-      ],
+        boxShadow: [
+          BoxShadow(
+            color: themeColor.withOpacity(0.2),
+            blurRadius: 15,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Avatar
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: themeColor.withOpacity(0.2),
+              border: Border.all(color: themeColor, width: 3),
+            ),
+            child: Center(
+              child: Text(
+                avatar,
+                style: const TextStyle(fontSize: 50),
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // İsim
+          Text(
+            name,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Etiket
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: themeColor.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              isCurrentPlayer ? 'SEN' : 'RAKİP',
+              style: TextStyle(
+                color: themeColor,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchingCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.grey.withOpacity(0.3),
+          width: 2,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Arama ikonu
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.grey.withOpacity(0.2),
+              border: Border.all(color: Colors.grey, width: 3),
+            ),
+            child: const Center(
+              child: Text(
+                '🔍',
+                style: TextStyle(fontSize: 50),
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Aranıyor yazısı
+          const Text(
+            'RAKİP',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Durum
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              'ARANIYOR',
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1031,105 +1375,319 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
   }
 
   Widget _buildOpponentFoundState(DuelViewModel viewModel) {
+    debugPrint('🎨 === OPPONENT FOUND STATE WIDGET OLUŞTURULUYOR ===');
+    
     final game = viewModel.currentGame;
     final opponentPlayer = viewModel.opponentPlayer;
-    final currentPlayer = viewModel.currentPlayer;
+    
+    debugPrint('🎨 Game: ${game != null}');
+    debugPrint('🎨 OpponentPlayer: ${opponentPlayer?.playerName} (${opponentPlayer?.avatar})');
+    debugPrint('🎨 Countdown: ${viewModel.preGameCountdown}');
     
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.green.shade900,
-            Colors.green.shade700,
-            Colors.blue.shade800,
+            const Color(0xFF0F0F23),
+            const Color(0xFF1A1A3E),
+            const Color(0xFF2D1B69),
+            const Color(0xFF8B5CF6),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
+          stops: const [0.0, 0.3, 0.7, 1.0],
         ),
       ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      child: Stack(
+        children: [
+          // Arka plan efektleri
+          _buildBackgroundEffects(),
+          
+          // Ana içerik
+          SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Başlık animasyonu
+                  _buildAnimatedTitle(),
+                  
+                  const SizedBox(height: 50),
+                  
+                  // Oyuncular karşılaştırması
+                  _buildVersusSection(opponentPlayer),
+                  
+                  const SizedBox(height: 60),
+                  
+                  // Countdown
+                  _buildCountdownCircle(viewModel.preGameCountdown),
+                  
+                  const SizedBox(height: 30),
+                  
+                  // Alt mesaj
+                  _buildBottomMessage(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackgroundEffects() {
+    return AnimatedBuilder(
+      animation: _rotationAnimation,
+      builder: (context, child) {
+        return Stack(
           children: [
-            // Başlık
-            const Text(
-              '🎯 RAKİP BULUNDU!',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            
-            const SizedBox(height: 40),
-            
-            // Oyuncular karşılaştırması
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Mevcut oyuncu
-                _buildPlayerProfile(
-                  currentPlayer?.playerName ?? 'Sen',
-                  currentPlayer?.avatar ?? '👤',
-                  Colors.blue,
-                  true,
-                ),
-                
-                // VS
-                const Text(
-                  'VS',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                
-                // Rakip oyuncu
-                _buildPlayerProfile(
-                  opponentPlayer?.playerName ?? 'Rakip',
-                  opponentPlayer?.avatar ?? '🤖',
-                  Colors.red,
-                  false,
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 60),
-            
-            // Countdown
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 3),
-                color: Colors.white.withOpacity(0.1),
-              ),
-              child: Center(
-                child: Text(
-                  '${viewModel.preGameCountdown}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
+            // Dönen halka efektleri
+            Positioned(
+              top: 100,
+              left: -50,
+              child: Transform.rotate(
+                angle: _rotationAnimation.value * math.pi * 2,
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.purple.withOpacity(0.2),
+                      width: 2,
+                    ),
                   ),
                 ),
               ),
             ),
-            
-            const SizedBox(height: 20),
-            
-            const Text(
-              'Oyun başlıyor...',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 18,
+            Positioned(
+              bottom: 150,
+              right: -75,
+              child: Transform.rotate(
+                angle: -_rotationAnimation.value * math.pi * 1.5,
+                child: Container(
+                  width: 300,
+                  height: 300,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.blue.withOpacity(0.15),
+                      width: 3,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildAnimatedTitle() {
+    return AnimatedBuilder(
+      animation: _rotationAnimation,
+      builder: (context, child) {
+        final scale = 1.0 + (math.sin(_rotationAnimation.value * math.pi * 4) * 0.05);
+        return Transform.scale(
+          scale: scale,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(25),
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.orange.shade600,
+                      Colors.red.shade600,
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.withOpacity(0.5),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  '🎯 RAKİP BULUNDU!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Mücadele başlamak üzere...',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildVersusSection(DuelPlayer? opponentPlayer) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _getCurrentUserInfo(),
+      builder: (context, snapshot) {
+        final userInfo = snapshot.data;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            // Sen
+            _buildPlayerProfile(
+              userInfo?['name'] ?? 'Sen',
+              userInfo?['avatar'] ?? '👤',
+              Colors.blue,
+              true,
+            ),
+            
+            // VS Efekti
+            _buildVSEffect(),
+            
+            // Rakip
+            _buildPlayerProfile(
+              opponentPlayer?.playerName ?? 'Rakip',
+              opponentPlayer?.avatar ?? '🤖',
+              Colors.red,
+              false,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildVSEffect() {
+    return AnimatedBuilder(
+      animation: _rotationAnimation,
+      builder: (context, child) {
+        final pulseScale = 1.0 + (math.sin(_rotationAnimation.value * math.pi * 6) * 0.1);
+        return Transform.scale(
+          scale: pulseScale,
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  Colors.yellow.shade400,
+                  Colors.orange.shade600,
+                  Colors.red.shade700,
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.orange.withOpacity(0.8),
+                  blurRadius: 25,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Text(
+                'VS',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black54,
+                      blurRadius: 4,
+                      offset: Offset(2, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCountdownCircle(int countdown) {
+    return AnimatedBuilder(
+      animation: _rotationAnimation,
+      builder: (context, child) {
+        return Container(
+          width: 140,
+          height: 140,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                Colors.white.withOpacity(0.1),
+                Colors.white.withOpacity(0.05),
+              ],
+            ),
+            border: Border.all(
+              color: Colors.white,
+              width: 4,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white.withOpacity(0.3),
+                blurRadius: 20,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              '$countdown',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 56,
+                fontWeight: FontWeight.bold,
+                shadows: [
+                  Shadow(
+                    color: Colors.black54,
+                    blurRadius: 8,
+                    offset: Offset(3, 3),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomMessage() {
+    return Column(
+      children: [
+        Text(
+          'Hazır ol!',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.9),
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        Text(
+          'En iyi kelime tahminini yap ve rakibini yen!',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.7),
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 

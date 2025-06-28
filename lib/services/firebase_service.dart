@@ -476,6 +476,9 @@ class FirebaseService {
     
     print('Background matchmaking başlatıldı');
     
+    // İlk önce queue'nun durumunu kontrol et
+    _debugCheckQueue();
+    
     _matchmakingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
       try {
         await _processMatchmakingQueue();
@@ -485,6 +488,32 @@ class FirebaseService {
     });
   }
   
+  // Debug: Queue durumunu kontrol et
+  static Future<void> _debugCheckQueue() async {
+    try {
+      final queueSnapshot = await _database.ref('matchmaking_queue').get();
+      print('🔍 DEBUG - Queue snapshot exists: ${queueSnapshot.exists}');
+      if (queueSnapshot.exists) {
+        final queueData = queueSnapshot.value;
+        print('🔍 DEBUG - Queue data: $queueData');
+        if (queueData is Map) {
+          final players = Map<String, dynamic>.from(queueData as Map<dynamic, dynamic>);
+          print('🔍 DEBUG - Players in queue: ${players.keys.length}');
+          players.forEach((key, value) {
+            if (value is Map) {
+              final playerData = Map<String, dynamic>.from(value as Map<dynamic, dynamic>);
+              print('🔍 DEBUG - Player: $key, Status: ${playerData['status']}, Name: ${playerData['playerName']}');
+            }
+          });
+        }
+      } else {
+        print('🔍 DEBUG - Queue is empty or doesn\'t exist');
+      }
+    } catch (e) {
+      print('🔍 DEBUG - Queue check error: $e');
+    }
+  }
+  
   // Background matchmaking durdur
   static void _stopBackgroundMatchmaking() {
     _matchmakingTimer?.cancel();
@@ -492,89 +521,99 @@ class FirebaseService {
     print('Background matchmaking durduruldu');
   }
   
-  // Matchmaking queue'yu işle (ATOMİK OLARAK YENİDEN YAZILDI)
+  // Matchmaking queue'yu işle (SİMPLE VERSION - TRANSACTION OLMADAN)
   static Future<void> _processMatchmakingQueue() async {
-    final queueRef = _database.ref('matchmaking_queue');
-    String? createdGameId;
-
-    final rtdb.TransactionResult result = await queueRef.runTransaction((Object? queueData) {
-      if (queueData == null) {
-        return rtdb.Transaction.abort();
+    try {
+      final queueRef = _database.ref('matchmaking_queue');
+      
+      // Queue'yu oku
+      final queueSnapshot = await queueRef.get();
+      
+      if (!queueSnapshot.exists) {
+        print('🔍 Queue boş, işlem yok');
+        return;
       }
-
-      final currentQueue = Map<String, dynamic>.from(queueData as Map);
+      
+      final queueData = queueSnapshot.value as Map<dynamic, dynamic>;
+      final currentQueue = Map<String, dynamic>.from(queueData);
+      
+      print('🔍 Processing queue with ${currentQueue.length} entries');
+      
+      // Waiting durumundaki oyuncuları bul
       final waitingPlayers = <String, Map<String, dynamic>>{};
       
       currentQueue.forEach((key, value) {
         if (value is Map) {
-          final playerData = Map<String, dynamic>.from(value);
-        if (playerData['status'] == 'waiting') {
+          final playerData = Map<String, dynamic>.from(value as Map<dynamic, dynamic>);
+          if (playerData['status'] == 'waiting') {
             waitingPlayers[key] = playerData;
+            print('✓ Waiting player: $key (${playerData['playerName']})');
+          }
         }
-      }
       });
       
+      print('👥 Waiting players count: ${waitingPlayers.length}');
+      
       if (waitingPlayers.length < 2) {
-        return rtdb.Transaction.abort();
+        print('❌ Not enough players for matching (${waitingPlayers.length}/2)');
+        return;
       }
       
+      // En eski 2 oyuncuyu al
       final sortedPlayerIds = waitingPlayers.keys.toList()
         ..sort((a, b) => (waitingPlayers[a]!['timestamp'] as int)
             .compareTo(waitingPlayers[b]!['timestamp'] as int));
 
       final player1Id = sortedPlayerIds[0];
       final player2Id = sortedPlayerIds[1];
+      final player1Data = waitingPlayers[player1Id]!;
+      final player2Data = waitingPlayers[player2Id]!;
       
       final gameId = _uuid.v4();
-      createdGameId = gameId;
-
-      currentQueue[player1Id]['status'] = 'matched';
-      currentQueue[player1Id]['gameId'] = gameId;
-      currentQueue[player2Id]['status'] = 'matched';
-      currentQueue[player2Id]['gameId'] = gameId;
-
-      return rtdb.Transaction.success(currentQueue);
-    });
-
-    if (result.committed && createdGameId != null) {
-      print('✅ Matchmaking transaction successful. Creating game: $createdGameId');
       
-      final finalQueueState = Map<String, dynamic>.from(result.snapshot.value as Map);
-      
-      Map<String, dynamic>? player1Data;
-      Map<String, dynamic>? player2Data;
-      String? p1Id;
-      String? p2Id;
+      print('🎯 Matching players: $player1Id (${player1Data['playerName']}) vs $player2Id (${player2Data['playerName']})');
+      print('🎮 Game ID: $gameId');
 
-      finalQueueState.forEach((key, value) {
-        if (value is Map && value['gameId'] == createdGameId) {
-          if (p1Id == null) {
-            p1Id = key;
-            player1Data = Map<String, dynamic>.from(value);
-          } else {
-            p2Id = key;
-            player2Data = Map<String, dynamic>.from(value);
-          }
+      // Oyuncuları matched durumuna getir
+      await queueRef.child(player1Id).update({
+        'status': 'matched',
+        'gameId': gameId,
+      });
+      
+      await queueRef.child(player2Id).update({
+        'status': 'matched', 
+        'gameId': gameId,
+      });
+      
+      print('✅ Players marked as matched');
+      
+      // Oyunu oluştur
+      await _createMatchedGame(player1Id, player1Data, player2Id, player2Data, gameId);
+      
+      // 5 saniye sonra queue'dan temizle
+      Future.delayed(const Duration(seconds: 5), () async {
+        try {
+          await queueRef.child(player1Id).remove();
+          await queueRef.child(player2Id).remove();
+          print('✅ Queue cleaned up for players: $player1Id, $player2Id');
+        } catch (e) {
+          print('⚠️ Queue cleanup error: $e');
         }
       });
       
-      if (p1Id != null && p2Id != null && player1Data != null && player2Data != null) {
-        await _createMatchedGame(p1Id!, player1Data!, p2Id!, player2Data!, createdGameId!);
-
-        Future.delayed(const Duration(seconds: 5), () async {
-          if (p1Id != null && p2Id != null) {
-            await queueRef.update({ p1Id!: null, p2Id!: null });
-            print('✅ Queue cleaned up for players: $p1Id, $p2Id');
-          }
-        });
-      }
-    } else {
-      print('ℹ️ Matchmaking transaction aborted (no match or conflict).');
-          }
-
-    final queueSnapshot = await queueRef.get();
-    if (!queueSnapshot.exists || (queueSnapshot.value as Map).isEmpty) {
+    } catch (e) {
+      print('❌ Matchmaking process error: $e');
+    }
+    
+    // Queue boşsa background matchmaking'i durdur
+    try {
+      final queueRef = _database.ref('matchmaking_queue');
+      final queueSnapshot = await queueRef.get();
+      if (!queueSnapshot.exists || (queueSnapshot.value as Map).isEmpty) {
         _stopBackgroundMatchmaking();
+      }
+    } catch (e) {
+      print('⚠️ Queue check error: $e');
     }
   }
 
