@@ -365,10 +365,11 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             final gameState = viewModel.gameState;
             final game = viewModel.currentGame;
             
-            debugPrint('🏠 DuelWaitingRoom build - GameState: $gameState');
+            debugPrint('🏠 DuelWaitingRoom build - GameState: $gameState, PlayerCount: ${game?.players.length ?? 0}');
             
             // Timeout durumunu kontrol et
             if (_hasTimedOut && (gameState == GameState.searching || gameState == GameState.initializing)) {
+              debugPrint('⏰ DuelWaitingRoom - Timeout state gösteriliyor');
               return _buildTimeoutState();
             }
             
@@ -377,12 +378,14 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
               case GameState.initializing:
               case GameState.searching:
               case GameState.waitingRoom:
+                debugPrint('🔍 DuelWaitingRoom - Waiting/Searching state, game: ${game != null}');
                 if (game == null) {
                   return _buildLoadingState();
                 }
                 return _buildWaitingRoom(context, game, viewModel);
                 
               case GameState.opponentFound:
+                debugPrint('🎯 DuelWaitingRoom - OPPONENT FOUND STATE GÖSTERİLİYOR!');
                 return _buildOpponentFoundState(viewModel);
                 
               case GameState.gameStarting:

@@ -251,6 +251,7 @@ class DuelViewModel extends ChangeNotifier {
       case GameStatus.waiting:
         if (playerCount == 2 && !_opponentFound) {
           debugPrint('👥 İki oyuncu da hazır, opponent found sequence başlatılıyor');
+          debugPrint('🎯 OPPONENT FOUND STATE\'E GEÇİLİYOR!');
           _gameState = GameState.opponentFound;
           _startOpponentFoundSequence();
         } else {
@@ -269,7 +270,7 @@ class DuelViewModel extends ChangeNotifier {
               }
             });
           } else {
-            debugPrint('🏠 _updateGameState - Zaten waiting room state\'te');
+            debugPrint('🏠 _updateGameState - Zaten waiting room state\'te (playerCount: $playerCount)');
           }
         }
         break;

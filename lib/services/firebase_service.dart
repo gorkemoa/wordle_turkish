@@ -780,9 +780,14 @@ class FirebaseService {
 
       await _database.ref('duel_games/$gameId').set(gameData);
       
+      print('✅ Geliştirme oyunu oluşturuldu: $gameId');
+      print('👥 Oyuncular: $playerName vs Test Rakibi 🤖');
+      print('📊 Status: waiting -> 2 saniye sonra active olacak');
+      
       // Kısa bir bekleme sonrası oyunu aktif yap
       Future.delayed(const Duration(seconds: 2), () async {
         try {
+          print('⏰ 2 saniye geçti, oyun aktif yapılıyor...');
           await _database.ref('duel_games/$gameId').update({
             'status': 'active',
             'startedAt': rtdb.ServerValue.timestamp,
@@ -793,13 +798,11 @@ class FirebaseService {
           await _database.ref('duel_games/$gameId/players/$userId/status').set('playing');
           await _database.ref('duel_games/$gameId/players/$fakeOpponentId/status').set('playing');
           
-          print('🚀 Geliştirme oyunu başlatıldı: $gameId');
+          print('🚀 Geliştirme oyunu aktif duruma geçti: $gameId');
         } catch (e) {
-          print('Geliştirme oyunu başlatma hatası: $e');
+          print('❌ Geliştirme oyunu başlatma hatası: $e');
         }
       });
-      
-      print('✅ Geliştirme oyunu oluşturuldu: $gameId');
       return gameId;
     } catch (e) {
       print('Geliştirme oyunu oluşturma hatası: $e');
