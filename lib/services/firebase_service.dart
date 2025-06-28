@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_database/firebase_database.dart' as rtdb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:uuid/uuid.dart';
 import '../models/duel_game.dart';
@@ -13,7 +13,7 @@ import 'dart:async';
 
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static final FirebaseDatabase _database = FirebaseDatabase.instanceFor(
+  static final rtdb.FirebaseDatabase _database = rtdb.FirebaseDatabase.instanceFor(
       app: Firebase.app(),
       databaseURL:
           'https://kelimebul-5a4d0-default-rtdb.europe-west1.firebasedatabase.app/');
@@ -26,7 +26,7 @@ class FirebaseService {
   static final Uuid _uuid = const Uuid();
 
   // Database getter
-  static FirebaseDatabase getDatabase() => _database;
+  static rtdb.FirebaseDatabase getDatabase() => _database;
 
   // Email ve şifre ile kayıt ol
   static Future<User?> signUpWithEmailPassword(String email, String password, String displayName) async {
@@ -336,7 +336,7 @@ class FirebaseService {
       // Realtime Database'de güncelle
       await _database.ref('users/$uid').update({
         'avatar': newAvatar,
-        'lastActiveAt': ServerValue.timestamp,
+        'lastActiveAt': rtdb.ServerValue.timestamp,
       });
 
       print('DEBUG - Avatar Realtime DB\'de güncellendi: $newAvatar');
@@ -448,7 +448,7 @@ class FirebaseService {
         'playerName': playerName,
         'secretWord': secretWord,
         'avatar': userAvatar,
-        'timestamp': ServerValue.timestamp,
+        'timestamp': rtdb.ServerValue.timestamp,
         'status': 'waiting', // waiting, matched, expired
       };
 
@@ -492,84 +492,89 @@ class FirebaseService {
     print('Background matchmaking durduruldu');
   }
   
-  // Matchmaking queue'yu işle
+  // Matchmaking queue'yu işle (ATOMİK OLARAK YENİDEN YAZILDI)
   static Future<void> _processMatchmakingQueue() async {
-    try {
-      final queueSnapshot = await _database.ref('matchmaking_queue')
-          .orderByChild('status')
-          .equalTo('waiting')
-          .get();
+    final queueRef = _database.ref('matchmaking_queue');
+    String? createdGameId;
 
-      if (!queueSnapshot.exists) {
-        print('Queue boş, background matchmaking durduruluyor');
-        _stopBackgroundMatchmaking();
-        return;
+    final rtdb.TransactionResult result = await queueRef.runTransaction((Object? queueData) {
+      if (queueData == null) {
+        return rtdb.Transaction.abort();
       }
 
-      final queueData = queueSnapshot.value as Map<dynamic, dynamic>;
+      final currentQueue = Map<String, dynamic>.from(queueData as Map);
       final waitingPlayers = <String, Map<String, dynamic>>{};
       
-      for (final entry in queueData.entries) {
-        final playerId = entry.key as String;
-        final playerData = Map<String, dynamic>.from(entry.value as Map<dynamic, dynamic>);
-        
+      currentQueue.forEach((key, value) {
+        if (value is Map) {
+          final playerData = Map<String, dynamic>.from(value);
         if (playerData['status'] == 'waiting') {
-          waitingPlayers[playerId] = playerData;
+            waitingPlayers[key] = playerData;
         }
       }
-      
-      print('🔍 Bekleyen oyuncu sayısı: ${waitingPlayers.length}');
+      });
       
       if (waitingPlayers.length < 2) {
-        print('⏳ Eşleştirme için yeterli oyuncu yok (min 2 gerekli)');
-        return;
+        return rtdb.Transaction.abort();
       }
       
-      // İlk iki oyuncuyu eşleştir
-      final playerIds = waitingPlayers.keys.toList();
-      final player1Id = playerIds[0];
-      final player2Id = playerIds[1];
-      final player1Data = waitingPlayers[player1Id]!;
-      final player2Data = waitingPlayers[player2Id]!;
+      final sortedPlayerIds = waitingPlayers.keys.toList()
+        ..sort((a, b) => (waitingPlayers[a]!['timestamp'] as int)
+            .compareTo(waitingPlayers[b]!['timestamp'] as int));
+
+      final player1Id = sortedPlayerIds[0];
+      final player2Id = sortedPlayerIds[1];
       
-      print('⚔️ Eşleştirme yapılıyor:');
-      print('   🥊 ${player1Data['playerName']} (${player1Data['avatar']})');
-      print('   🆚 ${player2Data['playerName']} (${player2Data['avatar']})');
+      final gameId = _uuid.v4();
+      createdGameId = gameId;
+
+      currentQueue[player1Id]['status'] = 'matched';
+      currentQueue[player1Id]['gameId'] = gameId;
+      currentQueue[player2Id]['status'] = 'matched';
+      currentQueue[player2Id]['gameId'] = gameId;
+
+      return rtdb.Transaction.success(currentQueue);
+    });
+
+    if (result.committed && createdGameId != null) {
+      print('✅ Matchmaking transaction successful. Creating game: $createdGameId');
       
-      final gameId = await _createMatchedGame(
-        player1Id, player1Data,
-        player2Id, player2Data,
-      );
+      final finalQueueState = Map<String, dynamic>.from(result.snapshot.value as Map);
       
-      if (gameId != null) {
-        // Oyuncuları matched durumuna getir ve gameId ekle
-        await _database.ref('matchmaking_queue').update({
-          '$player1Id/status': 'matched',
-          '$player1Id/gameId': gameId,
-          '$player2Id/status': 'matched', 
-          '$player2Id/gameId': gameId,
-        });
-        
-        print('Oyuncular matched durumuna getirildi: $gameId');
-        
-        // Kısa bir süre sonra queue'dan temizle
-        Future.delayed(const Duration(seconds: 2), () async {
-          try {
-            await _database.ref('matchmaking_queue').update({
-              player1Id: null,
-              player2Id: null,
-            });
-            print('Queue temizlendi: $gameId');
-          } catch (e) {
-            print('Queue temizleme hatası: $e');
+      Map<String, dynamic>? player1Data;
+      Map<String, dynamic>? player2Data;
+      String? p1Id;
+      String? p2Id;
+
+      finalQueueState.forEach((key, value) {
+        if (value is Map && value['gameId'] == createdGameId) {
+          if (p1Id == null) {
+            p1Id = key;
+            player1Data = Map<String, dynamic>.from(value);
+          } else {
+            p2Id = key;
+            player2Data = Map<String, dynamic>.from(value);
+          }
+        }
+      });
+      
+      if (p1Id != null && p2Id != null && player1Data != null && player2Data != null) {
+        await _createMatchedGame(p1Id!, player1Data!, p2Id!, player2Data!, createdGameId!);
+
+        Future.delayed(const Duration(seconds: 5), () async {
+          if (p1Id != null && p2Id != null) {
+            await queueRef.update({ p1Id!: null, p2Id!: null });
+            print('✅ Queue cleaned up for players: $p1Id, $p2Id');
           }
         });
-        
-        print('Başarıyla eşleştirildi: $gameId');
       }
-      
-    } catch (e) {
-      print('Queue işleme hatası: $e');
+    } else {
+      print('ℹ️ Matchmaking transaction aborted (no match or conflict).');
+          }
+
+    final queueSnapshot = await queueRef.get();
+    if (!queueSnapshot.exists || (queueSnapshot.value as Map).isEmpty) {
+        _stopBackgroundMatchmaking();
     }
   }
 
@@ -589,82 +594,13 @@ class FirebaseService {
     await _leaveMatchmakingQueue(userId);
   }
 
-  // Eşleştirme deneme (atomik işlem)
-  static Future<String?> _tryMatchmaking(String userId) async {
-    try {
-      // Bekleyen oyuncuları al (kendisi hariç)
-      final queueSnapshot = await _database.ref('matchmaking_queue')
-          .orderByChild('status')
-          .equalTo('waiting')
-          .limitToFirst(10)
-          .get();
-
-      if (!queueSnapshot.exists) {
-        print('Queue\'da bekleyen oyuncu yok');
-        return null;
-      }
-
-      final queueData = queueSnapshot.value as Map<dynamic, dynamic>;
-      
-      // Kendisi ve potansiyel rakipleri bul
-      Map<String, dynamic> myData = {};
-      List<MapEntry<String, dynamic>> opponents = [];
-
-      for (final entry in queueData.entries) {
-        final playerId = entry.key as String;
-        final playerData = entry.value as Map<dynamic, dynamic>;
-        
-        if (playerId == userId) {
-          myData = Map<String, dynamic>.from(playerData);
-        } else if (playerData['status'] == 'waiting') {
-          opponents.add(MapEntry(playerId, Map<String, dynamic>.from(playerData)));
-        }
-      }
-
-      if (opponents.isEmpty) {
-        print('Eşleştirilebilecek rakip yok');
-        return null;
-      }
-
-      // En eski bekleyen rakibi seç
-      opponents.sort((a, b) => (a.value['timestamp'] as int).compareTo(b.value['timestamp'] as int));
-      final opponentEntry = opponents.first;
-      final opponentId = opponentEntry.key;
-      final opponentData = opponentEntry.value;
-
-      print('Rakip bulundu: $opponentId');
-
-      // Atomik eşleştirme yap
-      final gameId = await _createMatchedGame(
-        userId, myData,
-        opponentId, opponentData,
-      );
-
-      if (gameId != null) {
-        // Her iki oyuncuyu da queue'dan çıkar
-        await _database.ref('matchmaking_queue').update({
-          userId: null,
-          opponentId: null,
-        });
-        print('Eşleştirme tamamlandı: $gameId');
-      }
-
-      return gameId;
-    } catch (e) {
-      print('Eşleştirme hatası: $e');
-      return null;
-    }
-  }
-
   // Eşleştirilmiş oyun oluştur
   static Future<String?> _createMatchedGame(
     String player1Id, Map<String, dynamic> player1Data,
     String player2Id, Map<String, dynamic> player2Data,
+    String gameId,
   ) async {
     try {
-      final gameId = _uuid.v4();
-      
-      // Her iki oyuncunun da kelimesi arasından rastgele birini seç
       final secretWords = [player1Data['secretWord'], player2Data['secretWord']];
       final selectedWord = secretWords[Random().nextInt(secretWords.length)];
 
@@ -673,10 +609,10 @@ class FirebaseService {
       final gameData = {
         'gameId': gameId,
         'secretWord': selectedWord,
-        'status': 'waiting', // Başlangıçta waiting, sonra active olacak
-        'createdAt': ServerValue.timestamp,
-        'updatedAt': ServerValue.timestamp,
-        'matchedAt': ServerValue.timestamp,
+        'status': 'waiting',
+        'createdAt': rtdb.ServerValue.timestamp,
+        'updatedAt': rtdb.ServerValue.timestamp,
+        'matchedAt': rtdb.ServerValue.timestamp,
         'players': {
           player1Id: {
             'playerId': player1Id,
@@ -737,7 +673,7 @@ class FirebaseService {
   // Geliştirme modu - tek oyuncu ile test için
   static const bool isDevelopmentMode = false; // Gerçek matchmaking için false
   
-  // Ana findOrCreateGame fonksiyonu (sadece güvenli matchmaking sistemi)
+  // Ana findOrCreateGame fonksiyonu (SADECE GÜVENİLİR SİSTEM)
   static Future<String?> findOrCreateGame(String playerName, String secretWord) async {
     try {
       final user = getCurrentUser();
@@ -750,31 +686,19 @@ class FirebaseService {
       print('✓ Kullanıcı ID: ${user.uid}');
       print('✓ Oyuncu adı: $playerName');
 
-      // Geliştirme modunda direkt fake oyun oluştur
       if (isDevelopmentMode) {
         print('🚧 Geliştirme Modu: Fake rakip ile oyun oluşturuluyor...');
         return await _createDevelopmentGame(user.uid, playerName, secretWord);
       }
 
-      // Matchmaking queue'ya katıl
       final queueId = await _joinMatchmakingQueue(user.uid, playerName, secretWord);
       if (queueId == null) {
         print('HATA: Queue\'ya katılma başarısız');
         return null;
       }
 
-      print('Queue\'ya katıldı: $queueId');
-
-      // Hemen eşleştirme dene
-      final gameId = await _tryMatchmaking(user.uid);
-      if (gameId != null) {
-        print('Anında eşleştirildi: $gameId');
-        await _leaveMatchmakingQueue(user.uid);
-        return gameId;
-      }
-
-      print('Queue\'da bekleniyor...');
-      return queueId; // Queue ID döndür, listener başlatılacak
+      print('Queue\'da bekleniyor... ID: $queueId');
+      return queueId; 
       
     } catch (e, s) {
       print('Matchmaking hatası: $e');
@@ -799,8 +723,8 @@ class FirebaseService {
           print('İki oyuncu da katıldı, oyun başlatılıyor...');
           await _database.ref('duel_games/$gameId').update({
             'status': 'active',
-            'startedAt': ServerValue.timestamp,
-            'updatedAt': ServerValue.timestamp,
+            'startedAt': rtdb.ServerValue.timestamp,
+            'updatedAt': rtdb.ServerValue.timestamp,
           });
           
           // Oyuncuları playing durumuna getir
@@ -826,9 +750,9 @@ class FirebaseService {
         'gameId': gameId,
         'secretWord': secretWord,
         'status': 'waiting', // Başlangıçta waiting, sonra active olacak
-        'createdAt': ServerValue.timestamp,
-        'updatedAt': ServerValue.timestamp,
-        'matchedAt': ServerValue.timestamp,
+        'createdAt': rtdb.ServerValue.timestamp,
+        'updatedAt': rtdb.ServerValue.timestamp,
+        'matchedAt': rtdb.ServerValue.timestamp,
         'isDevelopmentGame': true, // Geliştirme oyunu işareti
         'players': {
           userId: {
@@ -861,8 +785,8 @@ class FirebaseService {
         try {
           await _database.ref('duel_games/$gameId').update({
             'status': 'active',
-            'startedAt': ServerValue.timestamp,
-            'updatedAt': ServerValue.timestamp,
+            'startedAt': rtdb.ServerValue.timestamp,
+            'updatedAt': rtdb.ServerValue.timestamp,
           });
           
           // Oyuncuları playing durumuna getir
@@ -974,7 +898,7 @@ class FirebaseService {
           // Rakip oyuncunun durumunu da güncelle
           await _database.ref('duel_games/$gameId/players/${opponentPlayer.playerId}').update({
             'status': PlayerStatus.won.name,
-            'finishedAt': ServerValue.timestamp,
+            'finishedAt': FieldValue.serverTimestamp(),
           });
         }
       }
@@ -984,16 +908,16 @@ class FirebaseService {
         'players/${user.uid}/guessColors': updatedGuessColors,
         'players/${user.uid}/currentAttempt': newAttempt,
         'players/${user.uid}/status': newStatus.name,
-        'updatedAt': ServerValue.timestamp,
+        'updatedAt': rtdb.ServerValue.timestamp,
       };
 
       if (isWinner || isLastAttempt) {
-        updateData['players/${user.uid}/finishedAt'] = ServerValue.timestamp;
+        updateData['players/${user.uid}/finishedAt'] = FieldValue.serverTimestamp();
       }
 
       if (gameFinished) {
         updateData['status'] = 'finished';
-        updateData['finishedAt'] = ServerValue.timestamp;
+        updateData['finishedAt'] = FieldValue.serverTimestamp();
         if (winnerId != null) {
           updateData['winnerId'] = winnerId;
         }
@@ -1086,7 +1010,7 @@ class FirebaseService {
         } else {
           // Oyuncunun durumunu disconnected yap
           await _database.ref('duel_games/$gameId/players/${user.uid}/status').set('disconnected');
-          await _database.ref('duel_games/$gameId/updatedAt').set(ServerValue.timestamp);
+          await _database.ref('duel_games/$gameId/updatedAt').set(rtdb.ServerValue.timestamp);
           print('Oyuncu bağlantısı kesildi: ${user.uid}');
         }
       }
@@ -1143,7 +1067,7 @@ class FirebaseService {
         'guessColors': guessColors,
         'currentAttempt': currentAttempt + 1,
         'status': newStatus,
-        'updatedAt': ServerValue.timestamp,
+        'updatedAt': rtdb.ServerValue.timestamp,
       });
       
       // Oyun bitti mi kontrol et
@@ -1151,7 +1075,7 @@ class FirebaseService {
         await gameRef.update({
           'status': 'finished',
           'winnerId': user.uid,
-          'finishedAt': ServerValue.timestamp,
+          'finishedAt': FieldValue.serverTimestamp(),
         });
       } else if (isGameOver) {
         // İki oyuncu da kaybetti mi kontrol et
@@ -1172,7 +1096,7 @@ class FirebaseService {
         if (allFinished) {
           await gameRef.update({
             'status': 'finished',
-            'finishedAt': ServerValue.timestamp,
+            'finishedAt': FieldValue.serverTimestamp(),
           });
         }
       }
@@ -1227,7 +1151,7 @@ class FirebaseService {
       if (user == null) return;
 
       await _database.ref('duel_games/$gameId/players/${user.uid}/status').set('ready');
-      await _database.ref('duel_games/$gameId/updatedAt').set(ServerValue.timestamp);
+      await _database.ref('duel_games/$gameId/updatedAt').set(rtdb.ServerValue.timestamp);
 
       // Her iki oyuncu da hazır mı kontrol et
       await _checkAndStartGame(gameId);
@@ -1757,14 +1681,14 @@ class FirebaseService {
       // Online durumunu kaydet
       await userPresenceRef.set({
         'isOnline': true,
-        'lastSeen': ServerValue.timestamp,
+        'lastSeen': FieldValue.serverTimestamp(),
         'deviceInfo': 'flutter_app',
       });
       
       // Bağlantı kesildiğinde otomatik offline yap
       await userPresenceRef.onDisconnect().set({
         'isOnline': false,
-        'lastSeen': ServerValue.timestamp,
+        'lastSeen': FieldValue.serverTimestamp(),
       });
       
       print('DEBUG - Kullanıcı online olarak işaretlendi (Realtime DB)');
@@ -1784,7 +1708,7 @@ class FirebaseService {
 
       await _database.ref('presence/${user.uid}').set({
         'isOnline': false,
-        'lastSeen': ServerValue.timestamp,
+        'lastSeen': FieldValue.serverTimestamp(),
       });
       
       print('DEBUG - Kullanıcı offline olarak işaretlendi (Realtime DB)');

@@ -308,7 +308,7 @@ class DuelViewModel extends ChangeNotifier {
     debugPrint('🎉 Opponent found sequence başlatıldı');
     
     _opponentFound = true;
-    _preGameCountdown = 5;
+    _preGameCountdown = 8; // 8 saniye olarak artırıldı
     
     _preGameTimer?.cancel();
     _preGameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -330,7 +330,7 @@ class DuelViewModel extends ChangeNotifier {
   // Countdown sonrası oyun başlat
   void _startGameAfterCountdown() {
     _opponentFound = false;
-    _preGameCountdown = 5;
+    _preGameCountdown = 8;
     _gameState = GameState.gameStarting;
     _showingCountdown = true;
     _isGameActive = false;

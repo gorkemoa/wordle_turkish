@@ -20,6 +20,7 @@ import 'themed_mode_page.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'duel_waiting_room.dart';
 
 // Ana sayfa
 
@@ -226,7 +227,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         return;
       }
     }
-    Navigator.push(context, MaterialPageRoute(builder: (context) => DuelPage(key: UniqueKey())));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const DuelWaitingRoom(),
+      ),
+    );
   }
 
   void _showDuelTokenDialog(BuildContext context, int currentTokens) {

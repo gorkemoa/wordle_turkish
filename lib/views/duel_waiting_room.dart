@@ -5,6 +5,7 @@ import '../viewmodels/duel_viewmodel.dart';
 import '../models/duel_game.dart';
 import '../services/firebase_service.dart';
 import 'dart:async';
+import 'duel_page.dart';
 
 // Düello bekleme odası
 
@@ -97,8 +98,8 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
       }
     });
     
-    // 30 saniye timeout ekle
-    Future.delayed(const Duration(seconds: 30), () {
+    // 15 saniye timeout ekle (test için kısaltıldı)
+    Future.delayed(const Duration(seconds: 15), () {
       if (mounted && !_hasTimedOut) {
         try {
           final viewModel = Provider.of<DuelViewModel>(context, listen: false);
@@ -348,84 +349,74 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      body: Consumer<DuelViewModel>(
-        builder: (context, viewModel, child) {
-          final gameState = viewModel.gameState;
-          final game = viewModel.currentGame;
-          
-          debugPrint('🏠 DuelWaitingRoom build - GameState: $gameState');
-          
-          // Timeout durumunu kontrol et
-          if (_hasTimedOut && (gameState == GameState.searching || gameState == GameState.initializing)) {
-            return _buildTimeoutState();
-          }
-          
-          // Game State'e göre UI render et
-          switch (gameState) {
-            case GameState.initializing:
-            case GameState.searching:
-            case GameState.waitingRoom:
-              if (game == null) {
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        final shouldExit = await _showExitConfirmDialog();
+        if (shouldExit && mounted && Navigator.canPop(context)) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF121212),
+        body: Consumer<DuelViewModel>(
+          builder: (context, viewModel, child) {
+            final gameState = viewModel.gameState;
+            final game = viewModel.currentGame;
+            
+            debugPrint('🏠 DuelWaitingRoom build - GameState: $gameState');
+            
+            // Timeout durumunu kontrol et
+            if (_hasTimedOut && (gameState == GameState.searching || gameState == GameState.initializing)) {
+              return _buildTimeoutState();
+            }
+            
+            // Game State'e göre UI render et
+            switch (gameState) {
+              case GameState.initializing:
+              case GameState.searching:
+              case GameState.waitingRoom:
+                if (game == null) {
+                  return _buildLoadingState();
+                }
+                return _buildWaitingRoom(context, game, viewModel);
+                
+              case GameState.opponentFound:
+                return _buildOpponentFoundState(viewModel);
+                
+              case GameState.gameStarting:
+                // Oyun başlıyor, DuelPage'e dön
+                if (!_hasNavigated) {
+                  debugPrint('🚀 DuelWaitingRoom - Oyun başlıyor, DuelPage\'e dönülüyor');
+                  _hasNavigated = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      debugPrint('📤 DuelWaitingRoom - Navigator.pop(true) çağrılıyor');
+                      Navigator.of(context).pop(true); // Oyun başladı sinyali
+                    }
+                  });
+                }
+                return _buildGameStartingState();
+                
+              case GameState.playing:
+                // Oyun çoktan başlamış, DuelPage'e dön
+                if (!_hasNavigated) {
+                  debugPrint('🎮 DuelWaitingRoom - Oyun çoktan başlamış, DuelPage\'e dönülüyor');
+                  _hasNavigated = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      Navigator.of(context).pop(true);
+                    }
+                  });
+                }
+                return _buildGameStartingState();
+                
+              default:
                 return _buildLoadingState();
-              }
-                             return PopScope(
-                 canPop: false,
-                 onPopInvoked: (didPop) async {
-                   if (didPop) return;
-                   
-                   try {
-                     if (!mounted || !context.mounted) {
-                       debugPrint('🚫 DuelWaitingRoom - PopScope callback iptal edildi, widget mounted değil');
-                       return;
-                     }
-                     
-                     final shouldPop = await _showExitConfirmDialog();
-                     if (shouldPop && mounted && context.mounted && Navigator.canPop(context)) {
-                       Navigator.of(context).pop();
-                     }
-                   } catch (e) {
-                     debugPrint('❌ DuelWaitingRoom - PopScope callback error: $e');
-                   }
-                 },
-                child: _buildWaitingRoom(context, game, viewModel),
-              );
-              
-            case GameState.opponentFound:
-              return _buildOpponentFoundState(viewModel);
-              
-            case GameState.gameStarting:
-              // Oyun başlıyor, DuelPage'e dön
-              if (!_hasNavigated) {
-                debugPrint('🚀 DuelWaitingRoom - Oyun başlıyor, DuelPage\'e dönülüyor');
-                _hasNavigated = true;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    debugPrint('📤 DuelWaitingRoom - Navigator.pop(true) çağrılıyor');
-                    Navigator.of(context).pop(true); // Oyun başladı sinyali
-                  }
-                });
-              }
-              return _buildGameStartingState();
-              
-            case GameState.playing:
-              // Oyun çoktan başlamış, DuelPage'e dön
-              if (!_hasNavigated) {
-                debugPrint('🎮 DuelWaitingRoom - Oyun çoktan başlamış, DuelPage\'e dönülüyor');
-                _hasNavigated = true;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    Navigator.of(context).pop(true);
-                  }
-                });
-              }
-              return _buildGameStartingState();
-              
-            default:
-              return _buildLoadingState();
-          }
-        },
+            }
+          },
+        ),
       ),
     );
   }
