@@ -93,20 +93,24 @@ class WordleViewModel extends ChangeNotifier {
 
   // Zorlu mod için dinamik kelime uzunluğunu belirleyen harita
   final Map<int, int> challengeModeWordLength = {
-    1: 4,
-    2: 5,
-    3: 6,
-    4: 7,
-    5: 8,
+    1: 4,  // 1. seviye: 4 harf
+    2: 5,  // 2. seviye: 5 harf
+    3: 6,  // 3. seviye: 6 harf
+    4: 7,  // 4. seviye: 7 harf
+    5: 8,  // 5. seviye: 8 harf
   };
 
   // Maksimum seviye (sadece zorlu modda kullanılır)
   int get maxLevel => challengeModeWordLength.length;
 
+  // 24 saatlik kısıtlama için son oyun zamanı
+  DateTime? _lastChallengeModePlay;
+
   WordleViewModel() {
     resetGame();
     _loadBestScores();
     _loadUserTokens();
+    _loadLastChallengeModePlay(); // Son zorlu mod oyun zamanını yükle
   }
 
   // Getters
@@ -127,6 +131,7 @@ class WordleViewModel extends ChangeNotifier {
   int get userTokens => _userTokens;
   List<int> get revealedHints => _revealedHints;
   int get currentColumn => _currentColumn;
+  DateTime? get lastChallengeModePlay => _lastChallengeModePlay;
   
   // Yeni getter'lar
   String get currentTheme => _currentTheme;
@@ -136,6 +141,23 @@ class WordleViewModel extends ChangeNotifier {
   int get timeRushScore => _timeRushScore;
   int get timeRushSeconds => _timeRushSeconds;
   bool get timeRushActive => _timeRushActive;
+
+  // Zorlu moda erişim kontrolü
+  bool get canPlayChallengeMode {
+    if (_lastChallengeModePlay == null) return true;
+    final now = DateTime.now();
+    final difference = now.difference(_lastChallengeModePlay!);
+    return difference.inHours >= 24;
+  }
+  
+  // Zorlu mod için kalan süre (saat cinsinden)
+  int get hoursUntilNextChallengeMode {
+    if (_lastChallengeModePlay == null) return 0;
+    final now = DateTime.now();
+    final difference = now.difference(_lastChallengeModePlay!);
+    final hoursLeft = 24 - difference.inHours;
+    return hoursLeft > 0 ? hoursLeft : 0;
+  }
 
   Future<void> resetGame({GameMode? mode, String? themeId}) async {
     _gameOver = false;
@@ -201,7 +223,8 @@ class WordleViewModel extends ChangeNotifier {
     // Zamanlayıcıyı başlat
     if (_gameMode == GameMode.timeRush) {
       _startTimeRushTimer();
-    } else {
+    } else if (_gameMode != GameMode.challenge) {
+      // Zorlu modda zamanlayıcı yok
       _startTotalTimer();
     }
   }
@@ -220,13 +243,23 @@ class WordleViewModel extends ChangeNotifier {
       // Normal modlarda JSON dosyasını yükle
       final String data = await rootBundle.loadString('assets/kelimeler.json');
 
-      // JSON verisini bir listeye dönüştür
-      final List<dynamic> jsonWords = json.decode(data);
+      // JSON verisini bir Map'e dönüştür
+      final Map<String, dynamic> jsonData = json.decode(data);
 
-      // Listeyi String olarak filtrele ve uygun uzunluktaki kelimeleri al
-      final List<String> words = jsonWords
-          .whereType<String>() // Sadece String olanları filtrele
-          .map((word) => word.trim().toTurkishUpperCase())
+      // Tüm kategorilerden kelimeleri topla
+      List<String> allWords = [];
+      for (var category in jsonData.values) {
+        if (category is List) {
+          for (var word in category) {
+            if (word is String && word.trim().isNotEmpty) {
+              allWords.add(word.trim().toTurkishUpperCase());
+            }
+          }
+        }
+      }
+
+      // Uygun uzunluktaki kelimeleri filtrele
+      final List<String> words = allWords
           .where((word) => word.length == _currentWordLength)
           .toList();
 
@@ -339,10 +372,19 @@ class WordleViewModel extends ChangeNotifier {
       if (_gameMode == GameMode.timeRush && _timeRushActive) {
         // Zamana karşı modunda doğru tahminde yeni kelimeye geç
         nextTimeRushWord();
-      } else {
+      } else if (_gameMode == GameMode.challenge) {
+        nextChallengeWord();
+      }
+      else {
         _gameOver = true;
         _stopTotalTimer();
         _updateHighScores();
+        
+        // Zorlu mod için son oyun zamanını kaydet
+        if (_gameMode == GameMode.challenge) {
+          _saveLastChallengeModePlay();
+        }
+        
         notifyListeners();
         // Oyun bittiğinde UI'da dialog gösterilecek
       }
@@ -351,6 +393,12 @@ class WordleViewModel extends ChangeNotifier {
         _gameOver = true;
         _stopTotalTimer();
         _updateHighScores();
+        
+        // Zorlu mod için son oyun zamanını kaydet (kaybedilen oyunlarda da)
+        if (_gameMode == GameMode.challenge) {
+          _saveLastChallengeModePlay();
+        }
+        
         notifyListeners();
         // Oyun bittiğinde UI'da dialog gösterilecek
       } else {
@@ -359,6 +407,36 @@ class WordleViewModel extends ChangeNotifier {
         notifyListeners();
         // Oyun devam ederken zamanlayıcıyı sıfırlamıyoruz
       }
+    }
+  }
+
+  void nextChallengeWord() {
+    if (_currentLevel >= maxLevel) {
+      // Son seviye tamamlandı, oyun bitti
+      _gameOver = true;
+      _updateHighScores();
+      _saveLastChallengeModePlay();
+      notifyListeners();
+    } else {
+      // Sonraki seviyeye geç
+      _currentLevel++;
+      
+      _currentAttempt = 0;
+      _currentColumn = 0;
+      _keyboardColors.clear(); // Klavye renklerini sıfırla
+      
+      _currentWordLength = challengeModeWordLength[_currentLevel]!;
+
+      // Tahminleri ve renkleri yeni kelime uzunluğuna göre sıfırla
+      _guesses = List.generate(maxAttempts, (_) => List.filled(_currentWordLength, ''));
+      _guessColors = List.generate(maxAttempts, (_) => List.filled(_currentWordLength, Colors.transparent));
+      
+      // Yeni kelimeleri yükle ve yeni gizli kelimeyi seç
+      loadValidWords().then((_) {
+        _secretWord = selectRandomWord();
+        debugPrint('Yeni Seviye: $_currentLevel, Yeni Kelime: $_secretWord');
+        notifyListeners();
+      });
     }
   }
 
@@ -445,6 +523,23 @@ class WordleViewModel extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('bestTime', _bestTime);
     await prefs.setInt('bestAttempts', _bestAttempts);
+  }
+
+  // 24 saatlik kısıtlama için son oyun zamanı metodları
+  Future<void> _loadLastChallengeModePlay() async {
+    final prefs = await SharedPreferences.getInstance();
+    final timestamp = prefs.getInt('lastChallengeModePlay');
+    if (timestamp != null) {
+      _lastChallengeModePlay = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    }
+    notifyListeners();
+  }
+
+  Future<void> _saveLastChallengeModePlay() async {
+    final prefs = await SharedPreferences.getInstance();
+    _lastChallengeModePlay = DateTime.now();
+    await prefs.setInt('lastChallengeModePlay', _lastChallengeModePlay!.millisecondsSinceEpoch);
+    notifyListeners();
   }
 
   void _updateHighScores() {

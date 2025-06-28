@@ -11,7 +11,7 @@ class AdService {
   // Test ve gerçek reklam ID'leri
   static String get _rewardedAdUnitId {
     // Geliştirme sırasında test ID'leri kullan
-    const bool isDebug = true; // Test reklamlarını kullan - gerçek reklamlar henüz hazır değil
+    const bool isDebug = false; // Test reklamlarını kullan - gerçek reklamlar henüz hazır değil
     
     if (isDebug) {
       // Test reklam ID'leri
@@ -36,7 +36,7 @@ class AdService {
   static Future<void> initialize() async {
     try {
       // Geliştirme aşamasında consent kontrolünü atla
-      const bool isProduction = false; // Production'da true yapın
+      const bool isProduction = true; // Production'da true yapın
       
       if (isProduction) {
         await _handleConsent();

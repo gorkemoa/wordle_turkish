@@ -16,6 +16,15 @@
       ".read": "auth != null",
       ".write": "auth != null",
       ".indexOn": ["status"]
+    },
+    "matchmaking_queue": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["status", "timestamp"],
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $uid"
+      }
     }
   }
 } 

@@ -9,6 +9,7 @@ import '../models/duel_game.dart';
 import 'package:flutter/services.dart';
 import 'avatar_service.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'dart:async';
 
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -23,6 +24,9 @@ class FirebaseService {
     clientId: null, // Platform-specific konfigürasyon dosyalarından alınacak
   );
   static final Uuid _uuid = const Uuid();
+
+  // Database getter
+  static FirebaseDatabase getDatabase() => _database;
 
   // Email ve şifre ile kayıt ol
   static Future<User?> signUpWithEmailPassword(String email, String password, String displayName) async {
@@ -405,98 +409,346 @@ class FirebaseService {
     }
   }
 
-  // Yeni oyun odası oluştur veya mevcut odaya katıl (Realtime Database)
-  static Future<String?> findOrCreateGame(String playerName, String secretWord) async {
+
+
+  // Matchmaking queue'ya katıl
+  static Future<String?> _joinMatchmakingQueue(String userId, String playerName, String secretWord) async {
     try {
-      print('=== DÜELLO OYUNU OLUŞTURMA BAŞLADI ===');
-      print('Realtime DB oyun oluşturma başlatılıyor...');
-      print('Database URL: ${_database.app.options.databaseURL}');
-      
-      final user = getCurrentUser();
-      if (user == null) {
-        print('HATA: Kullanıcı null - giriş yapılmamış!');
+      final currentUser = getCurrentUser();
+      if (currentUser == null || currentUser.uid != userId) {
+        print('HATA: Authentication problemi');
         return null;
       }
-      print('✓ Kullanıcı ID: ${user.uid}');
-      print('✓ Oyuncu adı: $playerName');
-      print('✓ Gizli kelime: $secretWord');
 
-      // Bekleyen oyunları ara
-      print('Bekleyen oyunlar aranıyor...');
-      final waitingGamesSnapshot = await _database
-          .ref('duel_games')
+      final userAvatar = await getUserAvatar(userId);
+      final queueEntry = {
+        'userId': userId,
+        'playerName': playerName,
+        'secretWord': secretWord,
+        'avatar': userAvatar,
+        'timestamp': ServerValue.timestamp,
+        'status': 'waiting', // waiting, matched, expired
+      };
+
+      await _database.ref('matchmaking_queue/$userId').set(queueEntry);
+      print('✓ Queue\'ya başarıyla katıldı');
+      
+      // Background matchmaking başlat
+      _startBackgroundMatchmaking();
+      
+      return userId; // Queue ID olarak user ID kullan
+    } catch (e) {
+      print('Queue katılma hatası: $e');
+      return null;
+    }
+  }
+
+  // Background matchmaking timer
+  static Timer? _matchmakingTimer;
+  
+  // Background matchmaking başlat
+  static void _startBackgroundMatchmaking() {
+    // Eğer timer zaten çalışıyorsa tekrar başlatma
+    if (_matchmakingTimer?.isActive == true) return;
+    
+    print('Background matchmaking başlatıldı');
+    
+    _matchmakingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+      try {
+        await _processMatchmakingQueue();
+      } catch (e) {
+        print('Background matchmaking hatası: $e');
+      }
+    });
+  }
+  
+  // Background matchmaking durdur
+  static void _stopBackgroundMatchmaking() {
+    _matchmakingTimer?.cancel();
+    _matchmakingTimer = null;
+    print('Background matchmaking durduruldu');
+  }
+  
+  // Matchmaking queue'yu işle
+  static Future<void> _processMatchmakingQueue() async {
+    try {
+      final queueSnapshot = await _database.ref('matchmaking_queue')
+          .orderByChild('status')
+          .equalTo('waiting')
+          .get();
+
+      if (!queueSnapshot.exists) {
+        print('Queue boş, background matchmaking durduruluyor');
+        _stopBackgroundMatchmaking();
+        return;
+      }
+
+      final queueData = queueSnapshot.value as Map<dynamic, dynamic>;
+      final waitingPlayers = <String, Map<String, dynamic>>{};
+      
+      for (final entry in queueData.entries) {
+        final playerId = entry.key as String;
+        final playerData = Map<String, dynamic>.from(entry.value as Map<dynamic, dynamic>);
+        
+        if (playerData['status'] == 'waiting') {
+          waitingPlayers[playerId] = playerData;
+        }
+      }
+      
+      print('Bekleyen oyuncu sayısı: ${waitingPlayers.length}');
+      
+      if (waitingPlayers.length < 2) {
+        print('Eşleştirme için yeterli oyuncu yok');
+        return;
+      }
+      
+      // İlk iki oyuncuyu eşleştir
+      final playerIds = waitingPlayers.keys.toList();
+      final player1Id = playerIds[0];
+      final player2Id = playerIds[1];
+      final player1Data = waitingPlayers[player1Id]!;
+      final player2Data = waitingPlayers[player2Id]!;
+      
+      print('Eşleştirme yapılıyor: $player1Id vs $player2Id');
+      
+      final gameId = await _createMatchedGame(
+        player1Id, player1Data,
+        player2Id, player2Data,
+      );
+      
+      if (gameId != null) {
+        // Oyuncuları matched durumuna getir ve gameId ekle
+        await _database.ref('matchmaking_queue').update({
+          '$player1Id/status': 'matched',
+          '$player1Id/gameId': gameId,
+          '$player2Id/status': 'matched', 
+          '$player2Id/gameId': gameId,
+        });
+        
+        print('Oyuncular matched durumuna getirildi: $gameId');
+        
+        // Kısa bir süre sonra queue'dan temizle
+        Future.delayed(const Duration(seconds: 2), () async {
+          try {
+            await _database.ref('matchmaking_queue').update({
+              player1Id: null,
+              player2Id: null,
+            });
+            print('Queue temizlendi: $gameId');
+          } catch (e) {
+            print('Queue temizleme hatası: $e');
+          }
+        });
+        
+        print('Başarıyla eşleştirildi: $gameId');
+      }
+      
+    } catch (e) {
+      print('Queue işleme hatası: $e');
+    }
+  }
+
+  // Matchmaking queue'dan çık
+  static Future<void> _leaveMatchmakingQueue(String? userId) async {
+    if (userId == null) return;
+    try {
+      await _database.ref('matchmaking_queue/$userId').remove();
+      print('Queue\'dan başarıyla çıkıldı: $userId');
+    } catch (e) {
+      print('Queue\'dan çıkma hatası: $e');
+    }
+  }
+
+  // Public matchmaking leave metodu
+  static Future<void> leaveMatchmakingQueue(String userId) async {
+    await _leaveMatchmakingQueue(userId);
+  }
+
+  // Eşleştirme deneme (atomik işlem)
+  static Future<String?> _tryMatchmaking(String userId) async {
+    try {
+      // Bekleyen oyuncuları al (kendisi hariç)
+      final queueSnapshot = await _database.ref('matchmaking_queue')
           .orderByChild('status')
           .equalTo('waiting')
           .limitToFirst(10)
           .get();
 
-      if (waitingGamesSnapshot.exists) {
-        final waitingGames = waitingGamesSnapshot.value as Map<dynamic, dynamic>;
-        print('Bulunan bekleyen oyun sayısı: ${waitingGames.length}');
+      if (!queueSnapshot.exists) {
+        print('Queue\'da bekleyen oyuncu yok');
+        return null;
+      }
 
-        // 1 oyunculu oyun ara
-        for (final entry in waitingGames.entries) {
-          final gameId = entry.key as String;
-          final gameData = entry.value as Map<dynamic, dynamic>;
-          final players = gameData['players'] as Map<dynamic, dynamic>? ?? {};
-          
-          if (players.length == 1) {
-            print('Mevcut oyuna katılıyor: $gameId');
-            
-            // Oyuna katıl
-            final userAvatar = await getUserAvatar(user.uid);
-            await _database.ref('duel_games/$gameId/players/${user.uid}').set({
-              'playerId': user.uid,
-              'playerName': playerName,
-              'status': 'waiting',
-              'guesses': List.generate(6, (_) => List.filled(5, '_')),
-              'guessColors': List.generate(6, (_) => List.filled(5, 'empty')),
-              'currentAttempt': 0,
-              'score': 0,
-              'avatar': userAvatar,
-            });
+      final queueData = queueSnapshot.value as Map<dynamic, dynamic>;
+      
+      // Kendisi ve potansiyel rakipleri bul
+      Map<String, dynamic> myData = {};
+      List<MapEntry<String, dynamic>> opponents = [];
 
-            await _database.ref('duel_games/$gameId/updatedAt').set(ServerValue.timestamp);
-            
-            print('Mevcut oyuna başarıyla katıldı');
-            
-            // İki oyuncu da katıldıysa oyunu başlat
-            await _checkAndStartGame(gameId);
-            return gameId;
-          }
+      for (final entry in queueData.entries) {
+        final playerId = entry.key as String;
+        final playerData = entry.value as Map<dynamic, dynamic>;
+        
+        if (playerId == userId) {
+          myData = Map<String, dynamic>.from(playerData);
+        } else if (playerData['status'] == 'waiting') {
+          opponents.add(MapEntry(playerId, Map<String, dynamic>.from(playerData)));
         }
       }
 
-      // Yeni oyun oluştur
-      final gameId = _uuid.v4();
-      print('Yeni oyun oluşturuluyor: $gameId');
+      if (opponents.isEmpty) {
+        print('Eşleştirilebilecek rakip yok');
+        return null;
+      }
 
-      final userAvatar = await getUserAvatar(user.uid);
-      await _database.ref('duel_games/$gameId').set({
+      // En eski bekleyen rakibi seç
+      opponents.sort((a, b) => (a.value['timestamp'] as int).compareTo(b.value['timestamp'] as int));
+      final opponentEntry = opponents.first;
+      final opponentId = opponentEntry.key;
+      final opponentData = opponentEntry.value;
+
+      print('Rakip bulundu: $opponentId');
+
+      // Atomik eşleştirme yap
+      final gameId = await _createMatchedGame(
+        userId, myData,
+        opponentId, opponentData,
+      );
+
+      if (gameId != null) {
+        // Her iki oyuncuyu da queue'dan çıkar
+        await _database.ref('matchmaking_queue').update({
+          userId: null,
+          opponentId: null,
+        });
+        print('Eşleştirme tamamlandı: $gameId');
+      }
+
+      return gameId;
+    } catch (e) {
+      print('Eşleştirme hatası: $e');
+      return null;
+    }
+  }
+
+  // Eşleştirilmiş oyun oluştur
+  static Future<String?> _createMatchedGame(
+    String player1Id, Map<String, dynamic> player1Data,
+    String player2Id, Map<String, dynamic> player2Data,
+  ) async {
+    try {
+      final gameId = _uuid.v4();
+      
+      // Her iki oyuncunun da kelimesi arasından rastgele birini seç
+      final secretWords = [player1Data['secretWord'], player2Data['secretWord']];
+      final selectedWord = secretWords[Random().nextInt(secretWords.length)];
+
+      print('Oyun oluşturuluyor: $gameId (Kelime: $selectedWord)');
+
+      final gameData = {
         'gameId': gameId,
-        'secretWord': secretWord,
-        'status': 'waiting',
+        'secretWord': selectedWord,
+        'status': 'waiting', // Başlangıçta waiting, sonra active olacak
         'createdAt': ServerValue.timestamp,
         'updatedAt': ServerValue.timestamp,
+        'matchedAt': ServerValue.timestamp,
         'players': {
-          user.uid: {
-            'playerId': user.uid,
-            'playerName': playerName,
+          player1Id: {
+            'playerId': player1Id,
+            'playerName': player1Data['playerName'],
             'status': 'waiting',
             'guesses': List.generate(6, (_) => List.filled(5, '_')),
             'guessColors': List.generate(6, (_) => List.filled(5, 'empty')),
             'currentAttempt': 0,
             'score': 0,
-            'avatar': userAvatar,
+            'avatar': player1Data['avatar'],
+          },
+          player2Id: {
+            'playerId': player2Id,
+            'playerName': player2Data['playerName'],
+            'status': 'waiting',
+            'guesses': List.generate(6, (_) => List.filled(5, '_')),
+            'guessColors': List.generate(6, (_) => List.filled(5, 'empty')),
+            'currentAttempt': 0,
+            'score': 0,
+            'avatar': player2Data['avatar'],
           }
         },
-      });
+      };
 
-      print('Yeni oyun başarıyla oluşturuldu');
+      await _database.ref('duel_games/$gameId').set(gameData);
+      
+      // Oyunu hemen aktif duruma getir
+      await _checkAndStartGame(gameId);
+      
+      print('Eşleştirilmiş oyun başarıyla oluşturuldu');
       return gameId;
+    } catch (e) {
+      print('Eşleştirilmiş oyun oluşturma hatası: $e');
+      return null;
+    }
+  }
+
+  // Matchmaking queue'yu dinle
+  static Stream<String?> listenToMatchmaking(String userId) {
+    return _database.ref('matchmaking_queue/$userId').onValue.map((event) {
+      if (!event.snapshot.exists) {
+        // Queue'dan çıkarıldı = eşleştirildi veya iptal edildi
+        return 'REMOVED_FROM_QUEUE';
+      }
+      
+      final data = event.snapshot.value as Map<dynamic, dynamic>;
+      final status = data['status'] as String;
+      
+      if (status == 'matched') {
+        final gameId = data['gameId'] as String?;
+        return gameId;
+      }
+      
+      return null; // Hala bekliyor
+    });
+  }
+
+  // Ana findOrCreateGame fonksiyonu (sadece güvenli matchmaking sistemi)
+  static Future<String?> findOrCreateGame(String playerName, String secretWord) async {
+    try {
+      final user = getCurrentUser();
+      if (user == null) {
+        print('HATA: Kullanıcı giriş yapmamış');
+        return null;
+      }
+
+      print('=== MATCHMAKING BAŞLADI ===');
+      print('✓ Kullanıcı ID: ${user.uid}');
+      print('✓ Oyuncu adı: $playerName');
+
+      // Matchmaking queue'ya katıl
+      final queueId = await _joinMatchmakingQueue(user.uid, playerName, secretWord);
+      if (queueId == null) {
+        print('HATA: Queue\'ya katılma başarısız');
+        return null;
+      }
+
+      print('Queue\'ya katıldı: $queueId');
+
+      // Hemen eşleştirme dene
+      final gameId = await _tryMatchmaking(user.uid);
+      if (gameId != null) {
+        print('Anında eşleştirildi: $gameId');
+        await _leaveMatchmakingQueue(user.uid);
+        return gameId;
+      }
+
+      print('Queue\'da bekleniyor...');
+      return queueId; // Queue ID döndür, listener başlatılacak
+      
     } catch (e, s) {
-      print('Oyun oluşturma hatası: $e');
+      print('Matchmaking hatası: $e');
       print('Stack Trace: $s');
+      final currentUser = getCurrentUser();
+      if (currentUser != null) {
+        await _leaveMatchmakingQueue(currentUser.uid);
+      }
       return null;
     }
   }
@@ -738,6 +990,122 @@ class FirebaseService {
     } catch (e) {
       print('Oyun terk etme hatası: $e');
     }
+  }
+
+  // Tahmin gönder (Realtime Database)
+  static Future<bool> submitGuess(String gameId, String guess) async {
+    try {
+      final user = getCurrentUser();
+      if (user == null) return false;
+
+      final gameRef = _database.ref('duel_games/$gameId');
+      final gameSnapshot = await gameRef.get();
+      
+      if (!gameSnapshot.exists) return false;
+      
+      final gameData = gameSnapshot.value as Map<dynamic, dynamic>;
+      final players = gameData['players'] as Map<dynamic, dynamic>? ?? {};
+      final currentPlayer = players[user.uid] as Map<dynamic, dynamic>?;
+      
+      if (currentPlayer == null) return false;
+      
+      final currentAttempt = currentPlayer['currentAttempt'] ?? 0;
+      final guesses = List<List<dynamic>>.from(currentPlayer['guesses'] ?? []);
+      final guessColors = List<List<dynamic>>.from(currentPlayer['guessColors'] ?? []);
+      final secretWord = gameData['secretWord'] as String;
+      
+      // Tahmin değerlendirmesi
+      final colors = _evaluateGuess(guess, secretWord);
+      
+      // Tahmin ve renklerini güncelle
+      if (currentAttempt < guesses.length) {
+        guesses[currentAttempt] = guess.split('');
+        guessColors[currentAttempt] = colors;
+      }
+      
+      // Oyun durumunu kontrol et
+      bool isWinner = guess == secretWord;
+      bool isGameOver = isWinner || currentAttempt >= 5;
+      
+      String newStatus = 'playing';
+      if (isWinner) {
+        newStatus = 'won';
+      } else if (isGameOver) {
+        newStatus = 'lost';
+      }
+      
+      // Oyuncu bilgilerini güncelle
+      await gameRef.child('players/${user.uid}').update({
+        'guesses': guesses,
+        'guessColors': guessColors,
+        'currentAttempt': currentAttempt + 1,
+        'status': newStatus,
+        'updatedAt': ServerValue.timestamp,
+      });
+      
+      // Oyun bitti mi kontrol et
+      if (isWinner) {
+        await gameRef.update({
+          'status': 'finished',
+          'winnerId': user.uid,
+          'finishedAt': ServerValue.timestamp,
+        });
+      } else if (isGameOver) {
+        // İki oyuncu da kaybetti mi kontrol et
+        final allPlayers = players.values.toList();
+        bool allFinished = true;
+        
+        for (final player in allPlayers) {
+          final playerData = player as Map<dynamic, dynamic>;
+          final playerAttempt = playerData['currentAttempt'] ?? 0;
+          final playerStatus = playerData['status'] ?? 'playing';
+          
+          if (playerStatus == 'playing' && playerAttempt < 6) {
+            allFinished = false;
+            break;
+          }
+        }
+        
+        if (allFinished) {
+          await gameRef.update({
+            'status': 'finished',
+            'finishedAt': ServerValue.timestamp,
+          });
+        }
+      }
+      
+      return true;
+    } catch (e) {
+      print('Tahmin gönderme hatası: $e');
+      return false;
+    }
+  }
+
+  // Tahmin değerlendirme metoduu
+  static List<String> _evaluateGuess(String guess, String secretWord) {
+    List<String> colors = List.filled(5, 'grey');
+    List<String> secretLetters = secretWord.split('');
+    List<String> guessLetters = guess.split('');
+    
+    // İlk geçiş: Doğru pozisyondaki harfler
+    for (int i = 0; i < 5; i++) {
+      if (guessLetters[i] == secretLetters[i]) {
+        colors[i] = 'green';
+        secretLetters[i] = '_'; // İşaretlendi
+        guessLetters[i] = '_'; // İşaretlendi
+      }
+    }
+    
+    // İkinci geçiş: Yanlış pozisyondaki harfler
+    for (int i = 0; i < 5; i++) {
+      if (guessLetters[i] != '_' && secretLetters.contains(guessLetters[i])) {
+        colors[i] = 'orange';
+        int secretIndex = secretLetters.indexOf(guessLetters[i]);
+        secretLetters[secretIndex] = '_'; // Kullanıldığını işaretle
+      }
+    }
+    
+    return colors;
   }
 
   // Oyunu sil (Realtime Database temizlik)

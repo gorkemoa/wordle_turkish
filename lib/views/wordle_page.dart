@@ -72,7 +72,16 @@ class _WordlePageState extends State<WordlePage> {
       final timeBonus = viewModel.totalRemainingSeconds * 2;
       final attemptBonus = (WordleViewModel.maxAttempts - attemptsUsed) * 50;
       score = 100 + timeBonus + attemptBonus;
-      tokensEarned = viewModel.gameMode == GameMode.daily ? 3 : 1; // Farklı mod bonusları
+      
+      // Jeton hesaplama - zorlu modda seviyeye göre artan jeton
+      if (viewModel.gameMode == GameMode.daily) {
+        tokensEarned = 3; // Günlük mod: 3 jeton
+      } else if (viewModel.gameMode == GameMode.challenge) {
+        // Zorlu mod: seviyeye göre artan jeton (2, 4, 6, 8, 10)
+        tokensEarned = viewModel.currentLevel * 2;
+      } else {
+        tokensEarned = 1; // Diğer modlar: 1 jeton
+      }
     } else if (!timeOut) {
       score = viewModel.currentAttempt * 10;
     }
@@ -166,109 +175,188 @@ class _WordlePageState extends State<WordlePage> {
         boxSize = boxSize.clamp(30.0, 60.0); // Minimum ve maksimum boyutlar
 
         return Scaffold(
-          appBar: AppBar(
-            title: Text(viewModel.gameMode == GameMode.daily ? 'Günlük Oyun' : 'Zorlu Mod'),
-            centerTitle: true,
-            actions: [
-              // Jeton göstergesi
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.monetization_on, color: Colors.amber, size: 20),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${viewModel.userTokens}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // İpucu butonu
-              if (!viewModel.gameOver)
-                IconButton(
-                  icon: const Icon(Icons.lightbulb_outline),
-                  onPressed: () => _showHintDialog(viewModel),
-                  tooltip: 'Harf İpucu (1 🪙)',
-                ),
-              if (!viewModel.gameOver) // Sadece oyun sırasında zamanlayıcıyı göster
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                  child: Center(
-                    child: Text(
-                      _formatTime(viewModel.totalRemainingSeconds),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
+          backgroundColor: viewModel.gameMode == GameMode.challenge 
+            ? const Color(0xFF0A0A0A) // Zorlu mod için siyah arkaplan
+            : null,
+          appBar: _buildAppBar(viewModel),
+          body: SafeArea(
+            child: viewModel.gameMode == GameMode.challenge
+              ? WillPopScope(
+                  onWillPop: () async {
+                    _showChallengeExitWarning(viewModel);
+                    return false; // Geri gitmeyi engelle
+                  },
+                  child: _buildChallengeBody(viewModel, screenWidth),
+                )
+              : _buildNormalBody(viewModel, screenWidth),
+          ),
+        );
+      },
+    );
+  }
 
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: () {
-                  setState(() {
-                    _hasShownDialog = false; // Oyun sıfırlandığında dialog gösterim durumunu sıfırla
-                  });
-                  _viewModel.resetGame();
-                },
+     PreferredSizeWidget _buildAppBar(WordleViewModel viewModel) {
+     return AppBar(
+      title: Text(_getGameModeTitle(viewModel.gameMode)),
+      centerTitle: true,
+      leading: viewModel.gameMode == GameMode.challenge 
+        ? IconButton(
+            icon: const Icon(Icons.warning_amber, color: Colors.red),
+            onPressed: () => _showChallengeExitWarning(viewModel),
+            tooltip: 'Çıkış Uyarısı',
+          )
+        : null,
+      actions: [
+        // Jeton göstergesi
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.monetization_on, color: Colors.amber, size: 20),
+              const SizedBox(width: 4),
+              Text(
+                '${viewModel.userTokens}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
-          body: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 10),
-                      // Grid ve Shake Animasyonu için
-                      ShakeWidget(
-                        shake: viewModel.needsShake,
-                        onShakeComplete: () {
-                          viewModel.resetShake();
-                        },
-                        child: _buildGuessGrid(viewModel, screenWidth),
-                      ),
-                      const SizedBox(height: 15),
-                      // Klavye için KeyboardWidget'i kullanın
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: SizedBox(
-                          height: 220, // Klavye yüksekliğini ayarlayın
-                          child: const KeyboardWidget(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // Ek Bilgiler: En İyi Süre ve Deneme
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('En İyi Süre: ${viewModel.bestTime < 9999 ? _formatTime(viewModel.bestTime) : "Yok"}'),
-                                Text('En Az Deneme: ${viewModel.bestAttempts < 999 ? viewModel.bestAttempts : "Yok"}'),
-                              ],
-                            ),
-                            if (viewModel.gameMode == GameMode.challenge) ...[
-                              const SizedBox(height: 8),
-                              Text('Seviye: ${viewModel.currentLevel} / ${viewModel.maxLevel}'),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+        ),
+        // İpucu butonu - zorlu modda gösterme
+        if (!viewModel.gameOver && viewModel.gameMode != GameMode.challenge)
+          IconButton(
+            icon: const Icon(Icons.lightbulb_outline),
+            onPressed: () => _showHintDialog(viewModel),
+            tooltip: 'Harf İpucu (1 🪙)',
+          ),
+        // Zamanlayıcı - zorlu modda gösterme
+        if (!viewModel.gameOver && viewModel.gameMode != GameMode.challenge)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: Center(
+              child: Text(
+                _formatTime(viewModel.totalRemainingSeconds),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
+          ),
+        // Yenile butonu - zorlu modda gösterme
+        if (viewModel.gameMode != GameMode.challenge)
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                _hasShownDialog = false;
+              });
+              _viewModel.resetGame();
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildNormalBody(WordleViewModel viewModel, double screenWidth) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              // Grid ve Shake Animasyonu için
+              ShakeWidget(
+                shake: viewModel.needsShake,
+                onShakeComplete: () {
+                  viewModel.resetShake();
+                },
+                child: _buildGuessGrid(viewModel, screenWidth),
+              ),
+              const SizedBox(height: 15),
+              // Klavye için KeyboardWidget'i kullanın
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: SizedBox(
+                  height: 220, // Klavye yüksekliğini ayarlayın
+                  child: const KeyboardWidget(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Ek Bilgiler: En İyi Süre ve Deneme
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('En İyi Süre: ${viewModel.bestTime < 9999 ? _formatTime(viewModel.bestTime) : "Yok"}'),
+                        Text('En Az Deneme: ${viewModel.bestAttempts < 999 ? viewModel.bestAttempts : "Yok"}'),
+                      ],
+                    ),
+                    if (viewModel.gameMode == GameMode.challenge) ...[
+                      const SizedBox(height: 8),
+                      Text('Seviye: ${viewModel.currentLevel} / ${viewModel.maxLevel}'),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildChallengeBody(WordleViewModel viewModel, double screenWidth) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              // Grid ve Shake Animasyonu için
+              ShakeWidget(
+                shake: viewModel.needsShake,
+                onShakeComplete: () {
+                  viewModel.resetShake();
+                },
+                child: _buildGuessGrid(viewModel, screenWidth),
+              ),
+              const SizedBox(height: 15),
+              // Klavye için KeyboardWidget'i kullanın
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: SizedBox(
+                  height: 220, // Klavye yüksekliğini ayarlayın
+                  child: const KeyboardWidget(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Ek Bilgiler: En İyi Süre ve Deneme
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('En İyi Süre: ${viewModel.bestTime < 9999 ? _formatTime(viewModel.bestTime) : "Yok"}'),
+                        Text('En Az Deneme: ${viewModel.bestAttempts < 999 ? viewModel.bestAttempts : "Yok"}'),
+                      ],
+                    ),
+                    if (viewModel.gameMode == GameMode.challenge) ...[
+                      const SizedBox(height: 8),
+                      Text('Seviye: ${viewModel.currentLevel} / ${viewModel.maxLevel}'),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -350,7 +438,20 @@ class _WordlePageState extends State<WordlePage> {
     return "${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}";
   }
 
-
+  String _getGameModeTitle(GameMode gameMode) {
+    switch (gameMode) {
+      case GameMode.daily:
+        return 'Günlük Oyun';
+      case GameMode.challenge:
+        return '⚔️ ZORLU MOD ⚔️';
+      case GameMode.timeRush:
+        return 'Zamana Karşı';
+      case GameMode.themed:
+        return 'Tema Modu';
+      default:
+        return 'Oyun';
+    }
+  }
 
   /// İpucu dialog'unu göster
   void _showHintDialog(WordleViewModel viewModel) {
@@ -567,5 +668,160 @@ class _WordlePageState extends State<WordlePage> {
         );
       }
     }
+  }
+
+  void _showChallengeExitWarning(WordleViewModel viewModel) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false, // Android geri tuşunu engelle
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1D),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.red.shade400, width: 3),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.red.shade400, Colors.red.shade600],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.warning_amber, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'ÇIKIŞ UYARISI!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF2A2A2A),
+                  const Color(0xFF1A1A1D),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.red.shade400.withOpacity(0.3), width: 1),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade900.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.shade400, width: 1),
+                  ),
+                  child: const Column(
+                    children: [
+                      Text(
+                        '⚠️ DİKKAT ⚠️',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        'Zorlu moddan çıkarsan 24 saatlik hakkını kaybedersin!\n\nBu özel mod sadece günde 1 kez oynanabilir.',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          height: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.orange.shade800, Colors.orange.shade600],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    '💡 Emin misin? Bu kararını geri alamazsın!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text(
+                'DEVAM ET',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context); // Dialog'u kapat
+                Navigator.pop(context); // WordlePage'den çık
+                // Hakkı kaybet
+                viewModel.resetGame();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text(
+                'ÇIKIŞ YAP',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -135,16 +135,43 @@ class _MyAppState extends State<MyApp> {
           }
         },
       ),
-      routes: {
-        '/login': (context) => const LoginPage(),
-        '/home': (context) => HomePage(toggleTheme: _toggleTheme),
-        '/wordle_daily': (context) =>
-            WordlePage(toggleTheme: _toggleTheme, gameMode: GameMode.daily),
-        '/wordle_challenge': (context) =>
-            WordlePage(toggleTheme: _toggleTheme, gameMode: GameMode.challenge),
-        '/duel_full': (context) => const DuelPage(),
-        '/leaderboard': (context) => const LeaderboardPage(),
-        '/profile': (context) => const ProfilePage(),
+      onGenerateRoute: (RouteSettings settings) {
+        switch (settings.name) {
+          case '/login':
+            return MaterialPageRoute(builder: (context) => const LoginPage());
+          case '/home':
+            return MaterialPageRoute(builder: (context) => HomePage(toggleTheme: _toggleTheme));
+          case '/wordle_daily':
+            return MaterialPageRoute(
+              builder: (context) => WordlePage(toggleTheme: _toggleTheme, gameMode: GameMode.daily),
+            );
+          case '/wordle_challenge':
+            return MaterialPageRoute(
+              builder: (context) => WordlePage(toggleTheme: _toggleTheme, gameMode: GameMode.challenge),
+            );
+          case '/wordle':
+            // Parametreleri handle et
+            final args = settings.arguments as Map<String, dynamic>?;
+            final gameMode = args?['gameMode'] as GameMode? ?? GameMode.daily;
+            
+            return MaterialPageRoute(
+              builder: (context) => WordlePage(
+                toggleTheme: _toggleTheme, 
+                gameMode: gameMode,
+              ),
+            );
+          case '/duel_full':
+            return MaterialPageRoute(builder: (context) => const DuelPage());
+          case '/leaderboard':
+            return MaterialPageRoute(builder: (context) => const LeaderboardPage());
+          case '/profile':
+            return MaterialPageRoute(builder: (context) => const ProfilePage());
+          default:
+            // Tanınmayan route için varsayılan sayfa
+            return MaterialPageRoute(
+              builder: (context) => HomePage(toggleTheme: _toggleTheme),
+            );
+        }
       },
       themeMode: _themeMode,
     );

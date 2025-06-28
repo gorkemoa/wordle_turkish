@@ -17,6 +17,7 @@ import 'time_rush_page.dart';
 import 'themed_mode_page.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
   final VoidCallback? toggleTheme;
@@ -178,7 +179,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _navigateToDailyWordle() => Navigator.push(context, MaterialPageRoute(builder: (context) => WordlePage(toggleTheme: widget.toggleTheme ?? () {}, gameMode: GameMode.daily)));
   void _navigateToTimeRush() => Navigator.push(context, MaterialPageRoute(builder: (context) => TimeRushPage(toggleTheme: widget.toggleTheme ?? () {})));
   void _navigateToThemed() => Navigator.push(context, MaterialPageRoute(builder: (context) => ThemedModePage(toggleTheme: widget.toggleTheme ?? () {})));
-  void _navigateToChallenge() => Navigator.push(context, MaterialPageRoute(builder: (context) => WordlePage(toggleTheme: widget.toggleTheme ?? () {}, gameMode: GameMode.challenge)));
+  void _navigateToChallenge() async {
+    final viewModel = Provider.of<WordleViewModel>(context, listen: false);
+    await viewModel.refreshTokens(); // Jeton sayısını güncelle
+    
+    if (!viewModel.canPlayChallengeMode) {
+      _showChallengeModeLockedDialog(viewModel.hoursUntilNextChallengeMode);
+      return;
+    }
+    
+    _showChallengeModeWarningDialog();
+  }
 
   void _startDuel() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -200,7 +211,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           backgroundColor: const Color(0xFF1A1A1D),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: const Color(0xFFC9B458), width: 2),
+            side: BorderSide(color: Colors.red.shade400, width: 2),
           ),
           title: Row(
             children: [
@@ -208,11 +219,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.amber.shade400, Colors.orange.shade600],
+                    colors: [Colors.red.shade400, Colors.red.shade600],
                   ),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                child: const Icon(Icons.warning_amber, color: Colors.white),
               ),
               const SizedBox(width: 12),
               const Text('Yetersiz Jeton', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
@@ -280,7 +291,235 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  void _showChallengeModeLockedDialog(int hoursLeft) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1D),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.red.shade400, width: 2),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.red.shade400, Colors.red.shade600],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lock_clock, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              const Text('Zorlu Mod Kilitli', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF2A2A2A),
+                  const Color(0xFF1A1A1D),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Zorlu Mod sadece 24 saatte bir oynanabilir!\n\nKalan süre: $hoursLeft saat',
+                  style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade400.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade400, width: 1),
+                  ),
+                  child: const Text(
+                    '⚡ Bu özel mod için sabırla bekle!',
+                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Tamam', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
+  void _showChallengeModeWarningDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Dışarı tıklayarak kapatamasın
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1D),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.orange.shade400, width: 3),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.orange.shade400, Colors.red.shade600],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.warning_amber, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'ZORLU MOD UYARISI', 
+                  style: TextStyle(
+                    color: Colors.white, 
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  )
+                ),
+              ),
+            ],
+          ),
+          content: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF2A2A2A),
+                  const Color(0xFF1A1A1D),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.shade400.withOpacity(0.3), width: 1),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade900.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.shade400, width: 1),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        '⚠️ DİKKAT ⚠️',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        '• Zamanlayıcı yok - sınırsız süre\n• İpucu yok - tamamen kendi başına\n• Oyundan çıkarsan hakkını kaybedersin\n• 24 saatte sadece 1 kez oynayabilirsin\n• Kelime uzunluğu her seviyede artar',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          height: 1.5,
+                        ),
+                        textAlign: TextAlign.left,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.green.shade800, Colors.green.shade600],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    '🏆 Ödül: Her seviyede daha fazla jeton!\n(2-4-6-8-10 jeton)',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              child: const Text(
+                'İptal', 
+                style: TextStyle(color: Colors.grey, fontSize: 16)
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(
+                    builder: (context) => WordlePage(
+                      toggleTheme: widget.toggleTheme ?? () {}, 
+                      gameMode: GameMode.challenge
+                    )
+                  )
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text(
+                'BAŞLA', 
+                style: TextStyle(
+                  fontSize: 16, 
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                )
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -767,12 +1006,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         Row(
           children: [
             Expanded(
-              child: _buildGameModeCard(
-                title: 'KADEMELİ ZORLUK',
-                subtitle: '4-8 harf arası kelimeler',
-                icon: Icons.trending_up_outlined,
-                color: const Color(0xFF9B59B6),
-                onTap: _navigateToChallenge,
+              child: Consumer<WordleViewModel>(
+                builder: (context, viewModel, child) {
+                  final canPlay = viewModel.canPlayChallengeMode;
+                  final hoursLeft = viewModel.hoursUntilNextChallengeMode;
+                  
+                  return _buildChallengeCard(
+                    canPlay: canPlay,
+                    hoursLeft: hoursLeft,
+                    onTap: _navigateToChallenge,
+                  );
+                },
               ),
             ),
             const SizedBox(width: 16),
@@ -978,6 +1222,248 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildChallengeCard({
+    required bool canPlay,
+    required int hoursLeft,
+    required VoidCallback onTap,
+  }) {
+    if (canPlay) {
+      // Erişilebilir durum - özel tasarım
+      return GestureDetector(
+        onTap: () {
+          HapticService.triggerMediumHaptic();
+          onTap();
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.red.shade900,
+                Colors.orange.shade800,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.orange.shade400, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.shade400.withOpacity(0.4),
+                blurRadius: 12,
+                spreadRadius: 1,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.whatshot,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ZORLU',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          height: 1.1
+                        ),
+                      ),
+                      Text(
+                        'MOD',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          height: 1.1
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'ÖZEL',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '4-8 harf • İpucu yok • 24s',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+          const Row(
+                children: [
+                   Center(
+                  child: Text(
+                    'MÜSAİT!',
+                    style: TextStyle(
+                      color: Color.fromRGBO(230, 224, 233, 1.0),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      letterSpacing: 1.0,
+                      height: 1.4,
+                      leadingDistribution: TextLeadingDistribution.even,
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                  )
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      // Kilitli durum
+      return GestureDetector(
+        onTap: () {
+          HapticService.triggerErrorHaptic();
+          onTap();
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.grey.shade800,
+                Colors.grey.shade700,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade600, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 8,
+                spreadRadius: 1,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.lock_clock,
+                    color: Colors.grey.shade400,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ZORLU',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade500,
+                          height: 1.1,
+                        ),
+                      ),
+                      Text(
+                        'MOD',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade500,
+                          height: 1.1,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade900.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'KİLİTLİ',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '24 saatte bir oynanabilir',
+                style: TextStyle(
+                  color: Colors.grey.shade400,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade700,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${hoursLeft}s kaldı',
+                      style: TextStyle(
+                        color: Colors.grey.shade300,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    Icons.schedule,
+                    color: Colors.grey.shade400,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
 }
 
 class FloatingParticle {

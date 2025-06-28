@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import '../widgets/shake_widget.dart';
 import '../widgets/keyboard_widget.dart';
-import '../services/firebase_service.dart';
 
 class TimeRushPage extends StatefulWidget {
   final VoidCallback toggleTheme;

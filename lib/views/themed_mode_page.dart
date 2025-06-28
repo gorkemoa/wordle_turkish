@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import 'wordle_page.dart';
 

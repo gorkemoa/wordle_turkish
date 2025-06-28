@@ -45,6 +45,12 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       final viewModel = Provider.of<DuelViewModel>(context, listen: false);
       viewModel.resetForNewGame();
       
+      // Callback ekle
+      viewModel.onOpponentFoundCallback = () {
+        debugPrint('DuelPage - Rakip bulundu callback çağrıldı');
+        _navigateToWaitingRoom();
+      };
+      
       // Sonra oyunu başlat
       if (!_hasStartedGame) {
         _hasStartedGame = true;
@@ -68,6 +74,11 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _pulseController.dispose();
+    
+    // Callback'i temizle
+    final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+    viewModel.onOpponentFoundCallback = null;
+    
     super.dispose();
   }
 
@@ -100,27 +111,11 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         return;
       }
       
-      // Bekleme odasına yönlendir
-      final gameStarted = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          builder: (context) => const DuelWaitingRoom(),
-        ),
-      );
+      // Matchmaking başladı, viewModel listener'ı otomatik olarak
+      // durum değişikliklerini takip edecek ve gerektiğinde
+      // bekleme odasına yönlendirecek
+      debugPrint('DuelPage - Matchmaking başladı, listener aktif');
       
-      debugPrint('DuelPage - Bekleme odasından döndü, gameStarted: $gameStarted');
-      
-      // Eğer oyun başlamadıysa ana sayfaya dön
-      if (gameStarted != true && mounted) {
-        debugPrint('DuelPage - Oyun başlamadı, ana sayfaya dönülüyor');
-        // ViewModel'i temizle
-        final viewModel = Provider.of<DuelViewModel>(context, listen: false);
-        await viewModel.leaveGame();
-        Navigator.of(context).pop();
-      } else if (gameStarted == true && mounted) {
-        debugPrint('DuelPage - Oyun başladı, burada kalıyoruz');
-        // Oyun başladıysa burada kalıp oyunu göster
-        // startGame flag'ini sıfırlama - oyun zaten başladı
-      }
     } catch (e) {
       print('DuelPage _startGame hatası: $e');
       if (mounted) {
@@ -265,6 +260,33 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       debugPrint('DuelPage - Sonuç sayfasına yönlendirme başarılı');
     } catch (e) {
       debugPrint('DuelPage - Sonuç sayfasına yönlendirme hatası: $e');
+    }
+  }
+
+  // Bekleme odasına yönlendirme metodu
+  Future<void> _navigateToWaitingRoom() async {
+    if (!mounted || _hasNavigatedToResult) return;
+    
+    debugPrint('DuelPage - Bekleme odasına yönlendiriliyor');
+    
+    try {
+      final gameStarted = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (context) => const DuelWaitingRoom(),
+        ),
+      );
+      
+      debugPrint('DuelPage - Bekleme odasından döndü, gameStarted: $gameStarted');
+      
+      // Eğer oyun başlamadıysa ana sayfaya dön
+      if (gameStarted != true && mounted) {
+        debugPrint('DuelPage - Oyun başlamadı, ana sayfaya dönülüyor');
+        final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+        await viewModel.leaveGame();
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      debugPrint('DuelPage - Bekleme odasına yönlendirme hatası: $e');
     }
   }
 
@@ -654,14 +676,6 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
     );
   }
 
-
-
-
-
-
-
-
-
   Widget _buildPlayersInfo(DuelViewModel viewModel) {
     final currentPlayer = viewModel.currentPlayer;
     final opponentPlayer = viewModel.opponentPlayer;
@@ -964,8 +978,6 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
     );
   }
 
-
-
   Future<void> _buyFirstRowVisibility(DuelViewModel viewModel) async {
     final success = await viewModel.buyFirstRowVisibility();
     if (!success && mounted) {
@@ -1147,67 +1159,6 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildAppBarVisibilityButton(
-    String label,
-    String cost,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.6)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 16),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    cost,
-                    style: const TextStyle(
-                      color: Colors.amber,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                  const Icon(
-                    Icons.monetization_on,
-                    color: Colors.amber,
-                    size: 10,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildGameStartCountdown() {
     return Container(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/duel_viewmodel.dart';
 import '../models/duel_game.dart';
+import 'dart:async';
 
 class DuelWaitingRoom extends StatefulWidget {
   const DuelWaitingRoom({Key? key}) : super(key: key);
@@ -87,6 +88,7 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
     _rotationController.dispose();
     _slideFadeController.dispose();
     _collisionController.dispose();
+
     super.dispose();
   }
 
@@ -165,6 +167,11 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
           // Oyun yükleniyor
           if (game == null) {
             return _buildLoadingState();
+          }
+
+          // Rakip bulundu durumu
+          if (viewModel.opponentFound) {
+            return _buildOpponentFoundState(viewModel);
           }
 
           // İki oyuncu varsa ve oyun hazır ise, oyun sayfasına dön
@@ -683,6 +690,148 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildOpponentFoundState(DuelViewModel viewModel) {
+    final game = viewModel.currentGame;
+    final opponentPlayer = viewModel.opponentPlayer;
+    final currentPlayer = viewModel.currentPlayer;
+    
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.green.shade900,
+            Colors.green.shade700,
+            Colors.blue.shade800,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Başlık
+            const Text(
+              '🎯 RAKİP BULUNDU!',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            
+            const SizedBox(height: 40),
+            
+            // Oyuncular karşılaştırması
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Mevcut oyuncu
+                _buildPlayerProfile(
+                  currentPlayer?.playerName ?? 'Sen',
+                  currentPlayer?.avatar ?? '👤',
+                  Colors.blue,
+                  true,
+                ),
+                
+                // VS
+                const Text(
+                  'VS',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 48,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                
+                // Rakip oyuncu
+                _buildPlayerProfile(
+                  opponentPlayer?.playerName ?? 'Rakip',
+                  opponentPlayer?.avatar ?? '🤖',
+                  Colors.red,
+                  false,
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 60),
+            
+            // Countdown
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                color: Colors.white.withOpacity(0.1),
+              ),
+              child: Center(
+                child: Text(
+                  '${viewModel.preGameCountdown}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 48,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 20),
+            
+            const Text(
+              'Oyun başlıyor...',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlayerProfile(String name, String avatar, Color color, bool isCurrentPlayer) {
+    return Column(
+      children: [
+        Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withOpacity(0.2),
+            border: Border.all(color: color, width: 3),
+          ),
+          child: Center(
+            child: Text(
+              avatar,
+              style: const TextStyle(fontSize: 50),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          name,
+          style: TextStyle(
+            color: isCurrentPlayer ? Colors.white : Colors.white70,
+            fontSize: 16,
+            fontWeight: isCurrentPlayer ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        if (isCurrentPlayer)
+          const Text(
+            '(Sen)',
+            style: TextStyle(
+              color: Colors.blue,
+              fontSize: 12,
+            ),
+          ),
+      ],
     );
   }
 
