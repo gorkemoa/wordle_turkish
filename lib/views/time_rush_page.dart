@@ -1,38 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import '../widgets/shake_widget.dart';
 import '../widgets/keyboard_widget.dart';
+import '../widgets/guess_grid.dart';
+import '../widgets/game_stats.dart';
+import '../services/firebase_service.dart';
+import 'wordle_result_page.dart';
 
-class TimeRushPage extends StatefulWidget {
+// Zamana karşı oyun sayfası
+
+class TimeRushGamePage extends StatefulWidget {
   final VoidCallback toggleTheme;
 
-  const TimeRushPage({Key? key, required this.toggleTheme}) : super(key: key);
+  const TimeRushGamePage({Key? key, required this.toggleTheme}) : super(key: key);
 
   @override
-  State<TimeRushPage> createState() => _TimeRushPageState();
+  State<TimeRushGamePage> createState() => _TimeRushGamePageState();
 }
 
-class _TimeRushPageState extends State<TimeRushPage> {
+class _TimeRushGamePageState extends State<TimeRushGamePage> with TickerProviderStateMixin {
   late WordleViewModel _viewModel;
   late VoidCallback _listener;
   bool _hasShownDialog = false;
+  late AnimationController _successAnimationController;
+  late Animation<double> _successScaleAnimation;
+  bool _showSuccessAnimation = false;
 
   @override
   void initState() {
     super.initState();
     _viewModel = Provider.of<WordleViewModel>(context, listen: false);
     
+    // Başarı animasyonu için controller
+    _successAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    
+    _successScaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.1,
+    ).animate(CurvedAnimation(
+      parent: _successAnimationController,
+      curve: Curves.elasticOut,
+    ));
+    
     _listener = () {
       if (_viewModel.gameOver && !_hasShownDialog) {
         _hasShownDialog = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _showTimeRushResultDialog(_viewModel);
+          _showResultDialog(_viewModel);
         });
       }
     };
     _viewModel.addListener(_listener);
     
+    // Zamana karşı mod ayarını yap
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _viewModel.resetGame(mode: GameMode.timeRush);
     });
@@ -41,194 +66,85 @@ class _TimeRushPageState extends State<TimeRushPage> {
   @override
   void dispose() {
     _viewModel.removeListener(_listener);
+    _successAnimationController.dispose();
     super.dispose();
   }
 
-  void _showTimeRushResultDialog(WordleViewModel viewModel) {
-    showDialog(
+  void _showResultDialog(WordleViewModel viewModel) {
+    // Zamana karşı modda farklı sonuç hesaplama
+    int wordsCompleted = viewModel.wordsGuessedCount;
+    
+    // Jeton hesaplama - kelime başına 2 jeton
+    int tokensEarned = wordsCompleted * 2;
+
+    // Sonuç sayfasına yönlendir
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => WordleResultPage(
+          isWinner: wordsCompleted > 0,
+          isTimeOut: true, // Zamana karşı modda her zaman zaman aşımı
+          secretWord: viewModel.secretWord,
+          attempts: viewModel.currentAttempt + 1,
+          timeSpent: 60, // Başlangıç süresi
+          gameMode: viewModel.gameMode,
+          currentLevel: viewModel.currentLevel,
+          maxLevel: viewModel.maxLevel,
+          shareText: viewModel.generateShareText(),
+          tokensEarned: tokensEarned,
+          score: wordsCompleted, // Puan yerine kelime sayısı
+        ),
+      ),
+    );
+  }
+
+  void _triggerSuccessAnimation() {
+    setState(() {
+      _showSuccessAnimation = true;
+    });
+    
+    _successAnimationController.forward().then((_) {
+      _successAnimationController.reverse().then((_) {
+        setState(() {
+          _showSuccessAnimation = false;
+        });
+      });
+    });
+  }
+
+  Future<bool> _showExitConfirmDialog() async {
+    return await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1D),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: const Color(0xFFE74C3C), width: 2),
+          backgroundColor: Colors.grey.shade800,
+          title: const Text(
+            '🚪 Oyundan Çık',
+            style: TextStyle(color: Colors.white),
           ),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [const Color(0xFFE74C3C), const Color(0xFFC0392B)],
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.timer, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              const Text('Süre Doldu!', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF2A2A2A),
-                  const Color(0xFF1A1A1D),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '🎯 ${viewModel.wordsGuessedCount} kelime buldunuz!',
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '⭐ Toplam Skor: ${viewModel.timeRushScore}',
-                  style: TextStyle(color: Colors.amber.shade400, fontSize: 16, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '🪙 ${viewModel.wordsGuessedCount} jeton kazandınız!',
-                  style: TextStyle(color: Colors.orange.shade400, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
+          content: const Text(
+            'Oyundan çıkmak istediğinizden emin misiniz?\nİlerlemeniz kaybolacak!',
+            style: TextStyle(color: Colors.white70),
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pop(); // Ana sayfaya dön
-              },
-              child: const Text('Ana Sayfa', style: TextStyle(color: Colors.grey, fontSize: 16)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                setState(() {
-                  _hasShownDialog = false;
-                });
-                _viewModel.resetGame(mode: GameMode.timeRush);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE74C3C),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'İptal',
+                style: TextStyle(color: Colors.grey),
               ),
-              child: const Text('Yeniden Oyna', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Çık',
+                style: TextStyle(color: Colors.red),
+              ),
             ),
           ],
         );
       },
-    );
-  }
-
-  Widget _buildTimeRushHeader(WordleViewModel viewModel) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFFE74C3C),
-            const Color(0xFFC0392B),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildStatItem('⏰', '${viewModel.timeRushSeconds}s', 'Kalan Süre'),
-          _buildStatItem('🎯', '${viewModel.wordsGuessedCount}', 'Bulunan'),
-          _buildStatItem('⭐', '${viewModel.timeRushScore}', 'Skor'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String emoji, String value, String label) {
-    return Column(
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 20)),
-            const SizedBox(width: 8),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.8),
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGuessGrid(WordleViewModel viewModel, double screenWidth) {
-    double boxSize = (screenWidth - 80) / viewModel.currentWordLength;
-    if (boxSize > 60) boxSize = 60;
-
-    return Column(
-      children: List.generate(
-        WordleViewModel.maxAttempts,
-        (rowIndex) => Container(
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              viewModel.currentWordLength,
-              (colIndex) => Container(
-                width: boxSize,
-                height: boxSize,
-                margin: const EdgeInsets.symmetric(horizontal: 2),
-                decoration: BoxDecoration(
-                  color: viewModel.getBoxColor(rowIndex, colIndex),
-                  border: Border.all(
-                    color: Colors.grey.shade600,
-                    width: 2,
-                  ),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Center(
-                  child: Text(
-                    viewModel.guesses[rowIndex][colIndex],
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    ) ?? false;
   }
 
   @override
@@ -236,56 +152,152 @@ class _TimeRushPageState extends State<TimeRushPage> {
     return Consumer<WordleViewModel>(
       builder: (context, viewModel, child) {
         final screenWidth = MediaQuery.of(context).size.width;
+        final screenHeight = MediaQuery.of(context).size.height;
 
-        return Scaffold(
-          backgroundColor: const Color(0xFF0A0A0A),
+        // Eğer yeni kelime doğru tahmin edildiyse animasyonu tetikle
+        if (viewModel.isWinner && !_showSuccessAnimation) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _triggerSuccessAnimation();
+          });
+        }
+
+        return PopScope(
+          canPop: false,
+          onPopInvoked: (didPop) async {
+            if (didPop) return;
+            final shouldPop = await _showExitConfirmDialog();
+            if (shouldPop && context.mounted) {
+              Navigator.of(context).pop();
+            }
+          },
+          child: Scaffold(
+          backgroundColor: Colors.grey.shade900,
           appBar: AppBar(
-            backgroundColor: const Color(0xFF1A1A1A),
-            title: Row(
-              children: [
-                const Icon(Icons.timer, color: Color(0xFFE74C3C)),
-                const SizedBox(width: 8),
-                const Text(
-                  'Zamana Karşı',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            iconTheme: const IconThemeData(color: Colors.white),
+            backgroundColor: Colors.grey.shade900,
+            title: const Text('⏰ ZAMANA KARŞI'),
+            centerTitle: true,
             actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: () {
-                  setState(() {
-                    _hasShownDialog = false;
-                  });
-                  _viewModel.resetGame(mode: GameMode.timeRush);
-                },
+              // Jeton göstergesi
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.monetization_on, color: Colors.amber, size: 20),
+                    const SizedBox(width: 4),
+                    Text('${viewModel.userTokens}'),
+                  ],
+                ),
+              ),
+              // Zamanlayıcı
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade600,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${viewModel.timeRushSeconds}s',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
           body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  _buildTimeRushHeader(viewModel),
-                  const SizedBox(height: 20),
-                  ShakeWidget(
-                    shake: viewModel.needsShake,
-                    onShakeComplete: () {
-                      viewModel.resetShake();
-                    },
-                    child: _buildGuessGrid(viewModel, screenWidth),
+            child: Column(
+              children: [
+                // Skor paneli
+                Container(
+                  margin: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.purple.shade700, Colors.indigo.shade700],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: _showSuccessAnimation 
+                        ? Border.all(color: Colors.green, width: 3)
+                        : null,
                   ),
-                  const SizedBox(height: 20),
-                  Expanded(
+                  child: AnimatedBuilder(
+                    animation: _successScaleAnimation,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _showSuccessAnimation ? _successScaleAnimation.value : 1.0,
+                                                 child: Row(
+                           mainAxisAlignment: MainAxisAlignment.center,
+                           children: [
+                             Column(
+                               children: [
+                                 const Icon(Icons.speed, color: Colors.amber, size: 28),
+                                 const Text('Doğru Kelime', style: TextStyle(color: Colors.white, fontSize: 14)),
+                                 Text(
+                                   '${viewModel.wordsGuessedCount}',
+                                   style: const TextStyle(
+                                     color: Colors.white,
+                                     fontSize: 28,
+                                     fontWeight: FontWeight.bold,
+                                   ),
+                                 ),
+                                 Text(
+                                   '+${viewModel.wordsGuessedCount * 2} jeton',
+                                   style: TextStyle(
+                                     color: Colors.amber.shade300,
+                                     fontSize: 12,
+                                     fontWeight: FontWeight.w500,
+                                   ),
+                                 ),
+                               ],
+                             ),
+                           ],
+                         ),
+                      );
+                    }
+                  ),
+                ),
+                
+                // Grid - Expanded ile sabit alan
+                Expanded(
+                  flex: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: ShakeWidget(
+                      shake: viewModel.needsShake,
+                      onShakeComplete: () {
+                        viewModel.resetShake();
+                      },
+                      child: Container(
+                        decoration: _showSuccessAnimation 
+                            ? BoxDecoration(
+                                border: Border.all(color: Colors.green, width: 2),
+                                borderRadius: BorderRadius.circular(8),
+                              )
+                            : null,
+                        child: GuessGrid(screenWidth: screenWidth),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // Klavye - Sabit alan
+                Expanded(
+                  flex: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                     child: const KeyboardWidget(),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+        ),
         );
       },
     );

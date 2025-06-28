@@ -106,7 +106,7 @@ class LeaderboardViewModel extends ChangeNotifier {
 
     try {
       final userProfile = await FirebaseService.getUserProfile(user.uid);
-      final playerName = userProfile?['displayName'] ?? 'Anonim Oyuncu';
+      final playerName = userProfile?['displayName'] ?? user.displayName ?? 'Oyuncu';
 
       final docRef = _firestore.collection('leaderboard_stats').doc(user.uid);
       

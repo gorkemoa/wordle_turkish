@@ -107,38 +107,38 @@
     "ÜZERE", "VARDI", "YAKIN", "YANLI", "YAPAR", "YASAL", "YAZAR", "YOKSA", "ZORLU"
   ],
   "verbs": [
-    "AÇAR", "AFFET", "AGIR", "AKTAR", "ALTIR", "ANAR", "ANLAR", "APTAL", "ARAÇ", "ARTIR",
+    "AÇAR", "AFFET", "AĞIR", "AKTAR", "ALTIR", "ANAR", "ANLAR", "APTAL", "ARAÇ", "ARTIR",
     "ASIL", "ATAR", "ATLAR", "AYAK", "BAŞLA", "BEKLE", "BESLE", "BILIR", "BITER", "BOZAR",
-    "ÇALAR", "ÇEKER", "ÇIKAR", "ÇIZER", "DAVET", "DEĞER", "DENIR", "DILEK", "DINLE", "DÜŞER",
+    "ÇALAR", "ÇEKER", "ÇIKAR", "DAVET", "DEĞER", "DEMİR", "DİLEK", "DİNLE", "DÜŞER",
     "EDECEK", "ELLER", "ENTER", "FAKAT", "GEDER", "GEZER", "GITME", "GÜLER", "GÜMÜŞ", "HARÇA",
-    "HASTA", "HIÇBIR", "IÇER", "IKRAM", "ISTEK", "JETON", "KALAR", "KAPAK", "KAYAK", "KEDER",
-    "KENDI", "KIMSE", "KORUR", "KÜÇÜK", "MERAK", "NAZIK", "OKUMA", "OYNAP", "PAZAR", "RAHAT",
+    "HASTA", "HİÇBİR", "İÇER", "İKRAM", "İSTEK", "JETON", "KALAR", "KAPAK", "KAYAK", "KEDER",
+    "KENDİ", "KİMSE", "KORUR", "KÜÇÜK", "MERAK", "NAZİK", "OKUMA", "OYNAK", "PAZAR", "RAHAT",
     "SAKLA", "SAVAR", "SEVER", "SÖZLÜ", "ŞÖYLE", "TAKAR", "TEKER", "UYGUN", "YAPAR", "YOKSA"
   ],
   "adjectives": [
-    "AÇIK", "ASIL", "AYNI", "BÜYÜK", "DERIN", "DOĞRU", "DÜZGÜN", "ERKEN", "FAKIR",
+    "AÇIK", "ASIL", "AYNI", "BÜYÜK", "DERIN", "DOĞRU", "DÜZGÜN", "ERKEN", "FAKİR",
     "FAZLA", "GENÇ", "GÜÇLÜ", "HIZLI", "İNCE", "İYİ", "KALIN", "KISA", "KOLAY", "KÜÇÜK",
     "MÜKEMMEL", "NARİN", "ÖZEL", "PARLAK", "RAHAT", "SAKİN", "SERİN", "SERT", "SOĞUK", "TAZE",
-    "UZUN", "YAVAŞ", "YUMUŞAK", "ZENGIN", "ZOR", "GÜZEL", "ÇİRKİN", "SICAK", "SOGUK",
+    "UZUN", "YAVAŞ", "YUMUŞAK", "ZENGİN", "ZOR", "GÜZEL", "ÇİRKİN", "SICAK", "SOGUK",
     "TEMIZ", "KİRLİ", "AÇIK", "KAPALI", "DOLU", "BOŞ", "YAŞ", "KURU", "TUZLU", "TATLI"
   ],
   "professions": [
-    "AVUKAT", "BAKKAL", "BERBER", "CERRAH", "DOKTOR", "EBE", "GAZETECI", "HAKIM", "İMAM", "JURNALIST",
-    "KAPICI", "MEMUR", "ÖĞRETMEN", "POLIS", "RESSAM", "SEKRETER", "TAMIRCI", "UZMAN", "VETERİNER", "YAZAR",
+    "AVUKAT", "BAKKAL", "BERBER", "CERRAH", "DOKTOR", "EBE", "GAZETECİ", "HAKİM", "İMAM", "JURNALİST",
+    "KAPICI", "MEMUR", "ÖĞRETMEN", "POLİS", "RESSAM", "SEKRETER", "TAMİRCİ", "UZMAN", "VETERİNER", "YAZAR",
     "ZİRAAT", "USTA", "İŞÇİ", "PATRON", "ŞEF", "AŞÇI", "TERZI", "AYAKKABIICI", "KASAP", "UNCU",
     "SÜTÇÜ", "İSTATİK", "TİYATRO", "ŞARKI", "MÜZİK", "DİŞÇİ", "HEMŞİRE", "EBE"
   ],
   "body_parts": [
-    "AĞIZ", "AYAK", "BACAK", "BALIK", "BOYUN", "BURUN", "DIZI", "DUDAK", "ELMAN", "ELLERI",
-    "GÖZLÜK", "BAŞAK", "PARMAK", "BEYIN", "CAKİP", "DIŞLERI", "GÖĞÜS", "İÇSE", "KABURGA", "KARNI",
-    "KÖPRÜ", "OMİZ", "KARN", "KALBI", "KULAK", "OMUZ", "SAÇ", "TEN", "TINTI", "YÜREK",
+    "AĞIZ", "AYAK", "BACAK", "BALIK", "BOYUN", "BURUN", "DİZİ", "DUDAK", "ELMAN", "ELLERI",
+    "GÖZLÜK", "BAŞAK", "PARMAK", "BEYİN", "CAKİP", "DIŞLERİ", "GÖĞÜS", "İÇSE", "KABURGA", "KARNI",
+    "KÖPRÜ", "OMUZ", "KARN", "KALBI", "KULAK", "OMUZ", "SAÇ", "TEN", "TİNTİ", "YÜREK",
     "KAFA", "EL", "MIDE", "AKPARI", "TABAN", "TOPUK", "DIRSEK", "BİLEK", "NAKIR", "BEL"
   ],
   "emotions": [
-    "MUTLU", "ÜZGÜN", "KİZGİN", "KORKU", "SEVGI", "NEFRET", "UMUT", "UMUTSUZ", "GURURLU", "ŞİK",
-    "SINIRLI", "RAHAT", "HUZUR", "ENDİŞE", "KAYGILI", "SEVINÇ", "ÖFKE", "KISKANCI", "İMRENME", "HAYRAN",
-    "MERAK", "ŞAŞKİN", "GÜLME", "AĞLAMA", "ÇEKINGEN", "UTANGAÇ", "ASABI", "SAKİN", "SOSYAL",
-    "GÜVENDE", "TEHLİKE", "UZMAN", "ACIMI", "EMNIYE", "KAYİT", "ACİL", "AFERIM", "YAŞA", "ÖLÜM"
+    "MUTLU", "ÜZGÜN", "KIZGIN", "KORKU", "SEVGİ", "NEFRET", "UMUT", "UMUTSUZ", "GURURLU", "ŞİK",
+    "SINIRLI", "RAHAT", "HUZUR", "ENDİŞE", "KAYGILI", "SEVİNÇ", "ÖFKE", "KISKANCI", "İMRENME", "HAYRAN",
+    "MERAK", "ŞAŞKIN", "GÜLME", "AĞLAMA", "ÇEKINGEN", "UTANGAÇ", "ASABİ", "SAKİN", "SOSYAL",
+    "GÜVENDE", "TEHLİKE", "UZMAN", "ACEMİ", "EMNİYE", "KAYIT", "ACİL", "AFERİN", "YAŞA", "ÖLÜM"
   ],
   "time_weather": [
     "SABAH", "ÖĞLE", "AKŞAM", "GECE", "GÜN", "HAFTA", "AY", "YIL", "YILLAR", "YÜZYIL",
@@ -166,9 +166,9 @@
   ],
   "tools": [
     "ÇEKİÇ", "TORNAVİDA", "ANAHAR", "MAVNA", "TESTERE", "MATKAP", "VİDA", "ÇİVİ", "VIDA", "BALTA",
-    "KAZMA", "KÜREK", "KESKI", "İP", "HAM", "MAKİNE", "ALET", "SANDIK",
+    "KAZMA", "KÜREK", "KESKİ", "İP", "HAM", "MAKİNE", "ALET", "SANDIK",
     "KUTU", "TULUMBA", "POMPA", "BASAÇ", "KÖRÜK", "ZİNCİR", "KANCA", "HALAT",
-    "KALINM", "TERAZI", "KİLO", "METRE", "CETVEL", "PERGEL", "FİRÇA", "FIRÇA"
+    "KALINM", "TERAZI", "KİLO", "METRE", "CETVEL", "PERGEL", "FİRÇA", "FIRÇA", "KALDIR", "KALDIRMA"
   ],
   "materials": [
     "KAĞIT", "KARTON", "PLASTİK", "CAM", "METAL", "DEMIR", "ÇELİK", "ALTIN", "GÜMÜŞ", "BRONZ",
@@ -180,7 +180,7 @@
     "BİR", "İKİ", "ÜÇ", "DÖRT", "BEŞ", "ALTI", "SEKİZ", "DOKUZ", "ON",
     "ON BİR", "ON İKİ", "YİRMİ", "OTUZ", "KIRK", "ALTMIŞ", "YETMİŞ", "SEKSEN", "DOKSAN",
     "YÜZ", "BİN", "MİLYON", "MİLYAR", "TRİLYON", "ÇEYREK", "YARIM", "TAM", "BÜTÜN",
-    "BİRAZ", "AZ", "ÇOK", "FAZLA", "DAHA", "EN", "İLK", "SON", "İkİNCİ"
+    "BİRAZ", "AZ", "ÇOK", "FAZLA", "DAHA", "EN", "İLK", "SON", "İKİNCİ"
   ],
   "actions": [
     "KOŞAR", "YÜRÜR", "OTURUR", "KALKAR", "YATAR", "UYUR", "YER", "İÇER", "DİNLER",
@@ -196,7 +196,7 @@
     "PARK", "BAHÇE", "ORMAN", "SAHIL", "PLAJ", "DENİZ", "IRMAK", "KÖPRÜ", "TÜNEL"
   ],
   "food_extended": [
-    "ÇEREZ", "KURU", "YEMEK", "YIYECEK", "SOFRA", "TABAK", "ÇATAL", "KAŞIK", "BIÇAK", "BARDAK",
+    "ÇEREZ", "KURU", "YEMEK", "YİYECEK", "SOFRA", "TABAK", "ÇATAL", "KAŞIK", "BIÇAK", "BARDAK",
     "FINCAN", "ÇAYDANLIK", "DEMLIK", "İBRİK", "TENCERE", "TAVA", "FIRIN", "OCAK", "BUZDOLAB", "DONDURUCU",
     "MİKSER", "BLENDER", "ROBOT", "FRİTÖZ", "IZGARA", "MANGAL", "BARBEKÜ", "PIKNIK", "KAMPJ", "ÇADIR",
     "UYKU", "İSTİRAHAT", "DİNLENME", "EĞLENCE", "OYUN", "SPOR", "EGZERSİZ", "KOSTÜM", "DANS",
@@ -211,7 +211,7 @@
   ],
   "science": [
     "BİLİM", "ARAC", "DENEY", "LABORATUVAR", "MİKROSKOP", "TELESKOP", "HESAP", "FORMÜL", "DENKLEM", "TEOREM",
-    "HİPOTEZ", "KANUN", "PRENSİP", "KURAL", "YÖNTEM", "SİSTEM", "METOD", "TEKN", "YÖNTEM",
+    "HİPOTEZ", "KANUN", "PRENSİP", "KURAL", "YÖNTEM", "SİSTEM", "METOD", "TEKNO", "YÖNTEM",
     "FİZİK", "KİMYA", "BİYOLOJ", "MATEMATİK", "CERBE", "ANALİZ", "İSTATİSTİK", "TOPLAM", "ORTALAMA",
     "ÖLÇME", "BİRİM", "METRE", "KİLO", "LİTRE", "SANTİMETRE", "MİLİMETRE", "GRAM", "TONNE", "HEKTOLITRE",
     "VOLTAJ", "AMPER", "WATT", "OHM", "KALOR", "JOUL", "NEWTON", "PASCAL", "HERTZ", "DECİBEL"
@@ -271,8 +271,8 @@
     "PANDA", "AYI", "KOALA", "AYI", "BOZAYI", "KARA", "AYI", "GÜMÜŞ", "TILKI", "KIZIL",
     "TİLKİ", "KUTUP", "TİLKİ", "FENEK", "TİLKİ", "ÇAKAL", "KURT", "KOYUN", "KÖPEK", "DİNGO",
     "KOJOT", "YABAN", "DOMUZU", "VİŞNE", "DOMUZ", "BAG", "DOMUZU", "AHTAPOT", "MÜREKKEP", "BALIK",
-    "YUNUS", "BALINA", "ORCA", "KATIL", "BALINA", "BALINA", "GÖKBALINASI", "BELUĞA", "DENİZ",
-    "AYGIRI", "DENİZ", "ASLAN", "FOKA", "PENGUEN", "İMPARATOR", "PENGUEN", "KRAL", "PENGUEN", "ADELIE"
+    "YUNUS", "BALINA", "ORCA", "KATIL", "BALİNA", "BALİNA", "GÖKBALİNASI", "BELUĞA", "DENİZ",
+    "AYGIR", "DENİZ", "ASLAN", "FOKA", "PENGUEN", "İMPARATOR", "PENGUEN", "KRAL", "PENGUEN", "ADELIE"
   ],
   "detailed_plants": [
     "GÜL", "KARANFIL", "LALE", "MENEKŞE", "PAPATYA", "SÜMBÜL", "ORKIDE", "BEGONYE", "PETUNYA", "SARDUNYA",
@@ -310,7 +310,7 @@
     "DOĞAL", "DOĞRU", "DOKTOR", "DOMUZ", "DONUK", "DOYUM", "DÖKÜK", "DÖNÜK", "DÖRT", "DÜĞME"
   ],
   "massive_words_2": [
-    "DÜNYA", "EFKAR", "EĞİK", "EĞİM", "EĞİR", "EKİM", "EKMEK", "ELBİS", "ELDİV",
+    "DÜNYA", "EFKAR", "EĞİK", "EĞİM", "EĞİR", "EKİM", "EKMEK", "ELBİS", "ELDİVEN",
     "EMEK", "EMİN", "ENGİN", "ERBAB", "ERGİN", "ERİK", "ERİŞ", "ERKEK", "EŞARP",
     "EŞREF", "ETİK", "EVRAK", "EYLEM", "FAALI", "FABRİK", "FACİA", "FAİZ", "FAKİR", "FALAN",
     "FASIL", "FATİH", "FECİR", "FEHİM", "FELEK", "FENER", "FESAT", "FESİH",
@@ -318,7 +318,8 @@
     "FOTOĞR", "FRAK", "GABAR", "GADDAR", "GALİP", "GARANT", "GARİP", "GAYRET", "GECE",
     "GEÇİT", "GELİN", "GENÇ", "GENİŞ", "GERÇEK", "GEZGİN", "GİDER", "GİRİŞ",
     "GİYİM", "GÖLGE", "GÖREV", "GÖRÜŞ", "GÖSTK", "GÖTÜR", "GÖZLK", "GÜBRE", "GÜÇLÜ", "GÜDÜK",
-    "GÜLLE", "GÜMRÜK", "GÜMÜŞ", "GÜNAH", "GÜNEŞ", "GÜRUH", "HABİS", "HADİS", "HAFİF", "HAFİZ"
+    "GÜLLE", "GÜMRÜK", "GÜMÜŞ", "GÜNAH", "GÜNEŞ", "GÜRUH", "HABİS", "HADİS", "HAFİF", "HAFİZ",
+    "SELAM", "FERAH", "FIRSAT", ""
   ],
   "massive_words_3": [
     "HAFTA", "HAKİM", "HAKLI", "HALEF", "HALİS", "HALKA", "HAMUR", "HARAP", "HARIKA",
@@ -648,7 +649,7 @@
     "AÇAR", "AĞAÇ", "AKAN", "ALEM", "ALMA", "ANNE", "ARAR", "ATAR", "AYAK", "BAKAR",
     "BEDEN", "BEKLE", "BITER", "BÖYLE", "BUNUN", "ÇALAR", "ÇEKER", "ÇIKAR", "ÇIZER", "DEĞER",
     "DENIR", "DINLE", "DÜŞER", "ELLER", "FAKAT", "GEREK", "GEZER", "GITME", "GÜLER", "HARÇA",
-    "IÇER", "KALAR", "KAPAK", "KEDER", "KIMSE", "KORUR", "MERAK", "NAZIK", "OKUMA", "OYNAP",
+    "IÇER", "KALAR", "KAPAK", "KEDER", "KIMSE", "KORUR", "MERAK", "NAZİK", "OKUMA", "OYNAP",
     "PAZAR", "RAHAT", "SAKLA", "SAVAR", "SEVER", "SÖZLÜ", "ŞÖYLE", "TAKAR", "TEKER", "UYGUN"
   ],
   "temiz_turkce_kelimeler_3": [
@@ -688,6 +689,7 @@
     "ÇÖP", "DAİRE", "DALGA", "DAMAK", "DEĞER", "DENİZ",
     "DİKAT", "DİŞ", "DOKTOR", "DOKUMA", "DOYMA", "DÖVME", "DÜĞÜN", "DÜŞÜN", "EKİP",
     "ELDİVEN", "ELEKTRİK", "EŞYA", "EVDE", "FABRIKA", "FARK", "FAYDA",
-    "FİGÜR", "FİKİR", "FİLM", "FİS", "FORMA", "FOTO"
+    "FİGÜR", "FİKİR", "FİLM", "FİS", "FORMA", "FOTO" , "NOTER", "NOLUR", "NOLU",
+      "DORUK"
   ]
 } 

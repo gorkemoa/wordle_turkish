@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -114,10 +115,15 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Future<void> _signInAnonymously() async {
+    // Kullanıcı adını sormak için dialog göster
+    final playerName = await _showPlayerNameDialog();
+    
+    if (playerName == null) return; // Dialog iptal edildi
+
     setState(() => _isLoading = true);
 
     try {
-      final user = await FirebaseService.signInAnonymously();
+      final user = await FirebaseService.signInAnonymously(playerName);
       
       if (user != null && mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
@@ -129,6 +135,119 @@ class _LoginPageState extends State<LoginPage>
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<String?> _showPlayerNameDialog() async {
+    final nameController = TextEditingController();
+    
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Kullanıcı Adınızı Girin',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Misafir girişinde kullanılacak kullanıcı adınızı belirleyin.',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: nameController,
+                maxLength: 20,
+                decoration: InputDecoration(
+                  labelText: 'Kullanıcı Adı',
+                  hintText: 'Örn: OyuncuAdım',
+                  prefixIcon: const Icon(Icons.person),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                ),
+                onFieldSubmitted: (value) {
+                  if (value.trim().isNotEmpty) {
+                    Navigator.of(context).pop(value.trim());
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () async {
+                final name = nameController.text.trim();
+                if (name.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Kullanıcı adı boş olamaz!'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+                if (name.length < 2) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Kullanıcı adı en az 2 karakter olmalı!'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+                
+                // Benzersizlik kontrolü
+                try {
+                  final existingUsers = await FirebaseFirestore.instance
+                      .collection('users')
+                      .where('displayName', isEqualTo: name)
+                      .get();
+                  
+                  if (existingUsers.docs.isNotEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Bu kullanıcı adı zaten kullanımda! Lütfen farklı bir isim deneyin.'),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 4),
+                      ),
+                    );
+                    return;
+                  }
+                  
+                  Navigator.of(context).pop(name);
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Kontrol hatası: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                'Tamam',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showErrorSnackBar(String message) {

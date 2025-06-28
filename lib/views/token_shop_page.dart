@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 import '../services/ad_service.dart';
 
+// Jeton dükkânı sayfası
+
 class TokenShopPage extends StatefulWidget {
   const TokenShopPage({Key? key}) : super(key: key);
 

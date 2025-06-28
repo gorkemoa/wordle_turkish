@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:math' as math;
 import '../viewmodels/wordle_viewmodel.dart';
+import 'free_game_page.dart';
+import 'challenge_game_page.dart';
+import 'time_rush_page.dart';
+import 'themed_game_page.dart';
+
+// Wordle sonuç sayfası
 
 class WordleResultPage extends StatefulWidget {
   final bool isWinner;
@@ -42,6 +48,8 @@ class _WordleResultPageState extends State<WordleResultPage>
   late AnimationController _pulseController;
   late AnimationController _slideController;
   late AnimationController _bounceController;
+  late AnimationController _winnerAnimationController;
+  late AnimationController _loserAnimationController;
 
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
@@ -64,7 +72,7 @@ class _WordleResultPageState extends State<WordleResultPage>
 
     // Konfeti animasyonu
     _confettiController = AnimationController(
-      duration: const Duration(seconds: 5),
+      duration: const Duration(seconds: 3),
       vsync: this,
     );
 
@@ -83,6 +91,18 @@ class _WordleResultPageState extends State<WordleResultPage>
     // Bounce animasyonu
     _bounceController = AnimationController(
       duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    // Kazanma animasyonu kontrolcüsü - sürekli loop
+    _winnerAnimationController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+
+    // Kaybetme animasyonu kontrolcüsü - sürekli loop
+    _loserAnimationController = AnimationController(
+      duration: const Duration(seconds: 3),
       vsync: this,
     );
 
@@ -140,6 +160,8 @@ class _WordleResultPageState extends State<WordleResultPage>
     _pulseController.dispose();
     _slideController.dispose();
     _bounceController.dispose();
+    _winnerAnimationController.dispose();
+    _loserAnimationController.dispose();
     super.dispose();
   }
 
@@ -153,11 +175,15 @@ class _WordleResultPageState extends State<WordleResultPage>
     // Kazanırsa konfeti ve pulse animasyonları
     if (widget.isWinner && mounted) {
       _pulseController.repeat(reverse: true);
+      
+      // Kazanma animasyonunu sürekli loop yap
+      _winnerAnimationController.repeat(reverse: true);
 
       // Konfeti oluştur ve başlat
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
           _createConfetti();
+          _confettiController.reset();
           _confettiController.forward();
         }
       });
@@ -168,6 +194,9 @@ class _WordleResultPageState extends State<WordleResultPage>
           _bounceController.forward();
         }
       });
+    } else if (!widget.isWinner && mounted) {
+      // Kaybetme animasyonunu sürekli loop yap
+      _loserAnimationController.repeat(reverse: true);
     }
 
     // Alt panel slide animasyonu
@@ -182,17 +211,22 @@ class _WordleResultPageState extends State<WordleResultPage>
     final random = math.Random();
     confettiParticles.clear();
 
-    // 100'den fazla konfeti parçacığı oluştur
-    for (int i = 0; i < 150; i++) {
+    // Bol bol konfeti için parçacık sayısı artırıldı ve patlama efekti eklendi
+    for (int i = 0; i < 300; i++) {
+      final double angle = random.nextDouble() * math.pi; // 180 derece (yukarı yarım daire)
+      final double speed = random.nextDouble() * 1.0 + 0.5; // Hız aralığı
+
       confettiParticles.add(ConfettiParticle(
-        x: random.nextDouble(),
-        y: -0.1,
-        velocityX: (random.nextDouble() - 0.5) * 2,
-        velocityY: random.nextDouble() * 2 + 1,
+        // Başlangıç noktası ekranın alt-ortası
+        x: 0.5,
+        y: 1.1,
+        // Fiziksel tabanlı hızlar
+        velocityX: (math.cos(angle) * speed) / 8, // X ekseninde daha dar bir yayılım
+        velocityY: -math.sin(angle) * speed, // Sadece yukarı doğru patlama
         color: _getRandomColor(random),
-        size: random.nextDouble() * 8 + 4,
+        size: random.nextDouble() * 12 + 6,
         rotation: random.nextDouble() * 2 * math.pi,
-        rotationSpeed: (random.nextDouble() - 0.5) * 6,
+        rotationSpeed: (random.nextDouble() - 0.5) * 12,
       ));
     }
   }
@@ -357,43 +391,117 @@ class _WordleResultPageState extends State<WordleResultPage>
   }
 
   Widget _buildMainIcon() {
-    IconData iconData;
-    Color iconColor;
-    double iconSize = 100;
-
-    if (widget.isTimeOut) {
-      iconData = Icons.access_time;
-      iconColor = Colors.orange;
-    } else if (widget.isWinner) {
-      iconData = Icons.celebration;
-      iconColor = Colors.yellow;
-      iconSize = 120;
+    double iconSize = 120;
+    
+    if (widget.isWinner) {
+      // Kazanma animasyonu
+      return Container(
+        width: iconSize + 40,
+        height: iconSize + 40,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 3),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.yellow.withOpacity(0.3),
+              blurRadius: 20,
+              spreadRadius: 5,
+            ),
+          ],
+        ),
+        child: AnimatedBuilder(
+          animation: _winnerAnimationController,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: 1.0 + (_winnerAnimationController.value * 0.1), // Hafif büyüme efekti
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/winner/Animation - 1751114693941.gif',
+                  width: iconSize,
+                  height: iconSize,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true, // Kesintisiz oynatma
+                  errorBuilder: (context, error, stackTrace) {
+                    // Hata durumunda fallback ikon
+                    return Icon(
+                      Icons.celebration,
+                      size: iconSize,
+                      color: Colors.yellow,
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+        ),
+      );
     } else {
-      iconData = Icons.sentiment_dissatisfied;
-      iconColor = Colors.red.shade300;
-    }
+      // Kaybetme veya süre dolma animasyonu
+      IconData iconData;
+      Color iconColor;
+      String? gifPath;
+      
+      if (widget.isTimeOut) {
+        iconData = Icons.access_time;
+        iconColor = Colors.orange;
+        gifPath = 'assets/alert/Animation - 1751119517404.gif';
+        iconSize = 100;
+      } else {
+        iconData = Icons.sentiment_dissatisfied;
+        iconColor = Colors.red.shade300;
+        gifPath = 'assets/lose/Animation - 1751114981463.gif';
+        iconSize = 100;
+      }
 
-    return Container(
-      width: iconSize + 40,
-      height: iconSize + 40,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: iconColor.withOpacity(0.3),
-            blurRadius: 20,
-            spreadRadius: 5,
-          ),
-        ],
-      ),
-      child: Icon(
-        iconData,
-        size: iconSize,
-        color: iconColor,
-      ),
-    );
+      return Container(
+        width: iconSize + 40,
+        height: iconSize + 40,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 3),
+          boxShadow: [
+            BoxShadow(
+              color: iconColor.withOpacity(0.3),
+              blurRadius: 20,
+              spreadRadius: 5,
+            ),
+          ],
+        ),
+        child: gifPath != null 
+          ? AnimatedBuilder(
+              animation: _loserAnimationController,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: 1.0 + (_loserAnimationController.value * 0.05), // Daha hafif efekt
+                  child: ClipOval(
+                    child: Image.asset(
+                      gifPath!,
+                      width: iconSize,
+                      height: iconSize,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true, // Kesintisiz oynatma
+                      errorBuilder: (context, error, stackTrace) {
+                        // Hata durumunda fallback ikon
+                        return Icon(
+                          iconData,
+                          size: iconSize,
+                          color: iconColor,
+                        );
+                      },
+                    ),
+                  ),
+                );
+              },
+            )
+          : Icon(
+              iconData,
+              size: iconSize,
+              color: iconColor,
+            ),
+      );
+    }
   }
 
   Widget _buildWinnerTitle() {
@@ -424,9 +532,9 @@ class _WordleResultPageState extends State<WordleResultPage>
           ),
         ),
         const SizedBox(height: 5),
-        if (widget.gameMode == GameMode.daily)
+        if (widget.gameMode == GameMode.unlimited)
           const Text(
-            'Günlük kelimeyi doğru bildiniz!',
+            'Kelimeyi doğru bildiniz!',
             style: TextStyle(
               color: Colors.white70,
               fontSize: 16,
@@ -613,7 +721,7 @@ class _WordleResultPageState extends State<WordleResultPage>
         // Üst sıra butonlar
         Row(
           children: [
-            if (widget.isWinner && widget.gameMode == GameMode.daily) ...[
+            if (widget.isWinner && widget.gameMode == GameMode.unlimited) ...[
               Expanded(
                 child: _buildActionButton(
                   'Paylaş',
@@ -702,10 +810,52 @@ class _WordleResultPageState extends State<WordleResultPage>
   }
 
   void _restartGame() {
-    Navigator.pushReplacementNamed(context, '/wordle', arguments: {
-      'gameMode': widget.gameMode,
-      'restart': true,
-    });
+    switch (widget.gameMode) {
+      case GameMode.unlimited:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FreeGamePage(
+              toggleTheme: () {}, // Boş toggle function
+            ),
+          ),
+        );
+        break;
+      case GameMode.challenge:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChallengeGamePage(
+              toggleTheme: () {}, // Boş toggle function
+            ),
+          ),
+        );
+        break;
+      case GameMode.timeRush:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TimeRushGamePage(
+              toggleTheme: () {}, // Boş toggle function
+            ),
+          ),
+        );
+        break;
+      case GameMode.themed:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ThemedGamePage(
+              toggleTheme: () {}, // Boş toggle function
+              themeId: 'random', // Varsayılan tema
+            ),
+          ),
+        );
+        break;
+      default:
+        Navigator.pushReplacementNamed(context, '/home');
+        break;
+    }
   }
 
   void _goToHome() {
@@ -740,25 +890,33 @@ class ConfettiParticle {
 class ConfettiPainter extends CustomPainter {
   final List<ConfettiParticle> particles;
   final double progress;
+  final double gravity = 0.6; // Güçlü yerçekimi
 
   ConfettiPainter({required this.particles, required this.progress});
 
   @override
   void paint(Canvas canvas, Size size) {
+    // 3 saniyelik animasyon süresi üzerinden zamanı hesapla
+    final double time = progress * 3.0;
+
     for (var particle in particles) {
-      // Partikül pozisyonunu güncelle
-      final currentY = particle.y + (particle.velocityY * progress);
-      final currentX = particle.x + (particle.velocityX * progress * 0.5);
-      final currentRotation = particle.rotation + (particle.rotationSpeed * progress);
+      // Fizik formülü: p(t) = p0 + v0*t + 0.5*a*t^2
+      final double newX = particle.x + particle.velocityX * time;
+      final double newY =
+          particle.y + particle.velocityY * time + 0.5 * gravity * time * time;
 
-      // Ekran dışına çıkanları gösterme
-      if (currentY > 1.2) continue;
+      final currentRotation =
+          particle.rotation + (particle.rotationSpeed * time);
 
+      // Ekranın altından çıkınca gösterme
+      if (newY > 1.1 && particle.velocityY + gravity * time > 0) continue;
+
+      // Opacity'yi progress'e göre ayarla (sona doğru tamamen solma)
       final paint = Paint()
-        ..color = particle.color.withOpacity(math.max(0, 1 - progress * 0.5));
+        ..color = particle.color.withOpacity(math.max(0, 1 - progress));
 
       canvas.save();
-      canvas.translate(currentX * size.width, currentY * size.height);
+      canvas.translate(newX * size.width, newY * size.height);
       canvas.rotate(currentRotation);
 
       // Konfeti şekli (dikdörtgen)
@@ -767,9 +925,9 @@ class ConfettiPainter extends CustomPainter {
           Rect.fromCenter(
             center: Offset.zero,
             width: particle.size,
-            height: particle.size * 0.6,
+            height: particle.size * 0.7,
           ),
-          const Radius.circular(2),
+          const Radius.circular(3),
         ),
         paint,
       );

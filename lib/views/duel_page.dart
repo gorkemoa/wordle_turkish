@@ -7,6 +7,8 @@ import '../widgets/shake_widget.dart';
 import 'duel_waiting_room.dart';
 import 'duel_result_page.dart';
 
+// Düello sayfası
+
 class DuelPage extends StatefulWidget {
   const DuelPage({Key? key}) : super(key: key);
 
@@ -17,13 +19,18 @@ class DuelPage extends StatefulWidget {
 class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  late AnimationController _borderController;
+  late Animation<double> _borderAnimation;
   bool _hasNavigatedToResult = false;
-  bool _hasStartedGame = false; // Oyun başlatma kontrolü için flag
-  bool _hasTimedOut = false; // Timeout kontrolü için flag
+  bool _hasNavigatedToWaitingRoom = false; // Waiting room navigation kontrolü için flag
+  bool _shouldShowRedBorder = false;
+  DuelViewModel? _viewModel; // ViewModel referansını güvenli bir şekilde saklamak için
 
   @override
   void initState() {
     super.initState();
+    
+    debugPrint('🎮 DuelPage initState başladı');
     
     // Pulse animasyonu
     _pulseController = AnimationController(
@@ -39,60 +46,70 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
     ));
     _pulseController.repeat(reverse: true);
     
-    // ViewModel'i temizle ve başlat
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Önce ViewModel'i temizle
-      final viewModel = Provider.of<DuelViewModel>(context, listen: false);
-      viewModel.resetForNewGame();
-      
-      // Callback ekle
-      viewModel.onOpponentFoundCallback = () {
-        debugPrint('DuelPage - Rakip bulundu callback çağrıldı');
-        _navigateToWaitingRoom();
-      };
-      
-      // Sonra oyunu başlat
-      if (!_hasStartedGame) {
-        _hasStartedGame = true;
-        _startGame();
-      }
-    });
+    // Kırmızı kenar animasyonu
+    _borderController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _borderAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _borderController,
+      curve: Curves.easeInOut,
+    ));
     
-    // 15 saniye timeout ekle
-    Future.delayed(const Duration(seconds: 15), () {
-      if (mounted && !_hasTimedOut) {
+    // Oyunu direkt olarak burada başlat
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      
+      try {
+        // ViewModel'i temizle ve oyunu başlat
         final viewModel = Provider.of<DuelViewModel>(context, listen: false);
-        if (viewModel.currentGame == null) {
-          setState(() {
-            _hasTimedOut = true;
-          });
-        }
+        viewModel.resetForNewGame();
+        
+        // Navigation flag'lerini reset et
+        _hasNavigatedToWaitingRoom = false;
+        _hasNavigatedToResult = false;
+        
+        // Oyunu başlat (waiting room'a gitmek yerine direkt burada)
+        debugPrint('🎮 DuelPage - Oyun başlatılıyor...');
+        _startDuelGame(viewModel);
+        
+      } catch (e) {
+        debugPrint('❌ DuelPage initState error: $e');
       }
     });
   }
 
   @override
-  void dispose() {
-    _pulseController.dispose();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     
-    // Callback'i temizle
-    final viewModel = Provider.of<DuelViewModel>(context, listen: false);
-    viewModel.onOpponentFoundCallback = null;
-    
-    super.dispose();
+    // ViewModel referansını güvenli bir şekilde sakla
+    try {
+      _viewModel = Provider.of<DuelViewModel>(context, listen: false);
+    } catch (e) {
+      debugPrint('didChangeDependencies viewModel error: $e');
+      _viewModel = null;
+    }
   }
 
-  Future<void> _startGame() async {
+  Future<void> _startDuelGame(DuelViewModel viewModel) async {
     try {
-      final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+      debugPrint('🎮 DuelPage - Düello oyunu başlatılıyor...');
       
       // Kullanıcının online olduğundan emin ol
       await FirebaseService.setUserOnline();
       
-      // Jeton kontrolü (düello viewmodel'de de kontrol ediliyor)
+      if (!mounted) return;
+      
+      // Jeton kontrolü
       final user = FirebaseService.getCurrentUser();
       if (user != null) {
         final tokens = await FirebaseService.getUserTokens(user.uid);
+        if (!mounted) return;
+        
         if (tokens < 2) {
           _showErrorDialog('Yetersiz Jeton', 
             'Düello oynamak için 2 jetona ihtiyacınız var. Mevcut jetonunuz: $tokens\n\n💡 Jetonlar oyun başladığında kesilir.');
@@ -111,29 +128,70 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         return;
       }
       
-      // Matchmaking başladı, viewModel listener'ı otomatik olarak
-      // durum değişikliklerini takip edecek ve gerektiğinde
-      // bekleme odasına yönlendirecek
-      debugPrint('DuelPage - Matchmaking başladı, listener aktif');
+      debugPrint('✅ DuelPage - Düello oyunu başarıyla başlatıldı');
       
     } catch (e) {
-      print('DuelPage _startGame hatası: $e');
+      debugPrint('❌ DuelPage _startDuelGame hatası: $e');
       if (mounted) {
         _showErrorDialog('Hata', 'Beklenmeyen bir hata oluştu: $e');
       }
     }
   }
 
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _borderController.dispose();
+    
+    // Callback'i güvenli bir şekilde temizle
+    try {
+      if (_viewModel != null) {
+        _viewModel!.onOpponentFoundCallback = null;
+      }
+    } catch (e) {
+      debugPrint('dispose viewModel error: $e');
+    }
+    
+    super.dispose();
+  }
+
+  void _checkForInvalidWord(DuelViewModel viewModel) {
+    if (!mounted) return;
+    
+    // Geçersiz kelime durumunda kırmızı border animasyonunu başlat
+    if (viewModel.needsShake && !_shouldShowRedBorder) {
+      setState(() {
+        _shouldShowRedBorder = true;
+      });
+      
+      // Yanıp sönme animasyonu
+      _borderController.repeat(reverse: true);
+      
+      // 1.5 saniye sonra animasyonu durdur
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted) {
+          _borderController.stop();
+          setState(() {
+            _shouldShowRedBorder = false;
+          });
+        }
+      });
+    }
+  }
+
+
+
   void _showErrorDialog(String title, String message) {
-    if (!mounted) {
-      debugPrint('DuelPage - Widget mounted değil, error dialog gösterilmiyor');
+    if (!mounted || !context.mounted) {
+      debugPrint('🚫 DuelPage - Widget mounted değil, error dialog gösterilmiyor');
       return;
     }
     
     try {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
           backgroundColor: const Color(0xFF2A2A2A),
           title: Text(title, style: const TextStyle(color: Colors.white)),
           content: Text(message, style: const TextStyle(color: Colors.grey)),
@@ -141,9 +199,11 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
             TextButton(
               onPressed: () {
                 try {
-                  Navigator.pop(context); // Sadece dialog'u kapat
+                  if (Navigator.canPop(dialogContext)) {
+                    Navigator.pop(dialogContext); // Dialog'u kapat
+                  }
                 } catch (e) {
-                  debugPrint('Error dialog close error: $e');
+                  debugPrint('❌ Error dialog close error: $e');
                 }
               },
               child: const Text('Tamam', style: TextStyle(color: Colors.blue)),
@@ -152,20 +212,21 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         ),
       );
     } catch (e) {
-      debugPrint('Error dialog show error: $e');
+      debugPrint('❌ Error dialog show error: $e');
     }
   }
 
   void _showPowerUpErrorDialog(String title, String message) {
-    if (!mounted) {
-      debugPrint('DuelPage - Widget mounted değil, power-up error dialog gösterilmiyor');
+    if (!mounted || !context.mounted) {
+      debugPrint('🚫 DuelPage - Widget mounted değil, power-up error dialog gösterilmiyor');
       return;
     }
     
     try {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
           backgroundColor: const Color(0xFF2A2A2A),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
@@ -207,9 +268,11 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
             TextButton(
               onPressed: () {
                 try {
-                  Navigator.pop(context); // Sadece dialog'u kapat
+                  if (Navigator.canPop(dialogContext)) {
+                    Navigator.pop(dialogContext); // Dialog'u kapat
+                  }
                 } catch (e) {
-                  debugPrint('Power-up error dialog close error: $e');
+                  debugPrint('❌ Power-up error dialog close error: $e');
                 }
               },
               child: const Text('Anladım', style: TextStyle(color: Colors.blue)),
@@ -218,29 +281,35 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         ),
       );
     } catch (e) {
-      debugPrint('Power-up error dialog show error: $e');
+      debugPrint('❌ Power-up error dialog show error: $e');
     }
   }
 
   void _navigateToResultPage(DuelGame game) {
-    if (_hasNavigatedToResult || !mounted) return; // Tekrar navigasyon ve mounted engellemesi
+    if (_hasNavigatedToResult || !mounted || !context.mounted) {
+      debugPrint('🚫 DuelPage - Result navigation iptal edildi: hasNavigated=$_hasNavigatedToResult, mounted=$mounted');
+      return;
+    }
     _hasNavigatedToResult = true;
     
     try {
-      final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+      // ViewModel referansını güvenli bir şekilde al
+      final viewModel = _viewModel ?? Provider.of<DuelViewModel>(context, listen: false);
       final currentPlayer = viewModel.currentPlayer;
       final opponentPlayer = viewModel.opponentPlayer;
       
       if (currentPlayer == null) {
-        debugPrint('DuelPage - currentPlayer null, sonuç sayfasına yönlendirme iptal edildi');
+        debugPrint('⚠️ DuelPage - currentPlayer null, sonuç sayfasına yönlendirme iptal edildi');
+        _hasNavigatedToResult = false; // Reset flag
         return;
       }
 
-      debugPrint('DuelPage - Sonuç sayfasına yönlendiriliyor');
+      debugPrint('🏁 DuelPage - Sonuç sayfasına yönlendiriliyor');
       
-      // Mounted kontrolü tekrar yap
-      if (!mounted) {
-        debugPrint('DuelPage - Widget artık mounted değil, navigation iptal edildi');
+      // Final mounted kontrolü
+      if (!mounted || !context.mounted) {
+        debugPrint('🚫 DuelPage - Widget artık mounted değil, navigation iptal edildi');
+        _hasNavigatedToResult = false; // Reset flag
         return;
       }
       
@@ -257,17 +326,22 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         ),
       );
       
-      debugPrint('DuelPage - Sonuç sayfasına yönlendirme başarılı');
+      debugPrint('✅ DuelPage - Sonuç sayfasına yönlendirme başarılı');
     } catch (e) {
-      debugPrint('DuelPage - Sonuç sayfasına yönlendirme hatası: $e');
+      debugPrint('❌ DuelPage - Sonuç sayfasına yönlendirme hatası: $e');
+      _hasNavigatedToResult = false; // Reset flag on error
     }
   }
 
   // Bekleme odasına yönlendirme metodu
   Future<void> _navigateToWaitingRoom() async {
-    if (!mounted || _hasNavigatedToResult) return;
+    if (!mounted || !context.mounted || _hasNavigatedToWaitingRoom || _hasNavigatedToResult) {
+      debugPrint('🚫 DuelPage - Navigation iptal edildi: mounted=$mounted, context.mounted=${context.mounted}, hasNavigatedToWaitingRoom=$_hasNavigatedToWaitingRoom, hasNavigatedToResult=$_hasNavigatedToResult');
+      return;
+    }
     
-    debugPrint('DuelPage - Bekleme odasına yönlendiriliyor');
+    _hasNavigatedToWaitingRoom = true; // Flag'i set et
+    debugPrint('🏠 DuelPage - Bekleme odasına yönlendiriliyor...');
     
     try {
       final gameStarted = await Navigator.of(context).push<bool>(
@@ -276,23 +350,123 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         ),
       );
       
-      debugPrint('DuelPage - Bekleme odasından döndü, gameStarted: $gameStarted');
+      debugPrint('🔙 DuelPage - Bekleme odasından döndü, gameStarted: $gameStarted');
+      
+      // Flag'i reset et
+      _hasNavigatedToWaitingRoom = false;
       
       // Eğer oyun başlamadıysa ana sayfaya dön
-      if (gameStarted != true && mounted) {
-        debugPrint('DuelPage - Oyun başlamadı, ana sayfaya dönülüyor');
-        final viewModel = Provider.of<DuelViewModel>(context, listen: false);
-        await viewModel.leaveGame();
-        Navigator.of(context).pop();
+      if (gameStarted != true && mounted && context.mounted) {
+        debugPrint('🏠 DuelPage - Oyun başlamadı, ana sayfaya dönülüyor');
+        try {
+          // ViewModel referansını güvenli bir şekilde al
+          final viewModel = _viewModel ?? Provider.of<DuelViewModel>(context, listen: false);
+          await viewModel.leaveGame();
+          
+          if (mounted && context.mounted && Navigator.canPop(context)) {
+            Navigator.of(context).pop();
+          }
+        } catch (vmError) {
+          debugPrint('❌ DuelPage - ViewModel error in _navigateToWaitingRoom: $vmError');
+          // ViewModel hatası olsa bile güvenli navigation
+          try {
+            if (mounted && context.mounted && Navigator.canPop(context)) {
+              Navigator.of(context).pop();
+            }
+          } catch (navError) {
+            debugPrint('❌ DuelPage - Navigation error: $navError');
+          }
+        }
       }
     } catch (e) {
-      debugPrint('DuelPage - Bekleme odasına yönlendirme hatası: $e');
+      debugPrint('❌ DuelPage - Bekleme odasına yönlendirme hatası: $e');
+    }
+  }
+
+  Future<bool> _showExitConfirmDialog() async {
+    if (!mounted || !context.mounted) {
+      debugPrint('🚫 DuelPage - Exit confirm dialog iptal edildi, widget mounted değil');
+      return false;
+    }
+    
+    try {
+      return await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF2A2A2A),
+            title: const Text(
+              '🚪 Düellodan Çık',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              'Düellodan çıkmak istediğinizden emin misiniz?\nOyunu kaybetmiş sayılacaksınız!',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  try {
+                    if (Navigator.canPop(dialogContext)) {
+                      Navigator.of(dialogContext).pop(false);
+                    }
+                  } catch (e) {
+                    debugPrint('❌ Exit dialog cancel error: $e');
+                  }
+                },
+                child: const Text(
+                  'İptal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  try {
+                    if (Navigator.canPop(dialogContext)) {
+                      Navigator.of(dialogContext).pop(true);
+                    }
+                  } catch (e) {
+                    debugPrint('❌ Exit dialog confirm error: $e');
+                  }
+                },
+                child: const Text(
+                  'Çık',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          );
+        },
+      ) ?? false;
+    } catch (e) {
+      debugPrint('❌ Exit confirm dialog error: $e');
+      return false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        
+        try {
+          if (!mounted || !context.mounted) {
+            debugPrint('🚫 DuelPage - PopScope callback iptal edildi, widget mounted değil');
+            return;
+          }
+          
+          final shouldPop = await _showExitConfirmDialog();
+          if (shouldPop && mounted && context.mounted && Navigator.canPop(context)) {
+            Navigator.of(context).pop();
+          }
+        } catch (e) {
+          debugPrint('❌ DuelPage - PopScope callback error: $e');
+        }
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
         title: const Text(
@@ -394,77 +568,97 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       ),
       body: Consumer<DuelViewModel>(
         builder: (context, viewModel, child) {
+          final gameState = viewModel.gameState;
           final game = viewModel.currentGame;
           
-          // Debug bilgisi
-          if (game != null) {
-            debugPrint('DuelPage build - Oyun durumu: ${game.status}, showingCountdown: ${viewModel.showingCountdown}, isGameActive: ${viewModel.isGameActive}');
-          }
+          debugPrint('🎮 DuelPage build - GameState: $gameState, Game: ${game?.status}');
           
-          // Oyun yükleniyor
-          if (game == null) {
-            debugPrint('DuelPage - Oyun null, loading gösteriliyor');
-            // Timeout olmuşsa error göster
-            if (_hasTimedOut) {
-              return _buildErrorState();
-            }
-            // Oyun başlatılıyorsa loading göster
-            return _buildLoadingState();
-          }
-          
-          // Bekleme durumu - bu durumda bekleme odası açık olmalı
-          if (game.status == GameStatus.waiting) {
-            debugPrint('DuelPage - Oyun waiting durumunda, loading gösteriliyor');
-            return _buildLoadingState();
-          }
-
-          // Countdown göster
-          if (viewModel.showingCountdown) {
-            debugPrint('DuelPage - Countdown gösteriliyor');
-            return _buildGameStartCountdown();
-          }
-
-          // Oyun bitti kontrolü
-          if (game.status == GameStatus.finished) {
-            debugPrint('DuelPage - Oyun bitti, sonuç sayfasına yönlendiriliyor');
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                _navigateToResultPage(game);
+          // Game State'e göre UI render et
+          switch (gameState) {
+            case GameState.initializing:
+              return _buildInitializingState();
+              
+            case GameState.searching:
+              return _buildSearchingState();
+              
+            case GameState.waitingRoom:
+              if (game == null) {
+                return _buildLoadingState();
               }
-            });
-            return _buildGameFinishedState();
+              
+              // Waiting room sayfasına yönlendir
+              if (!_hasNavigatedToWaitingRoom) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && !_hasNavigatedToWaitingRoom) {
+                    _navigateToWaitingRoom();
+                  }
+                });
+              }
+              
+              return _buildWaitingRoomState(viewModel, game);
+              
+            case GameState.opponentFound:
+              return _buildOpponentFoundState(viewModel);
+              
+            case GameState.gameStarting:
+              return _buildGameStartCountdown();
+              
+            case GameState.playing:
+              if (game == null) {
+                return _buildLoadingState();
+              }
+              return Column(
+                children: [
+                  // Oyuncu bilgileri
+                  _buildPlayersInfo(viewModel),
+                  
+                  // Oyun tahtası
+                  Expanded(
+                    child: _buildGameBoard(viewModel),
+                  ),
+                  
+                  // Klavye
+                  if (viewModel.isGameActive)
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                      child: _DuelKeyboardWidget(viewModel: viewModel),
+                    ),
+                ],
+              );
+              
+            case GameState.finished:
+              if (game != null) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && !_hasNavigatedToResult) {
+                    _navigateToResultPage(game);
+                  }
+                });
+              }
+              return _buildGameFinishedState();
+              
+            case GameState.error:
+              return _buildErrorState();
+              
+            default:
+              return _buildLoadingState();
           }
-
-          // Aktif oyun
-          debugPrint('DuelPage - Aktif oyun gösteriliyor');
-          return Column(
-            children: [
-              // Oyuncu bilgileri
-              _buildPlayersInfo(viewModel),
-              
-              // Oyun tahtası
-              Expanded(
-                child: _buildGameBoard(viewModel),
-              ),
-              
-              // Klavye
-              if (viewModel.isGameActive)
-                Container(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                  child: _DuelKeyboardWidget(viewModel: viewModel),
-                ),
-            ],
-          );
         },
       ),
-    );
+    ));
   }
 
   void _showExitDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
+    if (!mounted || !context.mounted) {
+      debugPrint('🚫 DuelPage - Exit dialog iptal edildi, widget mounted değil');
+      return;
+    }
+    
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) {
+          return AlertDialog(
           backgroundColor: const Color(0xFF2A2A2A),
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -485,7 +679,15 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                try {
+                  if (Navigator.canPop(dialogContext)) {
+                    Navigator.of(dialogContext).pop();
+                  }
+                } catch (e) {
+                  debugPrint('❌ Exit dialog devam et error: $e');
+                }
+              },
               child: const Text(
                 'Devam Et',
                 style: TextStyle(color: Colors.blue),
@@ -494,19 +696,30 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
             ElevatedButton(
               onPressed: () async {
                 try {
-                  Navigator.of(context).pop();
-                  final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+                  // Önce dialog'u kapat
+                  if (Navigator.canPop(dialogContext)) {
+                    Navigator.of(dialogContext).pop();
+                  }
+                  
+                  // Widget hala mounted mı kontrol et
+                  if (!mounted || !context.mounted) return;
+                  
+                  final viewModel = _viewModel ?? Provider.of<DuelViewModel>(context, listen: false);
                   await viewModel.leaveGame();
                   
-                  // Mounted kontrolü ekle
-                  if (mounted) {
+                  // Ana sayfaya dön - mounted kontrolü ile
+                  if (mounted && context.mounted) {
                     Navigator.popUntil(context, (route) => route.isFirst);
                   }
                 } catch (e) {
-                  debugPrint('Exit button error: $e');
-                  // Hata olsa bile güvenli şekilde çık
-                  if (mounted) {
-                    Navigator.of(context).pop();
+                  debugPrint('❌ Exit button error: $e');
+                  // Hata durumunda güvenli çıkış
+                  try {
+                    if (mounted && context.mounted && Navigator.canPop(context)) {
+                      Navigator.of(context).pop();
+                    }
+                  } catch (navError) {
+                    debugPrint('❌ Navigation error: $navError');
                   }
                 }
               },
@@ -525,13 +738,16 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
         );
       },
     );
+    } catch (e) {
+      debugPrint('❌ Exit dialog error: $e');
+    }
   }
 
   Widget _buildLoadingState() {
     return Center(
-            child: Column(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-              children: [
+        children: [
           // Animasyonlu düello ikonları
           AnimatedBuilder(
             animation: _pulseAnimation,
@@ -546,7 +762,7 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
                   ),
                   child: const Icon(
                     Icons.sports_martial_arts,
-            color: Colors.blue,
+                    color: Colors.blue,
                     size: 48,
                   ),
                 ),
@@ -559,100 +775,79 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
             strokeWidth: 3,
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Düello Hazırlanıyor...',
-                  style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-                fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Rakip aranıyor veya oyun oluşturuluyor',
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-            ),
-            textAlign: TextAlign.center,
+          Consumer<DuelViewModel>(
+            builder: (context, viewModel, child) {
+              String title = 'Düello Hazırlanıyor...';
+              String subtitle = 'Online rakip aranıyor...';
+              
+              switch (viewModel.gameState) {
+                case GameState.initializing:
+                  title = 'Başlatılıyor...';
+                  subtitle = 'Oyun hazırlanıyor';
+                  break;
+                case GameState.searching:
+                  title = 'Rakip Aranıyor...';
+                  subtitle = 'Online oyuncular aranıyor';
+                  break;
+                case GameState.waitingRoom:
+                  title = 'Bekleme Odasında...';
+                  subtitle = 'Rakip hazırlanıyor';
+                  break;
+                default:
+                  break;
+              }
+              
+              return Column(
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '⚡ Sistem otomatik eşleştirme yapıyor',
+                          style: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 12,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.wifi_off,
-            color: Colors.orange,
-            size: 64,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Bağlantı Sorunu',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'İnternet bağlantınızı kontrol edin',
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton(
-                onPressed: () {
-                  // Tekrar dene
-                  setState(() {
-                    _hasStartedGame = false;
-                    _hasTimedOut = false;
-                  });
-                  _startGame();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('Tekrar Dene'),
-              ),
-              const SizedBox(width: 16),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey,
-              foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-                child: const Text('Ana Sayfa'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildGameFinishedState() {
     return const Center(
@@ -826,6 +1021,13 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
     required int currentColumn,
     required DuelViewModel viewModel,
   }) {
+    // Geçersiz kelime kontrolü
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _checkForInvalidWord(viewModel);
+      }
+    });
+    
     return Column(
       children: [
         Text(
@@ -869,6 +1071,52 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
                     boxColor = const Color(0xFF565758);
                   }
                 }
+              }
+              
+              // Geçersiz kelime durumunda kırmızı border kontrolü
+              bool shouldShowRedBorder = _shouldShowRedBorder && 
+                                       player != null && 
+                                       row == player.currentAttempt;
+              
+              if (shouldShowRedBorder) {
+                return AnimatedBuilder(
+                  animation: _borderAnimation,
+                  builder: (context, child) {
+                    final animatedBorderColor = Color.lerp(
+                      const Color(0xFF565758),
+                      Colors.red.shade400,
+                      _borderAnimation.value,
+                    )!;
+                    
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: boxColor,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: animatedBorderColor,
+                          width: 2.0 + (_borderAnimation.value * 1.0),
+                        ),
+                        boxShadow: _borderAnimation.value > 0.5 ? [
+                          BoxShadow(
+                            color: Colors.red.withOpacity(0.4),
+                            blurRadius: 4,
+                            spreadRadius: 1,
+                          ),
+                        ] : null,
+                      ),
+                      child: Center(
+                        child: Text(
+                          letter,
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
               }
               
               return Container(
@@ -979,16 +1227,30 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   }
 
   Future<void> _buyFirstRowVisibility(DuelViewModel viewModel) async {
-    final success = await viewModel.buyFirstRowVisibility();
-    if (!success && mounted) {
-      _showPowerUpErrorDialog('Yetersiz Jeton', 'İlk satırı görmek için 10 jetona ihtiyacınız var.');
+    try {
+      final success = await viewModel.buyFirstRowVisibility();
+      if (!success && mounted) {
+        _showPowerUpErrorDialog('Yetersiz Jeton', 'İlk satırı görmek için 10 jetona ihtiyacınız var.');
+      }
+    } catch (e) {
+      debugPrint('DuelPage - _buyFirstRowVisibility error: $e');
+      if (mounted) {
+        _showPowerUpErrorDialog('Hata', 'İşlem sırasında bir hata oluştu.');
+      }
     }
   }
 
   Future<void> _buyAllRowsVisibility(DuelViewModel viewModel) async {
-    final success = await viewModel.buyAllRowsVisibility();
-    if (!success && mounted) {
-      _showPowerUpErrorDialog('Yetersiz Jeton', 'Tüm satırları görmek için 20 jetona ihtiyacınız var.');
+    try {
+      final success = await viewModel.buyAllRowsVisibility();
+      if (!success && mounted) {
+        _showPowerUpErrorDialog('Yetersiz Jeton', 'Tüm satırları görmek için 20 jetona ihtiyacınız var.');
+      }
+    } catch (e) {
+      debugPrint('DuelPage - _buyAllRowsVisibility error: $e');
+      if (mounted) {
+        _showPowerUpErrorDialog('Hata', 'İşlem sırasında bir hata oluştu.');
+      }
     }
   }
 
@@ -1028,92 +1290,110 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
   }
 
   void _showHintDialog(String hintLetter) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.lightbulb, color: Colors.amber, size: 24),
-            ),
-            const SizedBox(width: 12),
-            const Text('İpucu!', style: TextStyle(color: Colors.white, fontSize: 20)),
-          ],
-        ),
-        content: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.amber.withOpacity(0.1), Colors.orange.withOpacity(0.1)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.amber.withOpacity(0.3)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    if (!mounted || !context.mounted) {
+      debugPrint('🚫 DuelPage - Hint dialog iptal edildi, widget mounted değil');
+      return;
+    }
+    
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
             children: [
-              const Text(
-                'Kelimede şu harf var:',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
               Container(
-                width: 60,
-                height: 60,
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.amber,
+                  color: Colors.amber.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.amber.withOpacity(0.4),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
                 ),
-                child: Center(
-                  child: Text(
-                    hintLetter,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
+                child: const Icon(Icons.lightbulb, color: Colors.amber, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Text('İpucu!', style: TextStyle(color: Colors.white, fontSize: 20)),
+            ],
+          ),
+          content: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.amber.withOpacity(0.1), Colors.orange.withOpacity(0.1)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.amber.withOpacity(0.3)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Kelimede şu harf var:',
+                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.amber,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.amber.withOpacity(0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      hintLetter,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                '💡 Bu harfi kelimende kullanabilirsin!',
-                style: TextStyle(color: Colors.amber, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                const SizedBox(height: 16),
+                const Text(
+                  '💡 Bu harfi kelimende kullanabilirsin!',
+                  style: TextStyle(color: Colors.amber, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            child: const Text('Anladım!', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-        ],
-      ),
-    );
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                try {
+                  if (Navigator.canPop(dialogContext)) {
+                    Navigator.pop(dialogContext);
+                  }
+                } catch (e) {
+                  debugPrint('❌ Hint dialog close error: $e');
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Anladım!', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ Hint dialog error: $e');
+    }
   }
 
   Widget _buildPowerUpButton(
@@ -1217,6 +1497,375 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildInitializingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _pulseAnimation.value,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.settings,
+                    color: Colors.blue,
+                    size: 48,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          const CircularProgressIndicator(
+            color: Colors.blue,
+            strokeWidth: 3,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Oyun Hazırlanıyor...',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+            ),
+            child: const Text(
+              'Düello modu başlatılıyor',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _pulseAnimation.value,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.search,
+                    color: Colors.orange,
+                    size: 48,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          const CircularProgressIndicator(
+            color: Colors.orange,
+            strokeWidth: 3,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Rakip Aranıyor...',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+            ),
+            child: const Column(
+              children: [
+                Text(
+                  'Online oyuncular aranıyor',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '⚡ Sistem otomatik eşleştirme yapıyor',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaitingRoomState(DuelViewModel viewModel, DuelGame game) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _pulseAnimation.value,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.people,
+                    color: Colors.green,
+                    size: 48,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          const CircularProgressIndicator(
+            color: Colors.green,
+            strokeWidth: 3,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Rakip Bulundu!',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
+            ),
+            child: Column(
+              children: [
+                const Text(
+                  'Oyun hazırlanıyor...',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                if (viewModel.opponentPlayer != null)
+                  Text(
+                    'Rakip: ${viewModel.opponentPlayer!.playerName}',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOpponentFoundState(DuelViewModel viewModel) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _pulseAnimation.value,
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [Colors.green.shade400, Colors.blue.shade400],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.4),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Colors.white,
+                    size: 60,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 32),
+          const Text(
+            'Rakip Bulundu!',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (viewModel.opponentPlayer != null)
+            Text(
+              'vs ${viewModel.opponentPlayer!.playerName}',
+              style: const TextStyle(
+                color: Colors.green,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          const SizedBox(height: 24),
+          const Text(
+            'Oyun başlamak üzere...',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.error_outline,
+              color: Colors.red,
+              size: 48,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Bağlantı Hatası',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            margin: const EdgeInsets.symmetric(horizontal: 32),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.red.withOpacity(0.3)),
+            ),
+            child: const Column(
+              children: [
+                Text(
+                  'Oyun başlatılamadı',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '• İnternet bağlantınızı kontrol edin\n• Uygulamayı yeniden başlatın\n• Daha sonra tekrar deneyin',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () async {
+              try {
+                final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+                await _startDuelGame(viewModel);
+              } catch (e) {
+                debugPrint('❌ Retry button error: $e');
+              }
+            },
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            label: const Text(
+              'Tekrar Dene',
+              style: TextStyle(color: Colors.white),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+          ),
+        ],
       ),
     );
   }

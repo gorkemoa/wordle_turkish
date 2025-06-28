@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../viewmodels/leaderboard_viewmodel.dart';
 import '../models/leaderboard.dart';
 
+// Başarı tablosu
+
 class LeaderboardPage extends StatefulWidget {
   const LeaderboardPage({Key? key}) : super(key: key);
 

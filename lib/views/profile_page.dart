@@ -4,6 +4,8 @@ import '../services/firebase_service.dart';
 import '../services/avatar_service.dart';
 import '../widgets/avatar_selector.dart';
 
+// Profil sayfası
+
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
 
@@ -254,7 +256,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         const SizedBox(height: 16),
         Text(
-          user.displayName ?? 'Anonim Oyuncu',
+          userStats?['displayName'] ?? user.displayName ?? 'Oyuncu',
           style: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -290,7 +292,7 @@ class _ProfilePageState extends State<ProfilePage> {
           _buildEditableInfoCard(
             icon: Icons.person,
             title: 'İsim',
-            value: user.displayName ?? 'Belirtilmemiş',
+            value: userStats?['displayName'] ?? user.displayName ?? 'Oyuncu',
             isEditable: true,
             onEdit: () => _showEditNameDialog(user),
           )
@@ -298,7 +300,7 @@ class _ProfilePageState extends State<ProfilePage> {
           _buildInfoCard(
             icon: Icons.person,
             title: 'İsim',
-            value: user.displayName ?? 'Belirtilmemiş',
+            value: userStats?['displayName'] ?? user.displayName ?? 'Oyuncu',
           ),
         const SizedBox(height: 16),
         _buildInfoCard(
@@ -624,19 +626,32 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _showEditNameDialog(User user) {
-    final controller = TextEditingController(text: user.displayName ?? '');
+    final currentName = userStats?['displayName'] ?? user.displayName ?? '';
+    final controller = TextEditingController(text: currentName);
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('İsim Değiştir'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Yeni İsim',
-            border: OutlineInputBorder(),
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Yeni kullanıcı adınızı girin (2-20 karakter)',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              maxLength: 20,
+              decoration: const InputDecoration(
+                labelText: 'Kullanıcı Adı',
+                hintText: 'Örn: OyuncuAdım',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -646,18 +661,55 @@ class _ProfilePageState extends State<ProfilePage> {
           ElevatedButton(
             onPressed: () async {
               final newName = controller.text.trim();
-              if (newName.isNotEmpty && newName.length >= 2 && newName.length <= 20) {
+              if (newName.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Kullanıcı adı boş olamaz!'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              if (newName.length < 2) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Kullanıcı adı en az 2 karakter olmalı!'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              
+              // Hem Firebase Auth hem de Firestore'u güncelle
+              try {
                 final success = await FirebaseService.updateUserDisplayName(user.uid, newName);
+                
                 if (success && mounted) {
+                  await user.updateDisplayName(newName);
                   Navigator.pop(context);
-                  setState(() {});
+                  await _loadUserStats(); // Verileri yeniden yükle
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('İsim güncellendi!'),
+                      content: Text('İsim başarıyla güncellendi!'),
                       backgroundColor: Color(0xFF4285F4),
                     ),
                   );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Bu kullanıcı adı zaten kullanımda! Lütfen farklı bir isim deneyin.'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 4),
+                    ),
+                  );
                 }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Hata: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
             child: const Text('Kaydet'),

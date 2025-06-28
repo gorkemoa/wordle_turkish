@@ -28,7 +28,7 @@ extension TurkishCaseExtension on String {
 }
 
 enum GameMode {
-  daily,    // Günlük mod - hep 5 harfli
+  unlimited, // Serbest mod - sınırsız oynama, 5 harfli
   challenge, // Zorlu mod - 4'ten 8'e kademeli
   timeRush, // Zamana Karşı - 60 saniyede mümkün olduğunca çok kelime
   themed    // Tema Modları - kategoriye özel kelimeler
@@ -61,7 +61,7 @@ class WordleViewModel extends ChangeNotifier {
   bool _totalTimerRunning = false;
 
   // Oyun modu
-  GameMode _gameMode = GameMode.daily;
+  GameMode _gameMode = GameMode.unlimited;
 
   // Dinamik kelime uzunluğu ve seviye
   int _currentLevel = 1;
@@ -142,24 +142,46 @@ class WordleViewModel extends ChangeNotifier {
   int get timeRushSeconds => _timeRushSeconds;
   bool get timeRushActive => _timeRushActive;
 
+  // Kazanma durumu kontrol edicisi
+  bool get isWinner {
+    if (!_gameOver) return false;
+    
+    // Tüm tahminleri kontrol et
+    for (int i = 0; i < _guesses.length; i++) {
+      final guess = _guesses[i].join().toTurkishUpperCase();
+      if (guess == _secretWord && guess.isNotEmpty) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // Zorlu moda erişim kontrolü
   bool get canPlayChallengeMode {
-    if (_lastChallengeModePlay == null) return true;
-    final now = DateTime.now();
-    final difference = now.difference(_lastChallengeModePlay!);
-    return difference.inHours >= 24;
+    // TEST İÇİN SÜREKLI AÇIK
+    return true;
+    
+    // Orijinal 24 saatlik kısıtlama (test bitince aç)
+    // if (_lastChallengeModePlay == null) return true;
+    // final now = DateTime.now();
+    // final difference = now.difference(_lastChallengeModePlay!);
+    // return difference.inHours >= 24;
   }
   
   // Zorlu mod için kalan süre (saat cinsinden)
   int get hoursUntilNextChallengeMode {
-    if (_lastChallengeModePlay == null) return 0;
-    final now = DateTime.now();
-    final difference = now.difference(_lastChallengeModePlay!);
-    final hoursLeft = 24 - difference.inHours;
-    return hoursLeft > 0 ? hoursLeft : 0;
+    // TEST İÇİN SÜREKLI 0 (erişilebilir)
+    return 0;
+    
+    // Orijinal 24 saatlik kısıtlama hesabı (test bitince aç)
+    // if (_lastChallengeModePlay == null) return 0;
+    // final now = DateTime.now();
+    // final difference = now.difference(_lastChallengeModePlay!);
+    // final hoursLeft = 24 - difference.inHours;
+    // return hoursLeft > 0 ? hoursLeft : 0;
   }
 
-  Future<void> resetGame({GameMode? mode, String? themeId}) async {
+  Future<void> resetGame({GameMode? mode, String? themeId, int? customWordLength, int? customTimerDuration}) async {
     _gameOver = false;
     _needsShake = false;
     _keyboardColors.clear();
@@ -181,9 +203,9 @@ class WordleViewModel extends ChangeNotifier {
 
     // Mod bazında kelime uzunluğunu ve özel ayarları belirle
     switch (_gameMode) {
-      case GameMode.daily:
-        _currentWordLength = 5; // Günlük mod her zaman 5 harfli
-        _currentLevel = 1; // Günlük modda seviye yok
+      case GameMode.unlimited:
+        _currentWordLength = customWordLength ?? 5; // Serbest mod: custom veya varsayılan 5 harfli
+        _currentLevel = 1; // Serbest modda seviye yok
         break;
       case GameMode.challenge:
         // Zorlu mod - seviye bazında kelime uzunluğunu ayarla
@@ -218,6 +240,12 @@ class WordleViewModel extends ChangeNotifier {
     // Gizli kelimeyi seç
     _secretWord = selectRandomWord();
     debugPrint('Gizli Kelime: $_secretWord ($_gameMode Mod)');
+    
+    // Zamana karşı modunda ilk kelime için otomatik ipucu ver
+    if (_gameMode == GameMode.timeRush) {
+      _giveAutoHint();
+    }
+    
     notifyListeners();
 
     // Zamanlayıcıyı başlat
@@ -225,7 +253,7 @@ class WordleViewModel extends ChangeNotifier {
       _startTimeRushTimer();
     } else if (_gameMode != GameMode.challenge) {
       // Zorlu modda zamanlayıcı yok
-      _startTotalTimer();
+      _startTotalTimer(customDuration: customTimerDuration);
     }
   }
 
@@ -467,6 +495,10 @@ class WordleViewModel extends ChangeNotifier {
     }
 
     if (row == _currentAttempt && !_gameOver) {
+      // İpucu harfi gösteriliyorsa sarı arka plan
+      if (isHintRevealed(col)) {
+        return Colors.amber.withOpacity(0.3);
+      }
       return Colors.grey.shade800;
     }
 
@@ -479,9 +511,9 @@ class WordleViewModel extends ChangeNotifier {
   }
 
   // Toplam oyun zamanlayıcı yöntemleri
-  void _startTotalTimer() {
+  void _startTotalTimer({int? customDuration}) {
     _totalTimerRunning = true;
-    _totalRemainingSeconds = totalGameSeconds;
+    _totalRemainingSeconds = customDuration ?? totalGameSeconds;
     notifyListeners();
 
     _totalTimer?.cancel();
@@ -851,31 +883,39 @@ class WordleViewModel extends ChangeNotifier {
     _timeRushActive = false;
     notifyListeners();
 
-    // Skorunu Firebase'e kaydet
+    // Oyun sonucu Firebase'e kaydet
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         await FirebaseService.saveTimeRushScore(
           user.uid, 
           _wordsGuessedCount, 
-          60, // Toplam süre
-          _timeRushScore
+          60, // Başlangıç süresi
+          _wordsGuessedCount * 2 // Toplam kazanılan jeton
         );
-        
-        // Jeton ödülü
-        if (_wordsGuessedCount > 0) {
-          await FirebaseService.earnTokens(user.uid, _wordsGuessedCount, 'Zamana Karşı Modu');
-        }
       }
     } catch (e) {
       debugPrint('Zamana karşı skor kaydetme hatası: $e');
     }
   }
 
-  void nextTimeRushWord() {
-    // Skoru güncelle
-    _timeRushScore += (60 - _timeRushSeconds) * 10; // Hızlı bulma bonusu
+  void nextTimeRushWord() async {
+    // Kelime sayısını artır
     _wordsGuessedCount++;
+    
+    // Her doğru kelimede +30 saniye bonus süre ekle
+    _timeRushSeconds = (_timeRushSeconds + 30).clamp(0, 120); // Maksimum 120 saniye
+    
+    // Her doğru kelimede 2 jeton ver
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseService.earnTokens(user.uid, 2, 'Zamana Karşı - Kelime Doğru');
+        await _loadUserTokens(); // Jeton sayısını güncelle
+      }
+    } catch (e) {
+      debugPrint('Jeton verme hatası: $e');
+    }
     
     // Yeni kelime seç
     _secretWord = selectRandomWord();
@@ -884,11 +924,30 @@ class WordleViewModel extends ChangeNotifier {
     _currentAttempt = 0;
     _currentColumn = 0;
     _keyboardColors.clear();
+    _revealedHints.clear(); // İpuçlarını sıfırla
     _guesses = List.generate(maxAttempts, (_) => List.filled(_currentWordLength, ''));
     _guessColors = List.generate(maxAttempts, (_) => List.filled(_currentWordLength, Colors.transparent));
     
-    debugPrint('Yeni zamana karşı kelime: $_secretWord (Skor: $_timeRushScore)');
+    // Yeni kelime için otomatik ipucu ver (ilk harf hariç rastgele bir harf)
+    _giveAutoHint();
+    
+    debugPrint('Yeni zamana karşı kelime: $_secretWord (Kelime: $_wordsGuessedCount, Süre: +30s, Jeton: +2)');
     notifyListeners();
+  }
+
+  /// Zamana karşı modunda otomatik ipucu ver (ilk harf hariç rastgele bir harf)
+  void _giveAutoHint() {
+    if (_gameMode == GameMode.timeRush && _secretWord.isNotEmpty) {
+      // İlk harf hariç rastgele bir pozisyon seç (1'den başla)
+      final List<int> availablePositions = List.generate(_currentWordLength - 1, (index) => index + 1);
+      availablePositions.shuffle();
+      
+      if (availablePositions.isNotEmpty) {
+        final int hintPosition = availablePositions.first;
+        _revealedHints.add(hintPosition);
+        debugPrint('Otomatik ipucu: ${hintPosition + 1}. pozisyon -> ${_secretWord[hintPosition]}');
+      }
+    }
   }
 
   @override

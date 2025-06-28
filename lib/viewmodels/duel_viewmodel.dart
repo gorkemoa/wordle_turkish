@@ -22,7 +22,8 @@ class DuelViewModel extends ChangeNotifier {
   StreamSubscription<DuelGame?>? _gameSubscription;
   StreamSubscription<String?>? _matchmakingSubscription;
   
-  // UI durumu
+  // UI durumu - Düzgün state management
+  GameState _gameState = GameState.initializing;
   bool _showingCountdown = false;
   bool _opponentFound = false;
   int _preGameCountdown = 5;
@@ -47,8 +48,9 @@ class DuelViewModel extends ChangeNotifier {
   // Animasyon
   bool _needsShake = false;
 
-  // Callback for opponent found
+  // Callback for navigation - Simplified
   Function()? onOpponentFoundCallback;
+  Function()? onGameStartCallback;
 
   // Getters
   DuelGame? get currentGame => _currentGame;
@@ -66,6 +68,7 @@ class DuelViewModel extends ChangeNotifier {
   int get preGameCountdown => _preGameCountdown;
   bool get firstRowVisible => _firstRowVisible;
   bool get allRowsVisible => _allRowsVisible;
+  GameState get gameState => _gameState;
 
   Duration get gameDuration {
     if (_gameStartTime == null) return Duration.zero;
@@ -92,129 +95,206 @@ class DuelViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
-    _gameSubscription?.cancel();
-    _matchmakingSubscription?.cancel();
+    _cleanupSubscriptions();
     _preGameTimer?.cancel();
     super.dispose();
   }
 
-  // Ana oyun başlatma
+  void _cleanupSubscriptions() {
+    _gameSubscription?.cancel();
+    _matchmakingSubscription?.cancel();
+    _gameSubscription = null;
+    _matchmakingSubscription = null;
+  }
+
+  // Ana oyun başlatma - Simplified flow
   Future<bool> startDuelGame() async {
     try {
-      debugPrint('=== DÜELLO BAŞLADI ===');
+      debugPrint('🎮 === DÜELLO BAŞLADI ===');
+      
+      _gameState = GameState.initializing;
+      notifyListeners();
       
       final user = FirebaseService.getCurrentUser();
       if (user == null) {
-        debugPrint('HATA: Kullanıcı giriş yapmamış');
+        debugPrint('❌ HATA: Kullanıcı giriş yapmamış');
+        _gameState = GameState.error;
+        notifyListeners();
         return false;
       }
 
       final currentTokens = await FirebaseService.getUserTokens(user.uid);
       if (currentTokens < 2) {
-        debugPrint('HATA: Yetersiz jeton: $currentTokens/2');
+        debugPrint('❌ HATA: Yetersiz jeton: $currentTokens/2');
+        _gameState = GameState.error;
+        notifyListeners();
         return false;
       }
 
       await loadValidWords();
-      _playerName = FirebaseService.generatePlayerName();
+      
+      // Kullanıcının gerçek adını kullan
+      final userProfile = await FirebaseService.getUserProfile(user.uid);
+      _playerName = userProfile?['displayName'] ?? user.displayName ?? 'Oyuncu${user.uid.substring(0, 4)}';
+      
       final secretWord = _selectRandomWord();
       
-      debugPrint('Oyuncu: $_playerName, Kelime: $secretWord');
+      debugPrint('👤 Oyuncu: $_playerName');
+      debugPrint('🔤 Kelime: $secretWord');
+
+      _gameState = GameState.searching;
+      notifyListeners();
 
       final result = await FirebaseService.findOrCreateGame(_playerName, secretWord);
       if (result == null) {
-        debugPrint('HATA: Matchmaking başarısız');
+        debugPrint('❌ HATA: Matchmaking başarısız');
+        _gameState = GameState.error;
+        notifyListeners();
         return false;
       }
 
+      // Sonuç analizi - User ID vs Game ID
       if (result == user.uid) {
-        debugPrint('Queue\'da bekleniyor...');
+        debugPrint('⏳ Queue\'da bekleniyor, listener başlatılıyor...');
+        _gameState = GameState.searching;
         _startMatchmakingListener(user.uid);
       } else {
-        debugPrint('Direkt oyun: $result');
+        debugPrint('🎯 Direkt oyun bulundu: $result');
         _gameId = result;
+        _gameState = GameState.waitingRoom;
         _startGameListener();
+        
+        // Callback'i _updateGameState'de çağıracağız
+        debugPrint('📞 Direkt oyun bulundu, waiting room state\'e geçildi');
       }
 
+      notifyListeners();
       return true;
     } catch (e) {
-      debugPrint('HATA: $e');
+      debugPrint('❌ HATA: $e');
+      _gameState = GameState.error;
+      notifyListeners();
       return false;
     }
   }
 
-  // Matchmaking listener
+  // Matchmaking listener - Basitleştirilmiş
   void _startMatchmakingListener(String userId) {
+    debugPrint('🔄 Matchmaking listener başlatıldı');
+    
+    _matchmakingSubscription?.cancel();
     _matchmakingSubscription = FirebaseService.listenToMatchmaking(userId).listen(
       (result) {
+        debugPrint('📡 Matchmaking result: $result');
+        
         if (result == 'REMOVED_FROM_QUEUE') {
-          debugPrint('DuelViewModel - Queue\'dan çıkarıldı, oyun bulunmayı bekliyoruz...');
-          // Queue'dan çıkarıldığında background matchmaking zaten oyunu oluşturmuş olacak
-          // Sadece bekliyoruz, arama yapmıyoruz
+          debugPrint('⚠️ Queue\'dan çıkarıldı - oyun bulunmayı bekliyoruz...');
+          // Sadece bekliyoruz, background matchmaking oyunu oluşturacak
         } else if (result != null && result != 'REMOVED_FROM_QUEUE') {
-          debugPrint('DuelViewModel - Oyun bulundu: $result');
+          debugPrint('🎯 Oyun bulundu: $result');
+          
           _gameId = result;
-          
-          // Oyun bulunduğunda direkt callback çağır
-          if (onOpponentFoundCallback != null) {
-            debugPrint('DuelViewModel - Rakip bulundu callback çağrılıyor');
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              onOpponentFoundCallback!();
-            });
-          }
-          
+          _gameState = GameState.waitingRoom;
           _startGameListener();
+          
+          // Callback'i _updateGameState'de çağıracağız
+          debugPrint('📞 Matchmaking oyun bulundu, waiting room state\'e geçildi');
+          
+          notifyListeners();
         }
       },
-      onError: (error) => debugPrint('Matchmaking error: $error'),
+      onError: (error) {
+        debugPrint('❌ Matchmaking error: $error');
+        _gameState = GameState.error;
+        notifyListeners();
+      },
     );
   }
 
-
-
-  // Oyun listener
+  // Oyun listener - Geliştirilmiş
   void _startGameListener() {
-    if (_gameId == null) return;
+    if (_gameId == null) {
+      debugPrint('⚠️ Game ID null, listener başlatılamıyor');
+      return;
+    }
+    
+    debugPrint('🎧 Game listener başlatıldı: $_gameId');
     
     _gameSubscription?.cancel();
     _gameSubscription = FirebaseService.listenToGame(_gameId!).listen(
       (game) {
+        debugPrint('🎮 Game update alındı: ${game?.status}');
         _currentGame = game;
         _updateGameState();
         notifyListeners();
       },
-      onError: (error) => debugPrint('Oyun listener error: $error'),
+      onError: (error) {
+        debugPrint('❌ Oyun listener error: $error');
+        _gameState = GameState.error;
+        notifyListeners();
+      },
     );
   }
 
-  // Oyun durumu güncelle
+  // Oyun durumu güncelle - Yeniden yazıldı
   void _updateGameState() {
     if (_currentGame == null) return;
 
     final gameStatus = _currentGame!.status;
     final playerCount = _currentGame!.players.length;
     
+    debugPrint('🔄 Game state update: Status=$gameStatus, Players=$playerCount');
+    
     _updateKeyboardColors();
     
     switch (gameStatus) {
       case GameStatus.waiting:
-        _isGameActive = false;
-        _showingCountdown = false;
-        
         if (playerCount == 2 && !_opponentFound) {
+          debugPrint('👥 İki oyuncu da hazır, opponent found sequence başlatılıyor');
+          _gameState = GameState.opponentFound;
           _startOpponentFoundSequence();
+        } else {
+          // Eğer yeni waiting room state'ine geçiyorsak callback çağır
+          if (_gameState != GameState.waitingRoom) {
+            debugPrint('🏠 _updateGameState - Waiting room state\'e geçiliyor (playerCount: $playerCount)');
+            _gameState = GameState.waitingRoom;
+            
+            // Callback çağır - Waiting room'a yönlendir
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (onOpponentFoundCallback != null) {
+                debugPrint('📞 _updateGameState - Waiting room callback çağrılıyor');
+                onOpponentFoundCallback!();
+              } else {
+                debugPrint('⚠️ _updateGameState - onOpponentFoundCallback null!');
+              }
+            });
+          } else {
+            debugPrint('🏠 _updateGameState - Zaten waiting room state\'te');
+          }
         }
         break;
         
       case GameStatus.active:
-        if (!_showingCountdown) {
+        if (_gameState != GameState.gameStarting && _gameState != GameState.playing) {
+          debugPrint('🚀 Oyun aktif duruma geçti, countdown başlatılıyor');
+          _gameState = GameState.gameStarting;
           _showingCountdown = true;
           _isGameActive = false;
           _scheduleGameStart();
+          
+          // Game start callback
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (onGameStartCallback != null) {
+              debugPrint('📞 Game start callback çağrılıyor');
+              onGameStartCallback!();
+            }
+          });
         }
         break;
         
       case GameStatus.finished:
+        debugPrint('🏁 Oyun bitti');
+        _gameState = GameState.finished;
         _isGameActive = false;
         _showingCountdown = false;
         _updateTokensForGameResult();
@@ -223,55 +303,61 @@ class DuelViewModel extends ChangeNotifier {
     }
   }
 
-  // Rakip bulundu sekansi
+  // Rakip bulundu sekansi - İyileştirilmiş
   void _startOpponentFoundSequence() {
+    debugPrint('🎉 Opponent found sequence başlatıldı');
+    
     _opponentFound = true;
     _preGameCountdown = 5;
-    notifyListeners();
     
-    // Callback'i UI thread'inde çağır
-    if (onOpponentFoundCallback != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        onOpponentFoundCallback!();
-      });
-    }
-    
+    _preGameTimer?.cancel();
     _preGameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_preGameCountdown > 1) {
         _preGameCountdown--;
-        notifyListeners();
+        debugPrint('⏰ Countdown: $_preGameCountdown');
       } else {
         timer.cancel();
         _preGameTimer = null;
+        debugPrint('✅ Countdown bitti, oyun başlatılıyor');
         _startGameAfterCountdown();
       }
+      notifyListeners();
     });
+    
+    notifyListeners();
   }
 
   // Countdown sonrası oyun başlat
   void _startGameAfterCountdown() {
     _opponentFound = false;
     _preGameCountdown = 5;
+    _gameState = GameState.gameStarting;
     _showingCountdown = true;
     _isGameActive = false;
     notifyListeners();
     _scheduleGameStart();
   }
 
-  // Oyun başlangıcını planla
+  // Oyun başlangıcını planla - İyileştirilmiş
   void _scheduleGameStart() {
+    debugPrint('📅 Game start scheduled');
+    
     Future.delayed(const Duration(seconds: 3), () async {
       if (_currentGame?.status == GameStatus.active) {
+        debugPrint('🎮 Oyun başlıyor!');
+        
         await _deductGameTokens();
         
         _showingCountdown = false;
         _isGameActive = true;
+        _gameState = GameState.playing;
         _gameStartTime = DateTime.now();
         
         if (_currentWord.isEmpty) {
           _currentWord = _currentGame!.secretWord;
         }
         
+        debugPrint('✅ Oyun başladı, kelime: $_currentWord');
         notifyListeners();
       }
     });
@@ -286,15 +372,18 @@ class DuelViewModel extends ChangeNotifier {
       try {
         await FirebaseService.earnTokens(user.uid, -2, 'Düello Oyunu');
         _tokensDeducted = true;
+        debugPrint('💰 2 jeton kesildi');
       } catch (e) {
-        debugPrint('Jeton kesme hatası: $e');
+        debugPrint('❌ Jeton kesme hatası: $e');
       }
     }
   }
 
-  // Oyun terk et
+  // Oyun terk et - İyileştirilmiş
   Future<void> leaveGame() async {
     try {
+      debugPrint('🚪 Oyun terk ediliyor...');
+      
       final user = FirebaseService.getCurrentUser();
       if (user != null) {
         await FirebaseService.leaveMatchmakingQueue(user.uid);
@@ -303,23 +392,45 @@ class DuelViewModel extends ChangeNotifier {
         }
       }
       
-      _gameSubscription?.cancel();
-      _matchmakingSubscription?.cancel();
+      _cleanupSubscriptions();
       _preGameTimer?.cancel();
       
-      _currentGame = null;
-      _gameId = null;
-      _isGameActive = false;
-      _showingCountdown = false;
-      _opponentFound = false;
-      _preGameCountdown = 5;
-      _gameStartTime = null;
-      _tokensDeducted = false;
+      _resetForNewGame();
       
-      notifyListeners();
+      debugPrint('✅ Oyun başarıyla terk edildi');
     } catch (e) {
-      debugPrint('Oyun terk etme hatası: $e');
+      debugPrint('❌ Oyun terk etme hatası: $e');
     }
+  }
+
+  // Oyun sıfırlama - Güncellenmiş
+  void resetForNewGame() {
+    debugPrint('🔄 Oyun sıfırlanıyor...');
+    _resetForNewGame();
+  }
+
+  void _resetForNewGame() {
+    _currentGame = null;
+    _gameId = null;
+    _currentWord = '';
+    _currentColumn = 0;
+    _isGameActive = false;
+    _showingCountdown = false;
+    _opponentFound = false;
+    _preGameCountdown = 5;
+    _gameStartTime = null;
+    _tokensDeducted = false;
+    _firstRowVisible = false;
+    _allRowsVisible = false;
+    _needsShake = false;
+    _gameState = GameState.initializing;
+    _currentGuess = List.filled(wordLength, '');
+    _keyboardLetters.clear();
+    
+    _cleanupSubscriptions();
+    _preGameTimer?.cancel();
+    
+    notifyListeners();
   }
 
   // Rakip görünürlük
@@ -391,31 +502,6 @@ class DuelViewModel extends ChangeNotifier {
     final words = validWordsSet.toList();
     final random = math.Random();
     return words[random.nextInt(words.length)];
-  }
-
-  // Oyun sıfırlama
-  void resetForNewGame() {
-    _currentGame = null;
-    _gameId = null;
-    _currentWord = '';
-    _currentColumn = 0;
-    _isGameActive = false;
-    _showingCountdown = false;
-    _opponentFound = false;
-    _preGameCountdown = 5;
-    _gameStartTime = null;
-    _tokensDeducted = false;
-    _firstRowVisible = false;
-    _allRowsVisible = false;
-    _needsShake = false;
-    _currentGuess = List.filled(wordLength, '');
-    _keyboardLetters.clear();
-    
-    _gameSubscription?.cancel();
-    _matchmakingSubscription?.cancel();
-    _preGameTimer?.cancel();
-    
-    notifyListeners();
   }
 
   // Shake animasyonu sıfırlama
@@ -610,4 +696,16 @@ class DuelViewModel extends ChangeNotifier {
     if (user == null) return 0;
     return await FirebaseService.getUserTokens(user.uid);
   }
+}
+
+// Game State enum
+enum GameState {
+  initializing,
+  searching,
+  waitingRoom,
+  opponentFound,
+  gameStarting,
+  playing,
+  finished,
+  error,
 } 

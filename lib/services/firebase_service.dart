@@ -186,14 +186,21 @@ class FirebaseService {
   }
 
   // Anonymous olarak giriş yap
-  static Future<User?> signInAnonymously() async {
+  static Future<User?> signInAnonymously([String? playerName]) async {
     try {
       final UserCredential result = await _auth.signInAnonymously();
       
-      // Anonymous kullanıcı için rastgele isim oluştur
+      // Anonymous kullanıcı için kullanıcı adını ayarla
       if (result.user != null) {
-        final randomName = generatePlayerName();
-        await _saveUserProfile(result.user!, randomName, '');
+        final displayName = playerName?.trim().isNotEmpty == true 
+            ? playerName!.trim() 
+            : 'Oyuncu'; // Basit fallback
+        
+        // Firebase Auth profilini de güncelle
+        await result.user!.updateDisplayName(displayName);
+        
+        // Firestore'a da kaydet
+        await _saveUserProfile(result.user!, displayName, '');
       }
       
       return result.user;
@@ -282,18 +289,7 @@ class FirebaseService {
   // Kullanıcı giriş durumunu dinle
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // Oyuncu için rastgele isim oluştur
-  static String generatePlayerName() {
-    final adjectives = ['Hızlı', 'Zeki', 'Güçlü', 'Cesur', 'Akıllı', 'Usta', 'Şanslı', 'Parlak'];
-    final nouns = ['Aslan', 'Kartal', 'Ejder', 'Kaplan', 'Kurt', 'Şahin', 'Panter', 'Akrep'];
-    
-    final random = Random();
-    final adjective = adjectives[random.nextInt(adjectives.length)];
-    final noun = nouns[random.nextInt(nouns.length)];
-    final number = random.nextInt(100);
-    
-    return '$adjective$noun$number';
-  }
+
 
   // Avatar yönetimi fonksiyonları
   
@@ -366,15 +362,41 @@ class FirebaseService {
         return false;
       }
 
+      // İsim benzersizliği kontrolü
+      final existingUsers = await _firestore
+          .collection('users')
+          .where('displayName', isEqualTo: cleanName)
+          .get();
+      
+      // Eğer bu isimde başka kullanıcı varsa (kendi hariç)
+      final hasConflict = existingUsers.docs
+          .any((doc) => doc.id != uid);
+      
+      if (hasConflict) {
+        print('Bu kullanıcı adı zaten kullanımda: $cleanName');
+        return false;
+      }
+
+      // Users koleksiyonunda güncelle
       await _firestore.collection('users').doc(uid).update({
         'displayName': cleanName,
         'lastActiveAt': FieldValue.serverTimestamp(),
       });
 
-      // Leaderboard stats'ta da güncelle
-      await _firestore.collection('leaderboard_stats').doc(uid).update({
-        'playerName': cleanName,
-      });
+      // Leaderboard stats'ta da güncelle (eğer belge varsa)
+      try {
+        final leaderboardDoc = await _firestore.collection('leaderboard_stats').doc(uid).get();
+        if (leaderboardDoc.exists) {
+          await _firestore.collection('leaderboard_stats').doc(uid).update({
+            'playerName': cleanName,
+          });
+          print('Leaderboard stats güncellendi');
+        } else {
+          print('Leaderboard stats belgesi henüz yok, güncelleme atlandı');
+        }
+      } catch (leaderboardError) {
+        print('Leaderboard stats güncelleme hatası (göz ardı edildi): $leaderboardError');
+      }
 
       return true;
     } catch (e) {
@@ -431,7 +453,8 @@ class FirebaseService {
       };
 
       await _database.ref('matchmaking_queue/$userId').set(queueEntry);
-      print('✓ Queue\'ya başarıyla katıldı');
+      print('✅ Queue\'ya başarıyla katıldı - bekleme başladı');
+      print('🎮 Oyuncu: $playerName | Avatar: $userAvatar');
       
       // Background matchmaking başlat
       _startBackgroundMatchmaking();
@@ -495,10 +518,10 @@ class FirebaseService {
         }
       }
       
-      print('Bekleyen oyuncu sayısı: ${waitingPlayers.length}');
+      print('🔍 Bekleyen oyuncu sayısı: ${waitingPlayers.length}');
       
       if (waitingPlayers.length < 2) {
-        print('Eşleştirme için yeterli oyuncu yok');
+        print('⏳ Eşleştirme için yeterli oyuncu yok (min 2 gerekli)');
         return;
       }
       
@@ -509,7 +532,9 @@ class FirebaseService {
       final player1Data = waitingPlayers[player1Id]!;
       final player2Data = waitingPlayers[player2Id]!;
       
-      print('Eşleştirme yapılıyor: $player1Id vs $player2Id');
+      print('⚔️ Eşleştirme yapılıyor:');
+      print('   🥊 ${player1Data['playerName']} (${player1Data['avatar']})');
+      print('   🆚 ${player2Data['playerName']} (${player2Data['avatar']})');
       
       final gameId = await _createMatchedGame(
         player1Id, player1Data,
@@ -709,6 +734,9 @@ class FirebaseService {
     });
   }
 
+  // Geliştirme modu - tek oyuncu ile test için
+  static const bool isDevelopmentMode = false; // Gerçek matchmaking için false
+  
   // Ana findOrCreateGame fonksiyonu (sadece güvenli matchmaking sistemi)
   static Future<String?> findOrCreateGame(String playerName, String secretWord) async {
     try {
@@ -721,6 +749,12 @@ class FirebaseService {
       print('=== MATCHMAKING BAŞLADI ===');
       print('✓ Kullanıcı ID: ${user.uid}');
       print('✓ Oyuncu adı: $playerName');
+
+      // Geliştirme modunda direkt fake oyun oluştur
+      if (isDevelopmentMode) {
+        print('🚧 Geliştirme Modu: Fake rakip ile oyun oluşturuluyor...');
+        return await _createDevelopmentGame(user.uid, playerName, secretWord);
+      }
 
       // Matchmaking queue'ya katıl
       final queueId = await _joinMatchmakingQueue(user.uid, playerName, secretWord);
@@ -777,6 +811,75 @@ class FirebaseService {
       }
     } catch (e) {
       print('Oyun başlatma kontrol hatası: $e');
+    }
+  }
+
+  // Geliştirme modu için fake oyun oluştur
+  static Future<String?> _createDevelopmentGame(String userId, String playerName, String secretWord) async {
+    try {
+      final gameId = _uuid.v4();
+      final fakeOpponentId = 'dev_opponent_${_uuid.v4()}';
+      
+      print('🤖 Fake rakip oluşturuluyor: $fakeOpponentId');
+
+      final gameData = {
+        'gameId': gameId,
+        'secretWord': secretWord,
+        'status': 'waiting', // Başlangıçta waiting, sonra active olacak
+        'createdAt': ServerValue.timestamp,
+        'updatedAt': ServerValue.timestamp,
+        'matchedAt': ServerValue.timestamp,
+        'isDevelopmentGame': true, // Geliştirme oyunu işareti
+        'players': {
+          userId: {
+            'playerId': userId,
+            'playerName': playerName,
+            'status': 'waiting',
+            'guesses': List.generate(6, (_) => List.filled(5, '_')),
+            'guessColors': List.generate(6, (_) => List.filled(5, 'empty')),
+            'currentAttempt': 0,
+            'score': 0,
+            'avatar': await getUserAvatar(userId),
+          },
+          fakeOpponentId: {
+            'playerId': fakeOpponentId,
+            'playerName': 'Test Rakibi 🤖',
+            'status': 'waiting',
+            'guesses': List.generate(6, (_) => List.filled(5, '_')),
+            'guessColors': List.generate(6, (_) => List.filled(5, 'empty')),
+            'currentAttempt': 0,
+            'score': 0,
+            'avatar': '🤖',
+          }
+        },
+      };
+
+      await _database.ref('duel_games/$gameId').set(gameData);
+      
+      // Kısa bir bekleme sonrası oyunu aktif yap
+      Future.delayed(const Duration(seconds: 2), () async {
+        try {
+          await _database.ref('duel_games/$gameId').update({
+            'status': 'active',
+            'startedAt': ServerValue.timestamp,
+            'updatedAt': ServerValue.timestamp,
+          });
+          
+          // Oyuncuları playing durumuna getir
+          await _database.ref('duel_games/$gameId/players/$userId/status').set('playing');
+          await _database.ref('duel_games/$gameId/players/$fakeOpponentId/status').set('playing');
+          
+          print('🚀 Geliştirme oyunu başlatıldı: $gameId');
+        } catch (e) {
+          print('Geliştirme oyunu başlatma hatası: $e');
+        }
+      });
+      
+      print('✅ Geliştirme oyunu oluşturuldu: $gameId');
+      return gameId;
+    } catch (e) {
+      print('Geliştirme oyunu oluşturma hatası: $e');
+      return null;
     }
   }
 
@@ -1454,7 +1557,7 @@ class FirebaseService {
       final userDoc = await _firestore.collection('users').doc(uid).get();
       if (!userDoc.exists) {
         print('DEBUG - Kullanıcı profili yok, oluşturuluyor...');
-        await _saveUserProfile(user, user.displayName ?? generatePlayerName(), user.email ?? '');
+        await _saveUserProfile(user, user.displayName ?? 'Oyuncu', user.email ?? '');
       } else {
         // Profil var ama avatar yoksa ekle
         final data = userDoc.data();

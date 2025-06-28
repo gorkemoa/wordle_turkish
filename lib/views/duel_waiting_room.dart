@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/duel_viewmodel.dart';
 import '../models/duel_game.dart';
+import '../services/firebase_service.dart';
 import 'dart:async';
+
+// Düello bekleme odası
 
 class DuelWaitingRoom extends StatefulWidget {
   const DuelWaitingRoom({Key? key}) : super(key: key);
@@ -26,6 +29,8 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
   
   // Navigation flag - sadece bir kez pop yapmak için
   bool _hasNavigated = false;
+  bool _hasStartedGame = false; // Oyun başlatma kontrolü için flag
+  bool _hasTimedOut = false; // Timeout kontrolü için flag
 
   @override
   void initState() {
@@ -81,6 +86,33 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
         _collisionController.forward(from: 0.0);
       }
     });
+    
+    // Oyun aramasını başlat
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      
+      if (!_hasStartedGame) {
+        _hasStartedGame = true;
+        _startGame();
+      }
+    });
+    
+    // 30 saniye timeout ekle
+    Future.delayed(const Duration(seconds: 30), () {
+      if (mounted && !_hasTimedOut) {
+        try {
+          final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+          if (viewModel.gameState == GameState.searching || viewModel.gameState == GameState.initializing) {
+            setState(() {
+              _hasTimedOut = true;
+            });
+            debugPrint('⏰ DuelWaitingRoom - 30 saniye timeout oldu');
+          }
+        } catch (e) {
+          debugPrint('❌ DuelWaitingRoom - Timeout check error: $e');
+        }
+      }
+    });
   }
 
   @override
@@ -90,6 +122,149 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
     _collisionController.dispose();
 
     super.dispose();
+  }
+
+  Future<void> _startGame() async {
+    try {
+      if (!mounted) return;
+      
+      // ViewModel referansını güvenli bir şekilde al
+      final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+      
+      // Kullanıcının online olduğundan emin ol
+      await FirebaseService.setUserOnline();
+      
+      if (!mounted) return;
+      
+      // Jeton kontrolü
+      final user = FirebaseService.getCurrentUser();
+      if (user != null) {
+        final tokens = await FirebaseService.getUserTokens(user.uid);
+        if (!mounted) return;
+        
+        if (tokens < 2) {
+          _showErrorDialog('Yetersiz Jeton', 
+            'Düello oynamak için 2 jetona ihtiyacınız var. Mevcut jetonunuz: $tokens\n\n💡 Jetonlar oyun başladığında kesilir.');
+          return;
+        }
+      }
+      
+      final success = await viewModel.startDuelGame();
+      
+      if (!mounted) return;
+      
+      if (!success) {
+        _showErrorDialog('Oyun başlatılamadı', 
+          'Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin. '
+          'Yetersiz jeton varsa, reklam izleyerek jeton kazanabilirsiniz.');
+        return;
+      }
+      
+      debugPrint('DuelWaitingRoom - Matchmaking başladı, listener aktif');
+      
+    } catch (e) {
+      debugPrint('DuelWaitingRoom _startGame hatası: $e');
+      if (mounted) {
+        _showErrorDialog('Hata', 'Beklenmeyen bir hata oluştu: $e');
+      }
+    }
+  }
+
+  void _showErrorDialog(String title, String message) {
+    if (!mounted || !context.mounted) {
+      debugPrint('🚫 DuelWaitingRoom - Widget mounted değil, error dialog gösterilmiyor');
+      return;
+    }
+    
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: Text(title, style: const TextStyle(color: Colors.white)),
+          content: Text(message, style: const TextStyle(color: Colors.grey)),
+          actions: [
+            TextButton(
+              onPressed: () {
+                try {
+                  if (Navigator.canPop(dialogContext)) {
+                    Navigator.pop(dialogContext);
+                  }
+                } catch (e) {
+                  debugPrint('❌ Error dialog close error: $e');
+                }
+              },
+              child: const Text('Tamam', style: TextStyle(color: Colors.blue)),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ Error dialog show error: $e');
+    }
+  }
+
+  Future<bool> _showExitConfirmDialog() async {
+    if (!mounted || !context.mounted) {
+      debugPrint('🚫 DuelWaitingRoom - Exit confirm dialog iptal edildi, widget mounted değil');
+      return false;
+    }
+    
+    try {
+      return await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF2A2A2A),
+            title: const Text(
+              '🚪 Eşleşmeden Çık',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              'Eşleşmeden çıkmak istediğinizden emin misiniz?\nRakip arama iptal olacak!',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  try {
+                    if (Navigator.canPop(dialogContext)) {
+                      Navigator.of(dialogContext).pop(false);
+                    }
+                  } catch (e) {
+                    debugPrint('❌ Exit confirm cancel error: $e');
+                  }
+                },
+                child: const Text(
+                  'İptal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  try {
+                    if (Navigator.canPop(dialogContext)) {
+                      Navigator.of(dialogContext).pop(true);
+                    }
+                  } catch (e) {
+                    debugPrint('❌ Exit confirm accept error: $e');
+                  }
+                },
+                child: const Text(
+                  'Çık',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          );
+        },
+      ) ?? false;
+    } catch (e) {
+      debugPrint('❌ Exit confirm dialog error: $e');
+      return false;
+    }
   }
 
   void _showExitDialog() {
@@ -129,14 +304,29 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
                 Navigator.of(context).pop();
                 
                 // Asenkron işlem sonrası widget hala aktif mi kontrol et
-                if (!mounted) return;
+                if (!mounted || !context.mounted) {
+                  debugPrint('🚫 DuelWaitingRoom - Widget mounted değil, exit işlemi iptal edildi');
+                  return;
+                }
                 
-                final viewModel = Provider.of<DuelViewModel>(context, listen: false);
-                await viewModel.leaveGame();
-                
-                // Bekleme odasından çık ve DuelPage'e dön (oradan ana sayfaya gidecek)
-                if (mounted && context.mounted) {
-                  Navigator.of(context).pop(false); // Oyun başlamadı sinyali
+                try {
+                  final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+                  await viewModel.leaveGame();
+                  
+                  // Bekleme odasından çık ve DuelPage'e dön (oradan ana sayfaya gidecek)
+                  if (mounted && context.mounted && Navigator.canPop(context)) {
+                    Navigator.of(context).pop(false); // Oyun başlamadı sinyali
+                  }
+                } catch (e) {
+                  debugPrint('❌ DuelWaitingRoom - Exit game error: $e');
+                  // Hata durumunda da çıkış yap
+                  try {
+                    if (mounted && context.mounted && Navigator.canPop(context)) {
+                      Navigator.of(context).pop(false);
+                    }
+                  } catch (navError) {
+                    debugPrint('❌ DuelWaitingRoom - Navigation error: $navError');
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -162,39 +352,79 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
       backgroundColor: const Color(0xFF121212),
       body: Consumer<DuelViewModel>(
         builder: (context, viewModel, child) {
+          final gameState = viewModel.gameState;
           final game = viewModel.currentGame;
           
-          // Oyun yükleniyor
-          if (game == null) {
-            return _buildLoadingState();
+          debugPrint('🏠 DuelWaitingRoom build - GameState: $gameState');
+          
+          // Timeout durumunu kontrol et
+          if (_hasTimedOut && (gameState == GameState.searching || gameState == GameState.initializing)) {
+            return _buildTimeoutState();
           }
-
-          // Rakip bulundu durumu
-          if (viewModel.opponentFound) {
-            return _buildOpponentFoundState(viewModel);
-          }
-
-          // İki oyuncu varsa ve oyun hazır ise, oyun sayfasına dön
-          if ((game.status == GameStatus.active || viewModel.showingCountdown) && !_hasNavigated) {
-            debugPrint('DuelWaitingRoom - Oyun başlıyor! Status: ${game.status}, showingCountdown: ${viewModel.showingCountdown}');
-            _hasNavigated = true; // Flag'i set et
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) { // mounted kontrolü yeterli
-                debugPrint('DuelWaitingRoom - Navigator.pop(true) çağrılıyor');
-                Navigator.of(context).pop(true); // Oyun başladı sinyali
+          
+          // Game State'e göre UI render et
+          switch (gameState) {
+            case GameState.initializing:
+            case GameState.searching:
+            case GameState.waitingRoom:
+              if (game == null) {
+                return _buildLoadingState();
               }
-            });
-            return _buildGameStartingState();
+                             return PopScope(
+                 canPop: false,
+                 onPopInvoked: (didPop) async {
+                   if (didPop) return;
+                   
+                   try {
+                     if (!mounted || !context.mounted) {
+                       debugPrint('🚫 DuelWaitingRoom - PopScope callback iptal edildi, widget mounted değil');
+                       return;
+                     }
+                     
+                     final shouldPop = await _showExitConfirmDialog();
+                     if (shouldPop && mounted && context.mounted && Navigator.canPop(context)) {
+                       Navigator.of(context).pop();
+                     }
+                   } catch (e) {
+                     debugPrint('❌ DuelWaitingRoom - PopScope callback error: $e');
+                   }
+                 },
+                child: _buildWaitingRoom(context, game, viewModel),
+              );
+              
+            case GameState.opponentFound:
+              return _buildOpponentFoundState(viewModel);
+              
+            case GameState.gameStarting:
+              // Oyun başlıyor, DuelPage'e dön
+              if (!_hasNavigated) {
+                debugPrint('🚀 DuelWaitingRoom - Oyun başlıyor, DuelPage\'e dönülüyor');
+                _hasNavigated = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    debugPrint('📤 DuelWaitingRoom - Navigator.pop(true) çağrılıyor');
+                    Navigator.of(context).pop(true); // Oyun başladı sinyali
+                  }
+                });
+              }
+              return _buildGameStartingState();
+              
+            case GameState.playing:
+              // Oyun çoktan başlamış, DuelPage'e dön
+              if (!_hasNavigated) {
+                debugPrint('🎮 DuelWaitingRoom - Oyun çoktan başlamış, DuelPage\'e dönülüyor');
+                _hasNavigated = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    Navigator.of(context).pop(true);
+                  }
+                });
+              }
+              return _buildGameStartingState();
+              
+            default:
+              return _buildLoadingState();
           }
-
-          // Bekleme odası
-          return WillPopScope(
-            onWillPop: () async {
-              _showExitDialog();
-              return false; // Geri tuşunu manuel yöneteceğiz
-            },
-            child: _buildWaitingRoom(context, game, viewModel),
-          );
         },
       ),
     );
@@ -278,6 +508,119 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTimeoutState() {
+    return Scaffold(
+      backgroundColor: const Color(0xFF121212),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.people_outline,
+              color: Colors.orange,
+              size: 64,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Rakip Bulunamadı',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.symmetric(horizontal: 32),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: const Column(
+                children: [
+                  Text(
+                    'Şu anda online rakip yok',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    '• Daha sonra tekrar deneyin\n• Arkadaşlarınızı davet edin\n• Diğer oyun modlarını deneyin',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    // Tekrar dene
+                    setState(() {
+                      _hasStartedGame = false;
+                      _hasTimedOut = false;
+                    });
+                    _startGame();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh, size: 18),
+                      SizedBox(width: 8),
+                      Text('Tekrar Dene'),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(false);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.home, size: 18),
+                      SizedBox(width: 8),
+                      Text('Ana Sayfa'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

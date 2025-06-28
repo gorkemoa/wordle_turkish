@@ -6,6 +6,8 @@ import '../models/duel_game.dart';
 import '../services/firebase_service.dart';
 import 'duel_page.dart';
 
+// Düello sonuç sayfası
+
 class DuelResultPage extends StatefulWidget {
   final DuelGame game;
   final DuelPlayer currentPlayer;
@@ -896,9 +898,14 @@ class _DuelResultPageState extends State<DuelResultPage>
             'TEKRAR OYNA',
             Icons.refresh_rounded,
             Colors.green.shade600,
-            () => Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => DuelPage(key: UniqueKey())),
-            ),
+            () {
+              // Yeni DuelPage instance'ı ile temiz başlangıç
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (context) => const DuelPage(),
+                ),
+              );
+            },
           ),
         ),
       ],

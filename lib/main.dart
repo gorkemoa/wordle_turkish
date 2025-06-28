@@ -141,9 +141,9 @@ class _MyAppState extends State<MyApp> {
             return MaterialPageRoute(builder: (context) => const LoginPage());
           case '/home':
             return MaterialPageRoute(builder: (context) => HomePage(toggleTheme: _toggleTheme));
-          case '/wordle_daily':
+          case '/wordle_free':
             return MaterialPageRoute(
-              builder: (context) => WordlePage(toggleTheme: _toggleTheme, gameMode: GameMode.daily),
+              builder: (context) => WordlePage(toggleTheme: _toggleTheme, gameMode: GameMode.unlimited),
             );
           case '/wordle_challenge':
             return MaterialPageRoute(
@@ -152,7 +152,7 @@ class _MyAppState extends State<MyApp> {
           case '/wordle':
             // Parametreleri handle et
             final args = settings.arguments as Map<String, dynamic>?;
-            final gameMode = args?['gameMode'] as GameMode? ?? GameMode.daily;
+            final gameMode = args?['gameMode'] as GameMode? ?? GameMode.unlimited;
             
             return MaterialPageRoute(
               builder: (context) => WordlePage(

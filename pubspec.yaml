@@ -39,6 +39,9 @@ flutter:
     - assets/turkce_kelime_listesi.txt
     - assets/kelimeler.json
     - assets/ixel.mp4
+    - assets/winner/
+    - assets/lose/
+    - assets/alert/
 
 flutter_native_splash:
   color: "#667eea"

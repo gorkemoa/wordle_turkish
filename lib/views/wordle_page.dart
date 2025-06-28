@@ -6,9 +6,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import '../widgets/shake_widget.dart';
 import '../widgets/keyboard_widget.dart';
+import '../widgets/guess_grid.dart';
 import '../services/firebase_service.dart';
 
 import 'wordle_result_page.dart';
+
+// Wordle oyun sayfası
 
 class WordlePage extends StatefulWidget {
   final VoidCallback toggleTheme;
@@ -74,8 +77,8 @@ class _WordlePageState extends State<WordlePage> {
       score = 100 + timeBonus + attemptBonus;
       
       // Jeton hesaplama - zorlu modda seviyeye göre artan jeton
-      if (viewModel.gameMode == GameMode.daily) {
-        tokensEarned = 3; // Günlük mod: 3 jeton
+              if (viewModel.gameMode == GameMode.unlimited) {
+          tokensEarned = 2; // Serbest mod: 2 jeton
       } else if (viewModel.gameMode == GameMode.challenge) {
         // Zorlu mod: seviyeye göre artan jeton (2, 4, 6, 8, 10)
         tokensEarned = viewModel.currentLevel * 2;
@@ -135,7 +138,7 @@ class _WordlePageState extends State<WordlePage> {
       // Firebase'e kaydet
       await FirebaseService.saveGameResult(
         uid: user.uid,
-        gameType: viewModel.gameMode == GameMode.daily ? 'Günlük Oyun' : 'Zorlu Mod',
+        gameType: viewModel.gameMode == GameMode.unlimited ? 'Serbest Oyun' : 'Zorlu Mod',
         score: score,
         isWon: won,
         duration: gameDuration,
@@ -157,6 +160,42 @@ class _WordlePageState extends State<WordlePage> {
     }
   }
 
+  Future<bool> _showExitConfirmDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey.shade800,
+          title: const Text(
+            '🚪 Oyundan Çık',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'Oyundan çıkmak istediğinizden emin misiniz?\nİlerlemeniz kaybolacak!',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'İptal',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Çık',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<WordleViewModel>(
@@ -174,21 +213,31 @@ class _WordlePageState extends State<WordlePage> {
         double boxSize = availableWidth / viewModel.currentWordLength;
         boxSize = boxSize.clamp(30.0, 60.0); // Minimum ve maksimum boyutlar
 
-        return Scaffold(
-          backgroundColor: viewModel.gameMode == GameMode.challenge 
-            ? const Color(0xFF0A0A0A) // Zorlu mod için siyah arkaplan
-            : null,
-          appBar: _buildAppBar(viewModel),
-          body: SafeArea(
-            child: viewModel.gameMode == GameMode.challenge
-              ? WillPopScope(
-                  onWillPop: () async {
-                    _showChallengeExitWarning(viewModel);
-                    return false; // Geri gitmeyi engelle
-                  },
-                  child: _buildChallengeBody(viewModel, screenWidth),
-                )
-              : _buildNormalBody(viewModel, screenWidth),
+        return PopScope(
+          canPop: false,
+          onPopInvoked: (didPop) async {
+            if (didPop) return;
+            final shouldPop = await _showExitConfirmDialog();
+            if (shouldPop && context.mounted) {
+              Navigator.of(context).pop();
+            }
+          },
+          child: Scaffold(
+            backgroundColor: viewModel.gameMode == GameMode.challenge 
+              ? const Color(0xFF0A0A0A) // Zorlu mod için siyah arkaplan
+              : null,
+            appBar: _buildAppBar(viewModel),
+            body: SafeArea(
+              child: viewModel.gameMode == GameMode.challenge
+                ? WillPopScope(
+                    onWillPop: () async {
+                      _showChallengeExitWarning(viewModel);
+                      return false; // Geri gitmeyi engelle
+                    },
+                    child: _buildChallengeBody(viewModel, screenWidth),
+                  )
+                : _buildNormalBody(viewModel, screenWidth),
+            ),
           ),
         );
       },
@@ -274,7 +323,7 @@ class _WordlePageState extends State<WordlePage> {
                 onShakeComplete: () {
                   viewModel.resetShake();
                 },
-                child: _buildGuessGrid(viewModel, screenWidth),
+                child: GuessGrid(screenWidth: screenWidth),
               ),
               const SizedBox(height: 15),
               // Klavye için KeyboardWidget'i kullanın
@@ -325,7 +374,7 @@ class _WordlePageState extends State<WordlePage> {
                 onShakeComplete: () {
                   viewModel.resetShake();
                 },
-                child: _buildGuessGrid(viewModel, screenWidth),
+                child: GuessGrid(screenWidth: screenWidth),
               ),
               const SizedBox(height: 15),
               // Klavye için KeyboardWidget'i kullanın
@@ -363,74 +412,7 @@ class _WordlePageState extends State<WordlePage> {
     );
   }
 
-  Widget _buildGuessGrid(WordleViewModel viewModel, double screenWidth) {
-    // Toplam horizontal padding ve margin hesaplama
-    double totalHorizontalPadding = 10.0 * 2; // Padding.symmetric(horizontal: 10)
-    double totalBoxMargin = 4.0 * viewModel.currentWordLength; // margin.all(2) her kutu için
 
-    // Kullanılabilir genişliği hesaplama
-    double availableWidth = screenWidth - totalHorizontalPadding - totalBoxMargin - 2.0; // Küçük bir epsilon ekleyin
-
-    // Kutucuk genişliğini hesaplama
-    double boxSize = availableWidth / viewModel.currentWordLength;
-    boxSize = boxSize.clamp(30.0, 60.0); // Minimum ve maksimum boyutlar
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(WordleViewModel.maxAttempts, (row) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 1.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(viewModel.currentWordLength, (col) {
-                return Container(
-                  margin: const EdgeInsets.all(2),
-                  width: boxSize,
-                  height: boxSize,
-                  decoration: BoxDecoration(
-                    color: viewModel.getBoxColor(row, col),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade700),
-                  ),
-                  alignment: Alignment.center,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown, // Metni kutuya sığdır
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Text(
-                      viewModel.guesses[row][col],
-                      style: TextStyle(
-                        fontSize: boxSize * 0.5, // Dinamik font size
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                        ),
-                        // İpucu harfini göster (sadece boş kutularda ve mevcut satırda)
-                        if (viewModel.guesses[row][col].isEmpty && 
-                            row == viewModel.currentAttempt && 
-                            viewModel.isHintRevealed(col))
-                          Text(
-                            viewModel.getHintLetter(col),
-                            style: TextStyle(
-                              fontSize: boxSize * 0.4,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.amber.withOpacity(0.7),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ),
-          );
-        }),
-      ),
-    );
-  }
 
   String _formatTime(int seconds) {
     final minutes = (seconds / 60).floor();
@@ -440,8 +422,8 @@ class _WordlePageState extends State<WordlePage> {
 
   String _getGameModeTitle(GameMode gameMode) {
     switch (gameMode) {
-      case GameMode.daily:
-        return 'Günlük Oyun';
+      case GameMode.unlimited:
+        return 'Serbest Oyun';
       case GameMode.challenge:
         return '⚔️ ZORLU MOD ⚔️';
       case GameMode.timeRush:
@@ -552,7 +534,7 @@ class _WordlePageState extends State<WordlePage> {
                               }
                             : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
+                            backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
                           minimumSize: const Size(80, 30),
                         ),

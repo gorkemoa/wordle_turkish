@@ -12,12 +12,16 @@ import '../services/haptic_service.dart';
 import 'duel_page.dart';
 import 'leaderboard_page.dart';
 import 'token_shop_page.dart';
-import 'wordle_page.dart';
+import 'free_game_page.dart';
+import 'challenge_game_page.dart';
 import 'time_rush_page.dart';
+import 'themed_game_page.dart';
 import 'themed_mode_page.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
+// Ana sayfa
 
 class HomePage extends StatefulWidget {
   final VoidCallback? toggleTheme;
@@ -46,6 +50,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late Animation<double> _letterAnimation;
   
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userStatsSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userProfileSubscription;
   StreamSubscription<int>? _activeUsersSubscription;
 
   final List<FloatingParticle> _particles = [];
@@ -116,6 +121,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _glowController.dispose();
     _letterController.dispose();
     _userStatsSubscription?.cancel();
+    _userProfileSubscription?.cancel();
     _activeUsersSubscription?.cancel();
     FirebaseService.setUserOffline();
     super.dispose();
@@ -131,6 +137,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     try {
       await FirebaseService.initializeUserDataIfNeeded(user.uid);
       _startListeningToUserStats(user.uid);
+      _startListeningToUserProfile(user.uid);
       _startListeningToActiveUsers();
       await FirebaseService.setUserOnline();
     } catch (e) {
@@ -147,10 +154,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         .listen((snapshot) {
       if (mounted) {
         if (snapshot.exists) {
-        setState(() {
+          setState(() {
             userStats = snapshot.data();
             if(isLoading) {
-          isLoading = false;
+              isLoading = false;
               _fadeController.forward();
               _letterController.forward();
             }
@@ -165,6 +172,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
   }
 
+  void _startListeningToUserProfile(String uid) {
+    _userProfileSubscription = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted && snapshot.exists) {
+        final profileData = snapshot.data();
+        if (profileData != null && userStats != null) {
+          setState(() {
+            userStats!['displayName'] = profileData['displayName'];
+          });
+        }
+      }
+    }, onError: (error) {
+      debugPrint('Kullanıcı profili dinleme hatası: $error');
+    });
+  }
+
   void _startListeningToActiveUsers() {
     _activeUsersSubscription = FirebaseService.getActiveUsersCount().listen((count) {
       if (mounted) setState(() => activeUsers = count);
@@ -176,8 +202,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _showUserProfile() => Navigator.pushNamed(context, '/profile');
   void _navigateToTokenShop() => Navigator.push(context, MaterialPageRoute(builder: (context) => const TokenShopPage()));
   void _navigateToLeaderboard() => Navigator.push(context, MaterialPageRoute(builder: (context) => const LeaderboardPage()));
-  void _navigateToDailyWordle() => Navigator.push(context, MaterialPageRoute(builder: (context) => WordlePage(toggleTheme: widget.toggleTheme ?? () {}, gameMode: GameMode.daily)));
-  void _navigateToTimeRush() => Navigator.push(context, MaterialPageRoute(builder: (context) => TimeRushPage(toggleTheme: widget.toggleTheme ?? () {})));
+  void _navigateToFreeWordle() => Navigator.push(context, MaterialPageRoute(builder: (context) => FreeGamePage(toggleTheme: widget.toggleTheme ?? () {})));
+  void _navigateToTimeRush() => Navigator.push(context, MaterialPageRoute(builder: (context) => TimeRushGamePage(toggleTheme: widget.toggleTheme ?? () {})));
   void _navigateToThemed() => Navigator.push(context, MaterialPageRoute(builder: (context) => ThemedModePage(toggleTheme: widget.toggleTheme ?? () {})));
   void _navigateToChallenge() async {
     final viewModel = Provider.of<WordleViewModel>(context, listen: false);
@@ -493,9 +519,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 Navigator.push(
                   context, 
                   MaterialPageRoute(
-                    builder: (context) => WordlePage(
-                      toggleTheme: widget.toggleTheme ?? () {}, 
-                      gameMode: GameMode.challenge
+                    builder: (context) => ChallengeGamePage(
+                      toggleTheme: widget.toggleTheme ?? () {}
                     )
                   )
                 );
@@ -607,7 +632,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   children: [
                     _buildPlayerCard(FirebaseAuth.instance.currentUser),
                     _buildAnimatedGameTitle(),
-                    _buildDailyChallenge(),
+                                          _buildFreeChallenge(),
                     _buildGameModeGrid(),
                     _buildBottomPanel(),
                   ],
@@ -622,7 +647,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _buildPlayerCard(User? user) {
     final level = userStats?['level'] ?? 1;
-    final displayName = user?.displayName?.split(' ').first ?? 'Oyuncu';
+    // userStats yüklenene kadar loading göster veya Firebase Auth'daki adı kullan
+    final displayName = isLoading 
+        ? (user?.displayName ?? 'Yükleniyor...')
+        : (userStats?['displayName'] ?? user?.displayName ?? 'Oyuncu');
 
     return GestureDetector(
       onTap: () {
@@ -869,11 +897,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildDailyChallenge() {
+  Widget _buildFreeChallenge() {
     return GestureDetector(
       onTap: () {
         HapticService.triggerMediumHaptic();
-        _navigateToDailyWordle();
+        _navigateToFreeWordle();
       },
       child: Container(
         width: double.infinity,
@@ -911,7 +939,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'TEKLİ OYUN',
+                    'SERBEST OYUN',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -921,7 +949,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Alıştırma yap, seviyenizi artırın',
+                    'Sınırsız oyna, pratik yap',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.white.withOpacity(0.9),
@@ -930,21 +958,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: const Text(
-                '+50 XP',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
+           
           ],
         ),
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../viewmodels/wordle_viewmodel.dart';
-import 'wordle_page.dart';
+import 'themed_game_page.dart';
+
+// Tema seçimi sayfası
 
 class ThemedModePage extends StatefulWidget {
   final VoidCallback toggleTheme;
@@ -61,9 +62,8 @@ class _ThemedModePageState extends State<ThemedModePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => WordlePage(
+        builder: (context) => ThemedGamePage(
           toggleTheme: widget.toggleTheme,
-          gameMode: GameMode.themed,
           themeId: themeId,
         ),
       ),
@@ -73,12 +73,12 @@ class _ThemedModePageState extends State<ThemedModePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A),
+      backgroundColor: Colors.grey[800],
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A1A),
+        backgroundColor: Colors.grey[850],
         title: Row(
           children: [
-            const Icon(Icons.category, color: Color(0xFF8E44AD)),
+            Icon(Icons.category, color: Colors.grey[400]),
             const SizedBox(width: 8),
             const Text(
               'Tema Seçin',
@@ -102,8 +102,8 @@ class _ThemedModePageState extends State<ThemedModePage> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      theme['color'].withOpacity(0.8),
-                      theme['color'],
+                      Colors.grey[700]!,
+                      Colors.grey[600]!,
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -111,7 +111,7 @@ class _ThemedModePageState extends State<ThemedModePage> {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: theme['color'].withOpacity(0.3),
+                      color: Colors.grey[900]!.withOpacity(0.3),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
