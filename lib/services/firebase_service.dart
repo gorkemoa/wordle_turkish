@@ -31,6 +31,16 @@ class FirebaseService {
   // Email ve şifre ile kayıt ol
   static Future<User?> signUpWithEmailPassword(String email, String password, String displayName) async {
     try {
+      // Email ASCII karakter kontrolü
+      if (!_isValidAsciiEmail(email)) {
+        throw Exception('Geçersiz email adresi: Sadece ASCII karakterler kullanılabilir');
+      }
+      
+      // Kullanıcı adı ASCII karakter kontrolü
+      if (!_isValidAsciiUsername(displayName)) {
+        throw Exception('Geçersiz kullanıcı adı: Sadece ASCII karakterler kullanılabilir');
+      }
+      
       final UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
@@ -57,6 +67,11 @@ class FirebaseService {
   // Email ve şifre ile giriş yap
   static Future<User?> signInWithEmailPassword(String email, String password) async {
     try {
+      // Email ASCII karakter kontrolü
+      if (!_isValidAsciiEmail(email)) {
+        throw Exception('Geçersiz email adresi: Sadece ASCII karakterler kullanılabilir');
+      }
+      
       final UserCredential result = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -362,6 +377,12 @@ class FirebaseService {
         return false;
       }
 
+      // ASCII karakter kontrolü - sadece İngilizce karakterler, rakamlar ve temel özel karakterler
+      if (!_isValidAsciiUsername(cleanName)) {
+        print('Geçersiz kullanıcı adı: ASCII olmayan karakterler içeriyor');
+        return false;
+      }
+
       // İsim benzersizliği kontrolü
       final existingUsers = await _firestore
           .collection('users')
@@ -403,6 +424,23 @@ class FirebaseService {
       print('Kullanıcı adı güncelleme hatası: $e');
       return false;
     }
+  }
+
+  /// ASCII username validation - sadece İngilizce karakterler, rakamlar ve bazı özel karakterler
+  static bool _isValidAsciiUsername(String username) {
+    // ASCII range: 32-126 karakter kodları
+    // Ancak kullanıcı adı için sadece güvenli karakterlere izin veriyoruz:
+    // a-z, A-Z, 0-9, space, underscore, hyphen, period
+    final validPattern = RegExp(r'^[a-zA-Z0-9 ._-]+$');
+    return validPattern.hasMatch(username);
+  }
+
+  /// Email ASCII validation
+  static bool _isValidAsciiEmail(String email) {
+    // ASCII range: 32-126 karakter kodları
+    // Email için standart ASCII karakterler
+    final validPattern = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    return validPattern.hasMatch(email);
   }
 
   /// Kullanıcı için yeni rastgele avatar oluştur
@@ -521,8 +559,16 @@ class FirebaseService {
     print('Background matchmaking durduruldu');
   }
   
-  // Matchmaking queue'yu işle (SİMPLE VERSION - TRANSACTION OLMADAN)
+  // Matchmaking queue'yu işle (ATOMIC LOCKING İLE GÜVENLİ VERSİYON)
   static Future<void> _processMatchmakingQueue() async {
+    // İki process aynı anda çalışmasını engelle
+    if (_isProcessingQueue) {
+      print('🔒 Queue zaten işleniyor, atlanıyor...');
+      return;
+    }
+    
+    _isProcessingQueue = true;
+    
     try {
       final queueRef = _database.ref('matchmaking_queue');
       
@@ -537,7 +583,7 @@ class FirebaseService {
       final queueData = queueSnapshot.value as Map<dynamic, dynamic>;
       final currentQueue = Map<String, dynamic>.from(queueData);
       
-      print('🔍 Processing queue with ${currentQueue.length} entries');
+      print('🔍 Atomic - Processing queue with ${currentQueue.length} entries');
       
       // Waiting durumundaki oyuncuları bul
       final waitingPlayers = <String, Map<String, dynamic>>{};
@@ -547,15 +593,15 @@ class FirebaseService {
           final playerData = Map<String, dynamic>.from(value as Map<dynamic, dynamic>);
           if (playerData['status'] == 'waiting') {
             waitingPlayers[key] = playerData;
-            print('✓ Waiting player: $key (${playerData['playerName']})');
+            print('✓ Atomic - Waiting player: $key (${playerData['playerName']})');
           }
         }
       });
       
-      print('👥 Waiting players count: ${waitingPlayers.length}');
+      print('👥 Atomic - Waiting players count: ${waitingPlayers.length}');
       
       if (waitingPlayers.length < 2) {
-        print('❌ Not enough players for matching (${waitingPlayers.length}/2)');
+        print('❌ Atomic - Not enough players for matching (${waitingPlayers.length}/2)');
         return;
       }
       
@@ -570,39 +616,116 @@ class FirebaseService {
       final player2Data = waitingPlayers[player2Id]!;
       
       final gameId = _uuid.v4();
+      final lockTimestamp = DateTime.now().millisecondsSinceEpoch;
       
-      print('🎯 Matching players: $player1Id (${player1Data['playerName']}) vs $player2Id (${player2Data['playerName']})');
-      print('🎮 Game ID: $gameId');
+      print('🎯 Atomic - Matching players: $player1Id (${player1Data['playerName']}) vs $player2Id (${player2Data['playerName']})');
+      print('🎮 Atomic - Game ID: $gameId');
 
-      // Oyuncuları matched durumuna getir
-      await queueRef.child(player1Id).update({
-        'status': 'matched',
-        'gameId': gameId,
-      });
-      
-      await queueRef.child(player2Id).update({
-        'status': 'matched', 
-        'gameId': gameId,
-      });
-      
-      print('✅ Players marked as matched');
-      
-      // Oyunu oluştur
-      await _createMatchedGame(player1Id, player1Data, player2Id, player2Data, gameId);
-      
-      // 5 saniye sonra queue'dan temizle
-      Future.delayed(const Duration(seconds: 5), () async {
-        try {
-          await queueRef.child(player1Id).remove();
-          await queueRef.child(player2Id).remove();
-          print('✅ Queue cleaned up for players: $player1Id, $player2Id');
-        } catch (e) {
-          print('⚠️ Queue cleanup error: $e');
+      // ATOMIC LOCK: İki oyuncuyu aynı anda lock'la
+      try {
+        // Her iki oyuncunun da hala waiting durumunda olduğunu ve lock'lanmadığını kontrol et
+        final player1Check = await queueRef.child(player1Id).get();
+        final player2Check = await queueRef.child(player2Id).get();
+        
+        if (!player1Check.exists || !player2Check.exists) {
+          print('❌ Atomic - Oyunculardan biri queue\'dan çıkmış');
+          return;
         }
-      });
+        
+        final player1CurrentData = Map<String, dynamic>.from(player1Check.value as Map<dynamic, dynamic>);
+        final player2CurrentData = Map<String, dynamic>.from(player2Check.value as Map<dynamic, dynamic>);
+        
+        // Her ikisi de hala waiting durumunda mı kontrol et
+        if (player1CurrentData['status'] != 'waiting' || player2CurrentData['status'] != 'waiting') {
+          print('❌ Atomic - Oyunculardan biri artık waiting durumunda değil');
+          return;
+        }
+        
+        // LOCK OYUNCULAR (timestamp ile atomic locking)
+        final lockKey = 'lock_$lockTimestamp';
+        await queueRef.child(player1Id).update({
+          'status': 'locking',
+          'lockKey': lockKey,
+          'lockTimestamp': lockTimestamp,
+        });
+        
+        await queueRef.child(player2Id).update({
+          'status': 'locking', 
+          'lockKey': lockKey,
+          'lockTimestamp': lockTimestamp,
+        });
+        
+        print('🔒 Atomic - Players locked with key: $lockKey');
+        
+        // Kısa bir bekleme sonrası lock'ları kontrol et
+        await Future.delayed(const Duration(milliseconds: 100));
+        
+        // Lock doğrulaması
+        final player1LockCheck = await queueRef.child(player1Id).get();
+        final player2LockCheck = await queueRef.child(player2Id).get();
+        
+        if (!player1LockCheck.exists || !player2LockCheck.exists) {
+          print('❌ Atomic - Lock sonrası oyuncu bulunamadı');
+          return;
+        }
+        
+        final player1LockData = Map<String, dynamic>.from(player1LockCheck.value as Map<dynamic, dynamic>);
+        final player2LockData = Map<String, dynamic>.from(player2LockCheck.value as Map<dynamic, dynamic>);
+        
+        // Lock key'leri eşleşiyor mu?
+        if (player1LockData['lockKey'] != lockKey || player2LockData['lockKey'] != lockKey) {
+          print('❌ Atomic - Lock key eşleşmiyor, başka process daha hızlıydı');
+          return;
+        }
+        
+        print('✅ Atomic - Lock doğrulandı, oyun oluşturuluyor...');
+        
+        // Oyuncuları matched durumuna getir
+        await queueRef.child(player1Id).update({
+          'status': 'matched',
+          'gameId': gameId,
+          'matchedAt': rtdb.ServerValue.timestamp,
+        });
+        
+        await queueRef.child(player2Id).update({
+          'status': 'matched', 
+          'gameId': gameId,
+          'matchedAt': rtdb.ServerValue.timestamp,
+        });
+        
+        print('✅ Atomic - Players marked as matched');
+        
+        // Oyunu oluştur
+        await _createMatchedGame(player1Id, player1Data, player2Id, player2Data, gameId);
+        
+        // 5 saniye sonra queue'dan temizle
+        Future.delayed(const Duration(seconds: 5), () async {
+          try {
+            await queueRef.child(player1Id).remove();
+            await queueRef.child(player2Id).remove();
+            print('✅ Atomic - Queue cleaned up for players: $player1Id, $player2Id');
+          } catch (e) {
+            print('⚠️ Atomic - Queue cleanup error: $e');
+          }
+        });
+        
+      } catch (lockError) {
+        print('❌ Atomic lock error: $lockError');
+        
+        // Lock hatası durumunda oyuncuları serbest bırak
+        try {
+          await queueRef.child(player1Id).update({'status': 'waiting'});
+          await queueRef.child(player2Id).update({'status': 'waiting'});
+          print('🔓 Atomic - Players unlocked due to error');
+        } catch (unlockError) {
+          print('❌ Unlock error: $unlockError');
+        }
+      }
       
     } catch (e) {
-      print('❌ Matchmaking process error: $e');
+      print('❌ Atomic matchmaking process error: $e');
+    } finally {
+      _isProcessingQueue = false;
     }
     
     // Queue boşsa background matchmaking'i durdur
@@ -616,6 +739,9 @@ class FirebaseService {
       print('⚠️ Queue check error: $e');
     }
   }
+  
+  // Processing flag - aynı anda sadece bir tane process çalışsın
+  static bool _isProcessingQueue = false;
 
   // Matchmaking queue'dan çık
   static Future<void> _leaveMatchmakingQueue(String? userId) async {
@@ -1120,26 +1246,55 @@ class FirebaseService {
           'finishedAt': FieldValue.serverTimestamp(),
         });
       } else if (isGameOver) {
-        // İki oyuncu da kaybetti mi kontrol et
-        final allPlayers = players.values.toList();
-        bool allFinished = true;
-        
-        for (final player in allPlayers) {
-          final playerData = player as Map<dynamic, dynamic>;
-          final playerAttempt = playerData['currentAttempt'] ?? 0;
-          final playerStatus = playerData['status'] ?? 'playing';
-          
-          if (playerStatus == 'playing' && playerAttempt < 6) {
-            allFinished = false;
+        // Bu oyuncu kaybetti, karşı oyuncuyu kontrol et
+        String? opponentId;
+        for (final playerId in players.keys) {
+          if (playerId != user.uid) {
+            opponentId = playerId.toString();
             break;
           }
         }
         
-        if (allFinished) {
-          await gameRef.update({
-            'status': 'finished',
-            'finishedAt': FieldValue.serverTimestamp(),
-          });
+        if (opponentId != null) {
+          final opponentData = players[opponentId] as Map<dynamic, dynamic>?;
+          final opponentStatus = opponentData?['status'] ?? 'playing';
+          final opponentAttempt = opponentData?['currentAttempt'] ?? 0;
+          
+          // Eğer karşı oyuncu hala oynuyorsa, o otomatik kazanır
+          if (opponentStatus == 'playing' && opponentAttempt < 6) {
+            await gameRef.child('players/$opponentId').update({
+              'status': 'won',
+              'updatedAt': rtdb.ServerValue.timestamp,
+            });
+            
+            await gameRef.update({
+              'status': 'finished',
+              'winnerId': opponentId,
+              'finishedAt': FieldValue.serverTimestamp(),
+            });
+          } else {
+            // İki oyuncu da bitmiş, berabere durumu kontrol et
+            final allPlayers = players.values.toList();
+            bool allFinished = true;
+            
+            for (final player in allPlayers) {
+              final playerData = player as Map<dynamic, dynamic>;
+              final playerAttempt = playerData['currentAttempt'] ?? 0;
+              final playerStatus = playerData['status'] ?? 'playing';
+              
+              if (playerStatus == 'playing' && playerAttempt < 6) {
+                allFinished = false;
+                break;
+              }
+            }
+            
+            if (allFinished) {
+              await gameRef.update({
+                'status': 'finished',
+                'finishedAt': FieldValue.serverTimestamp(),
+              });
+            }
+          }
         }
       }
       
@@ -1946,27 +2101,93 @@ class FirebaseService {
     }
   }
   
-  /// Günlük bonus jeton kazan (reklam alternatifi)
-  static Future<bool> earnDailyBonus(String uid) async {
+  /// Günlük bonus bilgilerini al
+  static Future<Map<String, dynamic>> getDailyBonusInfo(String uid) async {
     try {
-      final today = DateTime.now();
-      final todayStr = '${today.year}-${today.month}-${today.day}';
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month}-${now.day}';
       
       final userDoc = await _firestore.collection('users').doc(uid).get();
       final userData = userDoc.data() ?? {};
-      final lastBonusDate = userData['lastBonusDate'] as String?;
       
-      // Bugün zaten bonus aldı mı kontrol et
-      if (lastBonusDate == todayStr) {
+      final lastBonusDate = userData['lastBonusDate'] as String?;
+      final currentStreak = userData['dailyBonusStreak'] ?? 0;
+      final lastBonusTimestamp = userData['lastBonusTimestamp'] as Timestamp?;
+      
+      // Bugün bonus aldı mı?
+      final canClaimToday = lastBonusDate != todayStr;
+      
+      // Streak hesapla
+      int streak = currentStreak;
+      if (lastBonusDate != null && canClaimToday) {
+        final lastDate = DateTime.tryParse(lastBonusDate.replaceAll('-', '/'));
+        if (lastDate != null) {
+          final difference = now.difference(lastDate).inDays;
+          if (difference > 1) {
+            // 1 günden fazla atladıysa streak sıfırla
+            streak = 0;
+          }
+        }
+      }
+      
+      // Bonus miktarını hesapla (maks 15)
+      final bonusAmount = (streak + 1).clamp(1, 15);
+      
+      // Bir sonraki bonus zamanını hesapla (gece yarısı)
+      DateTime nextBonusTime;
+      if (canClaimToday) {
+        nextBonusTime = DateTime(now.year, now.month, now.day + 1); // Yarın gece yarısı
+      } else {
+        nextBonusTime = DateTime(now.year, now.month, now.day + 1); // Yarın gece yarısı
+      }
+      
+      final timeUntilNext = nextBonusTime.difference(now);
+      
+      return {
+        'canClaim': canClaimToday,
+        'currentStreak': streak,
+        'bonusAmount': bonusAmount,
+        'nextBonusTime': nextBonusTime,
+        'timeUntilNext': timeUntilNext,
+        'lastClaimedDate': lastBonusDate,
+      };
+    } catch (e) {
+      print('Günlük bonus bilgi alma hatası: $e');
+      return {
+        'canClaim': true,
+        'currentStreak': 0,
+        'bonusAmount': 1,
+        'nextBonusTime': DateTime.now().add(const Duration(days: 1)),
+        'timeUntilNext': const Duration(hours: 24),
+        'lastClaimedDate': null,
+      };
+    }
+  }
+  
+  /// Günlük bonus jeton kazan
+  static Future<bool> earnDailyBonus(String uid) async {
+    try {
+      final bonusInfo = await getDailyBonusInfo(uid);
+      
+      if (!bonusInfo['canClaim']) {
         return false; // Bugün zaten aldı
       }
       
-      // Bonus ver
-      await earnTokens(uid, 1, 'Günlük Bonus');
+      final currentStreak = bonusInfo['currentStreak'] as int;
+      final bonusAmount = bonusInfo['bonusAmount'] as int;
+      final newStreak = currentStreak + 1;
       
-      // Son bonus tarihini güncelle
+      final today = DateTime.now();
+      final todayStr = '${today.year}-${today.month}-${today.day}';
+      
+      // Bonus ver
+      await earnTokens(uid, bonusAmount, 'Günlük Bonus (${newStreak}. gün)');
+      
+      // Streak ve son bonus tarihini güncelle
       await _firestore.collection('users').doc(uid).update({
         'lastBonusDate': todayStr,
+        'dailyBonusStreak': newStreak,
+        'lastBonusTimestamp': FieldValue.serverTimestamp(),
       });
       
       return true;
@@ -1979,14 +2200,8 @@ class FirebaseService {
   /// Günlük bonus alınabilir mi kontrol et
   static Future<bool> canEarnDailyBonus(String uid) async {
     try {
-      final today = DateTime.now();
-      final todayStr = '${today.year}-${today.month}-${today.day}';
-      
-      final userDoc = await _firestore.collection('users').doc(uid).get();
-      final userData = userDoc.data() ?? {};
-      final lastBonusDate = userData['lastBonusDate'] as String?;
-      
-      return lastBonusDate != todayStr;
+      final bonusInfo = await getDailyBonusInfo(uid);
+      return bonusInfo['canClaim'] as bool;
     } catch (e) {
       print('Günlük bonus kontrol hatası: $e');
       return false;

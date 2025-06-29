@@ -85,10 +85,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _screenHeight = MediaQuery.of(context).size.height;
     
     // Responsive değerler hesapla
-    _horizontalPadding = _screenWidth * 0.06; // Ekran genişliğinin %6'sı
-    _verticalPadding = _screenHeight * 0.025; // Ekran yüksekliğinin %2.5'i
-    _titleLetterSize = _screenWidth * 0.1; // Ekran genişliğinin %10'u
-    _gameModeCardHeight = _screenHeight * 0.12; // Ekran yüksekliğinin %12'si
+    _horizontalPadding = (_screenWidth * 0.06).clamp(16.0, 24.0); // Ekran genişliğinin %6'sı, min 16 max 24
+    _verticalPadding = (_screenHeight * 0.025).clamp(12.0, 20.0); // Ekran yüksekliğinin %2.5'i, min 12 max 20
+    _titleLetterSize = (_screenWidth * 0.1).clamp(32.0, 48.0); // Ekran genişliğinin %10'u, min 32 max 48
+    _gameModeCardHeight = (_screenHeight * 0.12).clamp(80.0, 120.0); // Ekran yüksekliğinin %12'si, min 80 max 120
   }
 
   // Responsive font boyutu hesaplama
@@ -102,8 +102,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     double vertical = 12.0,
   }) {
     return EdgeInsets.symmetric(
-      horizontal: horizontal * (_screenWidth / 375),
-      vertical: vertical * (_screenHeight / 667),
+      horizontal: (horizontal * (_screenWidth / 375)).clamp(8.0, 24.0),
+      vertical: (vertical * (_screenHeight / 667)).clamp(6.0, 18.0),
     );
   }
 
@@ -738,19 +738,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           SafeArea(
             child: FadeTransition(
               opacity: _fadeAnimation,
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: EdgeInsets.symmetric(
                   horizontal: _horizontalPadding,
                   vertical: _verticalPadding,
                 ),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _buildPlayerCard(FirebaseAuth.instance.currentUser),
+                    SizedBox(height: _screenHeight * 0.025),
                     _buildAnimatedGameTitle(),
+                    SizedBox(height: _screenHeight * 0.025),
                     _buildFreeChallenge(),
+                    SizedBox(height: _screenHeight * 0.02),
                     _buildGameModeGrid(),
+                    SizedBox(height: _screenHeight * 0.02),
                     _buildBottomPanel(),
+                    SizedBox(height: _screenHeight * 0.01),
                   ],
                 ),
               ),
@@ -773,7 +777,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         _showUserProfile();
       },
       child: Container(
-        padding: _getResponsivePadding(horizontal: 12, vertical: 10),
+        padding: _getResponsivePadding(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -791,7 +795,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             Hero(
               tag: 'user_avatar',
               child: Container(
-                padding: EdgeInsets.all(_screenWidth * 0.008),
+                padding: EdgeInsets.all(_screenWidth * 0.005),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
@@ -805,19 +809,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   future: FirebaseService.getUserAvatar(user?.uid ?? ''),
                   builder: (context, snapshot) {
                     return CircleAvatar(
-                      radius: _screenWidth * 0.06,
+                      radius: _screenWidth * 0.05,
                       backgroundColor: const Color(0xFF3A3A3C),
                       backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
                       child: snapshot.data == null && user?.photoURL == null
                           ? Icon(
                               Icons.person, 
                               color: Colors.white, 
-                              size: _screenWidth * 0.06,
+                              size: _screenWidth * 0.05,
                             )
                           : (user?.photoURL == null 
                               ? Text(
                                   snapshot.data!, 
-                                  style: TextStyle(fontSize: _getResponsiveFontSize(20))
+                                  style: TextStyle(fontSize: _getResponsiveFontSize(18))
                                 ) 
                               : null),
                     );
@@ -825,79 +829,91 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
               ),
             ),
-            SizedBox(width: _screenWidth * 0.04),
+            SizedBox(width: _screenWidth * 0.02),
             Expanded(
+              flex: 2,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     displayName,
                     style: TextStyle(
-                      fontSize: _getResponsiveFontSize(18),
+                      fontSize: _getResponsiveFontSize(16),
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                     overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
+                  SizedBox(height: _screenHeight * 0.002),
                   Text(
                     'Seviye $level',
                     style: TextStyle(
-                      fontSize: _getResponsiveFontSize(14),
+                      fontSize: _getResponsiveFontSize(12),
                       color: const Color(0xFF538D4E),
                       fontWeight: FontWeight.w600,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
-              stream: user != null ? FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots() : null,
-              builder: (context, snapshot) {
-                final tokens = (snapshot.data?.data() ?? {})['tokens'] ?? 0;
-                return GestureDetector(
-                  onTap: () {
-                    HapticService.triggerMediumHaptic();
-                    _navigateToTokenShop();
-                  },
-                  child: Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: _screenWidth * 0.04,
-                      vertical: _screenHeight * 0.01,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.amber.shade400,
-                          Colors.orange.shade600,
+            Flexible(
+              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
+                stream: user != null ? FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots() : null,
+                builder: (context, snapshot) {
+                  final tokens = (snapshot.data?.data() ?? {})['tokens'] ?? 0;
+                  return GestureDetector(
+                    onTap: () {
+                      HapticService.triggerMediumHaptic();
+                      _navigateToTokenShop();
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: _screenWidth * 0.025,
+                        vertical: _screenHeight * 0.008,
+                      ),
+                      constraints: BoxConstraints(
+                        minWidth: _screenWidth * 0.12,
+                        maxWidth: _screenWidth * 0.2,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.amber.shade400,
+                            Colors.orange.shade600,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(_screenWidth * 0.04),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.monetization_on, 
+                            color: Colors.white, 
+                            size: _getResponsiveFontSize(14),
+                          ),
+                          SizedBox(width: _screenWidth * 0.01),
+                          Flexible(
+                            child: Text(
+                              tokens.toString(),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: _getResponsiveFontSize(14),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(_screenWidth * 0.05),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.monetization_on, 
-                          color: Colors.white, 
-                          size: _getResponsiveFontSize(18),
-                        ),
-                        SizedBox(width: _screenWidth * 0.015),
-                        Text(
-                          tokens.toString(),
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: _getResponsiveFontSize(16),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-            SizedBox(width: _screenWidth * 0.03),
-            _buildHapticToggleButton(),
             SizedBox(width: _screenWidth * 0.02),
             GestureDetector(
               onTap: () {
@@ -905,7 +921,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 _showUserProfile();
               },
               child: Container(
-                padding: EdgeInsets.all(_screenWidth * 0.03),
+                padding: EdgeInsets.all(_screenWidth * 0.025),
                 decoration: BoxDecoration(
                   color: const Color(0xFF9B59B6),
                   shape: BoxShape.circle,
@@ -913,7 +929,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Icon(
                   Icons.person,
                   color: Colors.white,
-                  size: _getResponsiveFontSize(20),
+                  size: _getResponsiveFontSize(16),
                 ),
               ),
             ),
@@ -923,46 +939,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildHapticToggleButton() {
-    return ValueListenableBuilder<bool>(
-      valueListenable: HapticService.hapticEnabledNotifier,
-      builder: (context, isEnabled, child) {
-        return GestureDetector(
-          onTap: () {
-            HapticService.triggerLightHaptic();
-            HapticService.toggleHapticSetting();
-          },
-          child: AnimatedBuilder(
-            animation: _pulseAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: isEnabled ? 1.0 + (_pulseAnimation.value - 1.0) * 0.1 : 1.0,
-                child: Container(
-                  padding: EdgeInsets.all(_screenWidth * 0.03),
-                  decoration: BoxDecoration(
-                    color: isEnabled ? const Color(0xFF538D4E) : Colors.grey.shade700,
-                    shape: BoxShape.circle,
-                    boxShadow: isEnabled ? [
-                      BoxShadow(
-                        color: const Color(0xFF538D4E).withOpacity(0.5),
-                        blurRadius: _screenWidth * 0.025,
-                        spreadRadius: _screenWidth * 0.005,
-                      ),
-                    ] : null,
-                  ),
-                  child: Icon(
-                    isEnabled ? Icons.vibration : Icons.phonelink_erase_rounded,
-                    color: Colors.white,
-                    size: _getResponsiveFontSize(20),
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
+
 
   Widget _buildAnimatedGameTitle() {
     const word = 'HARFLE';
@@ -1201,7 +1178,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       },
       child: Container(
         height: _gameModeCardHeight,
-        padding: _getResponsivePadding(),
+        padding: EdgeInsets.symmetric(
+          horizontal: _screenWidth * 0.025,
+          vertical: _screenHeight * 0.01,
+        ),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -1218,41 +1198,43 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: EdgeInsets.all(_screenWidth * 0.005),
+                  padding: EdgeInsets.all(_screenWidth * 0.003),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(_screenWidth * 0.02),
+                    borderRadius: BorderRadius.circular(_screenWidth * 0.015),
                   ),
                   child: Icon(
                     icon, 
                     color: color, 
-                    size: _getResponsiveFontSize(26),
+                    size: _getResponsiveFontSize(22),
                   ),
                 ),
-                SizedBox(height: _screenHeight * 0.01), 
-                Flexible(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
                         title,
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: _getResponsiveFontSize(12),
+                          fontSize: _getResponsiveFontSize(11),
                           fontWeight: FontWeight.bold,
+                          height: 1.1,
                         ),
                         overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
                       ),
                       SizedBox(height: _screenHeight * 0.002),
                       Text(
                         subtitle,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.7),
-                          fontSize: _getResponsiveFontSize(9),
+                          fontSize: _getResponsiveFontSize(8),
+                          height: 1.1,
                         ),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
@@ -1267,8 +1249,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 top: 0,
                 right: 0,
                 child: Container(
-                  width: _screenWidth * 0.02,
-                  height: _screenWidth * 0.02,
+                  width: _screenWidth * 0.015,
+                  height: _screenWidth * 0.015,
                   decoration: BoxDecoration(
                     color: Colors.red,
                     shape: BoxShape.circle,
@@ -1294,8 +1276,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           flex: 2,
           child: Container(
             padding: EdgeInsets.symmetric(
-              vertical: _screenHeight * 0.015,
-              horizontal: _screenWidth * 0.02,
+              vertical: _screenHeight * 0.012,
+              horizontal: _screenWidth * 0.015,
             ),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -1310,20 +1292,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildMiniStatItem(Icons.local_fire_department_outlined, Colors.orange, '$currentStreak', 'Seri'),
-                _buildMiniStatItem(Icons.star_outline_rounded, Colors.yellow, '$bestStreak', 'En İyi'),
-                _buildMiniStatItem(Icons.online_prediction, Colors.greenAccent, '$activeUsers', 'Aktif'),
+                Flexible(child: _buildMiniStatItem(Icons.local_fire_department_outlined, Colors.orange, '$currentStreak', 'Seri')),
+                Flexible(child: _buildMiniStatItem(Icons.star_outline_rounded, Colors.yellow, '$bestStreak', 'En İyi')),
+                Flexible(child: _buildMiniStatItem(Icons.online_prediction, Colors.greenAccent, '$activeUsers', 'Aktif')),
               ],
             ),
           ),
         ),
-        SizedBox(width: _screenWidth * 0.03),
+        SizedBox(width: _screenWidth * 0.02),
         // Sağ: Başarılar
         Expanded(
           child: Container(
             padding: EdgeInsets.symmetric(
-              vertical: _screenHeight * 0.015,
-              horizontal: _screenWidth * 0.02,
+              vertical: _screenHeight * 0.012,
+              horizontal: _screenWidth * 0.015,
             ),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -1338,9 +1320,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildMiniAchievement(Icons.military_tech, Colors.amber, (userStats?['gamesWon'] ?? 0) >= 10),
-                _buildMiniAchievement(Icons.flash_on, Colors.orange, (userStats?['currentStreak'] ?? 0) >= 5),
-                _buildMiniAchievement(Icons.trending_up, Colors.green, (userStats?['level'] ?? 1) >= 5),
+                Flexible(child: _buildMiniAchievement(Icons.military_tech, Colors.amber, (userStats?['gamesWon'] ?? 0) >= 10)),
+                Flexible(child: _buildMiniAchievement(Icons.flash_on, Colors.orange, (userStats?['currentStreak'] ?? 0) >= 5)),
+                Flexible(child: _buildMiniAchievement(Icons.trending_up, Colors.green, (userStats?['level'] ?? 1) >= 5)),
               ],
             ),
           ),
@@ -1350,48 +1332,46 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildMiniStatItem(IconData icon, Color color, String value, String label) {
-    return Flexible(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: _getResponsiveFontSize(18)),
-          SizedBox(height: _screenHeight * 0.003),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: _getResponsiveFontSize(12),
-            ),
-            overflow: TextOverflow.ellipsis,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: _getResponsiveFontSize(16)),
+        SizedBox(height: _screenHeight * 0.002),
+        Text(
+          value,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: _getResponsiveFontSize(11),
           ),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
-              fontSize: _getResponsiveFontSize(9),
-            ),
-            overflow: TextOverflow.ellipsis,
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.6),
+            fontSize: _getResponsiveFontSize(8),
           ),
-        ],
-      ),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
+      ],
     );
   }
 
   Widget _buildMiniAchievement(IconData icon, Color color, bool isUnlocked) {
-    return Flexible(
-      child: Container(
-        width: _screenWidth * 0.08,
-        height: _screenWidth * 0.08,
-        decoration: BoxDecoration(
-          color: isUnlocked ? color : Colors.grey.shade700,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: _getResponsiveFontSize(16),
-        ),
+    return Container(
+      width: _screenWidth * 0.07,
+      height: _screenWidth * 0.07,
+      decoration: BoxDecoration(
+        color: isUnlocked ? color : Colors.grey.shade700,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        icon,
+        color: Colors.white,
+        size: _getResponsiveFontSize(14),
       ),
     );
   }
@@ -1449,22 +1429,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         Text(
                           'ZORLU',
                           style: TextStyle(
-                            fontSize: _getResponsiveFontSize(13),
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            height: 1.2
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          'MOD',
-                          style: TextStyle(
-                            fontSize: _getResponsiveFontSize(13),
+                            fontSize: _getResponsiveFontSize(11),
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                             height: 1.1
                           ),
                           overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                        Text(
+                          'MOD',
+                          style: TextStyle(
+                            fontSize: _getResponsiveFontSize(11),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1.1
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ],
                     ),
@@ -1488,13 +1470,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 style: TextStyle(
                   color: const Color.fromRGBO(230, 224, 233, 1.0),
                   fontWeight: FontWeight.bold,
-                  fontSize: _getResponsiveFontSize(13),
-                  letterSpacing: 1.0,
-                  height: 1.4,
+                  fontSize: _getResponsiveFontSize(11),
+                  letterSpacing: 0.5,
+                  height: 1.2,
                   leadingDistribution: TextLeadingDistribution.even,
                   decoration: TextDecoration.none,
                 ),
                 overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ],
           ),
@@ -1548,22 +1531,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         Text(
                           'ZORLU',
                           style: TextStyle(
-                            fontSize: _getResponsiveFontSize(13),
+                            fontSize: _getResponsiveFontSize(11),
                             fontWeight: FontWeight.bold,
                             color: Colors.grey.shade500,
                             height: 1.1,
                           ),
                           overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                         Text(
                           'MOD',
                           style: TextStyle(
-                            fontSize: _getResponsiveFontSize(13),
+                            fontSize: _getResponsiveFontSize(11),
                             fontWeight: FontWeight.bold,
                             color: Colors.grey.shade500,
                             height: 1.1,
                           ),
                           overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ],
                     ),

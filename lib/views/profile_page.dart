@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firebase_service.dart';
 import '../services/avatar_service.dart';
+import '../services/haptic_service.dart';
 import '../widgets/avatar_selector.dart';
 
 // Profil sayfası
@@ -16,11 +17,42 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   Map<String, dynamic>? userStats;
   bool isLoading = true;
+  
+  // Responsive boyutlar için getter'lar
+  late double _screenWidth;
+  late double _screenHeight;
 
   @override
   void initState() {
     super.initState();
     _loadUserStats();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _calculateResponsiveSizes();
+  }
+
+  void _calculateResponsiveSizes() {
+    _screenWidth = MediaQuery.of(context).size.width;
+    _screenHeight = MediaQuery.of(context).size.height;
+  }
+
+  // Responsive font boyutu hesaplama
+  double _getResponsiveFontSize(double baseSize) {
+    return baseSize * (_screenWidth / 375); // iPhone 6/7/8 baz alınarak
+  }
+
+  // Responsive padding hesaplama
+  EdgeInsets _getResponsivePadding({
+    double horizontal = 16.0,
+    double vertical = 12.0,
+  }) {
+    return EdgeInsets.symmetric(
+      horizontal: (horizontal * (_screenWidth / 375)).clamp(8.0, 24.0),
+      vertical: (vertical * (_screenHeight / 667)).clamp(6.0, 18.0),
+    );
   }
 
   Future<void> _loadUserStats() async {
@@ -44,16 +76,27 @@ class _ProfilePageState extends State<ProfilePage> {
     
     if (user == null) {
       return Scaffold(
+        backgroundColor: const Color(0xFF0A0A0A),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.person_off, size: 64, color: Colors.grey),
-              const SizedBox(height: 16),
-              const Text('Kullanıcı bulunamadı'),
-              const SizedBox(height: 16),
+              Icon(Icons.person_off, size: _getResponsiveFontSize(64), color: Colors.grey),
+              SizedBox(height: _screenHeight * 0.02),
+              Text(
+                'Kullanıcı bulunamadı',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: _getResponsiveFontSize(16),
+                ),
+              ),
+              SizedBox(height: _screenHeight * 0.02),
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF538D4E),
+                  foregroundColor: Colors.white,
+                ),
                 child: const Text('Geri Dön'),
               ),
             ],
@@ -63,76 +106,82 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF4285F4),
-              Color(0xFF34A853),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              _buildHeader(),
-              
-              // Content
-              Expanded(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 20),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(30),
-                      topRight: Radius.circular(30),
-                    ),
-                  ),
-                  child: isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _buildProfileContent(user),
-                ),
-              ),
-            ],
-          ),
+      backgroundColor: const Color(0xFF0A0A0A),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            _buildHeader(),
+            
+            // Content
+            Expanded(
+              child: isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: const Color(0xFF538D4E),
+                        strokeWidth: _screenWidth * 0.01,
+                      ),
+                    )
+                  : _buildProfileContent(user),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.all(20),
+    return Container(
+      padding: EdgeInsets.all(_screenWidth * 0.05),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF2A2A2D),
+            const Color(0xFF1A1A1D),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(_screenWidth * 0.08),
+          bottomRight: Radius.circular(_screenWidth * 0.08),
+        ),
+        border: Border.all(color: const Color(0xFF538D4E), width: 1),
+      ),
       child: Row(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(
+          GestureDetector(
+            onTap: () {
+              HapticService.triggerLightHaptic();
+              Navigator.of(context).pop();
+            },
+            child: Container(
+              padding: EdgeInsets.all(_screenWidth * 0.025),
+              decoration: BoxDecoration(
+                color: const Color(0xFF538D4E).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(_screenWidth * 0.03),
+                border: Border.all(color: const Color(0xFF538D4E), width: 1),
+              ),
+              child: Icon(
                 Icons.arrow_back_ios_new,
                 color: Colors.white,
+                size: _getResponsiveFontSize(20),
               ),
             ),
           ),
-          const Expanded(
+          Expanded(
             child: Text(
               'Profilim',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 24,
+                fontSize: _getResponsiveFontSize(24),
                 fontWeight: FontWeight.bold,
+                letterSpacing: 1,
               ),
             ),
           ),
-          const SizedBox(width: 48), // Balance için
+          SizedBox(width: _screenWidth * 0.12), // Balance için
         ],
       ),
     );
@@ -140,24 +189,24 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildProfileContent(User user) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(_screenWidth * 0.06),
       child: Column(
         children: [
           // Avatar ve temel bilgiler
           _buildAvatarSection(user),
-          const SizedBox(height: 32),
+          SizedBox(height: _screenHeight * 0.04),
           
           // Profil bilgileri kartları
           _buildInfoCards(user),
-          const SizedBox(height: 32),
+          SizedBox(height: _screenHeight * 0.04),
           
           // İstatistikler
           if (userStats != null) _buildStatsSection(),
-          const SizedBox(height: 32),
+          SizedBox(height: _screenHeight * 0.04),
           
           // Çıkış yap butonu
           _buildSignOutButton(),
-          const SizedBox(height: 20),
+          SizedBox(height: _screenHeight * 0.03),
         ],
       ),
     );
@@ -173,6 +222,7 @@ class _ProfilePageState extends State<ProfilePage> {
             
             return GestureDetector(
               onTap: () async {
+                HapticService.triggerMediumHaptic();
                 final newAvatar = await showAvatarSelector(
                   context: context,
                   currentAvatar: userAvatar,
@@ -183,9 +233,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   if (success && mounted) {
                     setState(() {});
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Avatar güncellendi!'),
-                        backgroundColor: Color(0xFF4285F4),
+                      SnackBar(
+                        content: const Text('Avatar güncellendi!'),
+                        backgroundColor: const Color(0xFF538D4E),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(_screenWidth * 0.03),
+                        ),
                       ),
                     );
                   }
@@ -194,57 +248,68 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Stack(
                 children: [
                   Container(
-                    width: 120,
-                    height: 120,
+                    width: _screenWidth * 0.3,
+                    height: _screenWidth * 0.3,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF4285F4), Color(0xFF34A853)],
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF538D4E),
+                          const Color(0xFF6AAA64),
+                        ],
                       ),
-                      borderRadius: BorderRadius.circular(60),
+                      borderRadius: BorderRadius.circular(_screenWidth * 0.15),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
+                          color: const Color(0xFF538D4E).withOpacity(0.4),
+                          blurRadius: _screenWidth * 0.05,
+                          offset: Offset(0, _screenHeight * 0.01),
                         ),
                       ],
                     ),
                     child: Container(
-                      margin: const EdgeInsets.all(4),
+                      margin: EdgeInsets.all(_screenWidth * 0.01),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(56),
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF2A2A2D),
+                            const Color(0xFF1A1A1D),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(_screenWidth * 0.14),
                       ),
                       child: Center(
                         child: Text(
                           userAvatar,
-                          style: const TextStyle(fontSize: 50),
+                          style: TextStyle(fontSize: _getResponsiveFontSize(50)),
                         ),
                       ),
                     ),
                   ),
                   Positioned(
-                    bottom: 5,
-                    right: 5,
+                    bottom: _screenWidth * 0.01,
+                    right: _screenWidth * 0.01,
                     child: Container(
-                      width: 36,
-                      height: 36,
+                      width: _screenWidth * 0.09,
+                      height: _screenWidth * 0.09,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF4285F4), Color(0xFF34A853)],
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF538D4E),
+                            const Color(0xFF6AAA64),
+                          ],
                         ),
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(_screenWidth * 0.045),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: _screenWidth * 0.02,
+                            offset: Offset(0, _screenHeight * 0.005),
                           ),
                         ],
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.edit,
-                        size: 18,
+                        size: _getResponsiveFontSize(18),
                         color: Colors.white,
                       ),
                     ),
@@ -254,30 +319,35 @@ class _ProfilePageState extends State<ProfilePage> {
             );
           },
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: _screenHeight * 0.02),
         Text(
           userStats?['displayName'] ?? user.displayName ?? 'Oyuncu',
-          style: const TextStyle(
-            fontSize: 24,
+          style: TextStyle(
+            fontSize: _getResponsiveFontSize(24),
             fontWeight: FontWeight.bold,
-            color: Color(0xFF333333),
+            color: Colors.white,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: _screenHeight * 0.01),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: EdgeInsets.symmetric(
+            horizontal: _screenWidth * 0.03,
+            vertical: _screenHeight * 0.008,
+          ),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF4285F4), Color(0xFF34A853)],
+            gradient: LinearGradient(
+              colors: user.isAnonymous
+                  ? [Colors.orange.shade600, Colors.red.shade600]
+                  : [const Color(0xFF538D4E), const Color(0xFF6AAA64)],
             ),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(_screenWidth * 0.05),
           ),
           child: Text(
             user.isAnonymous ? '🎮 Misafir Oyuncu' : '⭐ Kayıtlı Oyuncu',
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w600,
-              fontSize: 12,
+              fontSize: _getResponsiveFontSize(12),
             ),
           ),
         ),
@@ -302,18 +372,20 @@ class _ProfilePageState extends State<ProfilePage> {
             title: 'İsim',
             value: userStats?['displayName'] ?? user.displayName ?? 'Oyuncu',
           ),
-        const SizedBox(height: 16),
+        SizedBox(height: _screenHeight * 0.02),
         _buildInfoCard(
           icon: Icons.email,
           title: 'E-posta',
           value: user.email ?? 'Belirtilmemiş',
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: _screenHeight * 0.02),
         _buildInfoCard(
           icon: Icons.verified_user,
           title: 'Hesap Türü',
           value: user.isAnonymous ? 'Misafir Hesap' : 'Kayıtlı Hesap',
         ),
+        SizedBox(height: _screenHeight * 0.02),
+        _buildHapticToggleCard(),
       ],
     );
   }
@@ -324,39 +396,47 @@ class _ProfilePageState extends State<ProfilePage> {
     required String value,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: _getResponsivePadding(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF2A2A2D),
+            const Color(0xFF1A1A1D),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(_screenWidth * 0.04),
+        border: Border.all(color: const Color(0xFF538D4E), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: _screenWidth * 0.02,
+            offset: Offset(0, _screenHeight * 0.005),
           ),
         ],
-        border: Border.all(
-          color: const Color(0xFF4285F4).withOpacity(0.1),
-        ),
       ),
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: _screenWidth * 0.12,
+            height: _screenWidth * 0.12,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF4285F4), Color(0xFF34A853)],
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF538D4E),
+                  const Color(0xFF6AAA64),
+                ],
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(_screenWidth * 0.03),
             ),
             child: Icon(
               icon,
               color: Colors.white,
-              size: 24,
+              size: _getResponsiveFontSize(24),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: _screenWidth * 0.04),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,18 +444,18 @@ class _ProfilePageState extends State<ProfilePage> {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
+                    fontSize: _getResponsiveFontSize(14),
+                    color: Colors.white.withOpacity(0.7),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: _screenHeight * 0.005),
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontSize: 16,
+                  style: TextStyle(
+                    fontSize: _getResponsiveFontSize(16),
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF333333),
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -394,39 +474,47 @@ class _ProfilePageState extends State<ProfilePage> {
     required VoidCallback onEdit,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: _getResponsivePadding(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF2A2A2D),
+            const Color(0xFF1A1A1D),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(_screenWidth * 0.04),
+        border: Border.all(color: const Color(0xFF538D4E), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: _screenWidth * 0.02,
+            offset: Offset(0, _screenHeight * 0.005),
           ),
         ],
-        border: Border.all(
-          color: const Color(0xFF4285F4).withOpacity(0.1),
-        ),
       ),
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: _screenWidth * 0.12,
+            height: _screenWidth * 0.12,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF4285F4), Color(0xFF34A853)],
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF538D4E),
+                  const Color(0xFF6AAA64),
+                ],
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(_screenWidth * 0.03),
             ),
             child: Icon(
               icon,
               color: Colors.white,
-              size: 24,
+              size: _getResponsiveFontSize(24),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: _screenWidth * 0.04),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -434,18 +522,18 @@ class _ProfilePageState extends State<ProfilePage> {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
+                    fontSize: _getResponsiveFontSize(14),
+                    color: Colors.white.withOpacity(0.7),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: _screenHeight * 0.005),
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontSize: 16,
+                  style: TextStyle(
+                    fontSize: _getResponsiveFontSize(16),
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF333333),
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -453,17 +541,21 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           if (isEditable)
             GestureDetector(
-              onTap: onEdit,
+              onTap: () {
+                HapticService.triggerLightHaptic();
+                onEdit();
+              },
               child: Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(_screenWidth * 0.02),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4285F4).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0xFF538D4E).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(_screenWidth * 0.02),
+                  border: Border.all(color: const Color(0xFF538D4E), width: 1),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.edit,
-                  size: 18,
-                  color: Color(0xFF4285F4),
+                  size: _getResponsiveFontSize(18),
+                  color: const Color(0xFF538D4E),
                 ),
               ),
             ),
@@ -476,15 +568,15 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           '📊 Oyun İstatistiklerin',
           style: TextStyle(
-            fontSize: 20,
+            fontSize: _getResponsiveFontSize(20),
             fontWeight: FontWeight.bold,
-            color: Color(0xFF333333),
+            color: Colors.white,
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: _screenHeight * 0.02),
         Row(
           children: [
             Expanded(
@@ -495,18 +587,18 @@ class _ProfilePageState extends State<ProfilePage> {
                 color: const Color(0xFFFFD700),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: _screenWidth * 0.03),
             Expanded(
               child: _buildStatCard(
                 title: 'Toplam Oyun',
                 value: userStats!['gamesPlayed']?.toString() ?? '0',
                 icon: '🎮',
-                color: const Color(0xFF4285F4),
+                color: const Color(0xFF3498DB),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: _screenHeight * 0.015),
         Row(
           children: [
             Expanded(
@@ -517,13 +609,13 @@ class _ProfilePageState extends State<ProfilePage> {
                 color: const Color(0xFFFF6B35),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: _screenWidth * 0.03),
             Expanded(
               child: _buildStatCard(
                 title: 'En İyi Seri',
                 value: userStats!['bestStreak']?.toString() ?? '0',
                 icon: '⭐',
-                color: const Color(0xFF34A853),
+                color: const Color(0xFF538D4E),
               ),
             ),
           ],
@@ -539,35 +631,47 @@ class _ProfilePageState extends State<ProfilePage> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: _getResponsivePadding(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: color.withOpacity(0.3),
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF2A2A2D),
+            const Color(0xFF1A1A1D),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(_screenWidth * 0.04),
+        border: Border.all(color: color.withOpacity(0.5), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.2),
+            blurRadius: _screenWidth * 0.02,
+            offset: Offset(0, _screenHeight * 0.005),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Text(
             icon,
-            style: const TextStyle(fontSize: 24),
+            style: TextStyle(fontSize: _getResponsiveFontSize(24)),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: _screenHeight * 0.01),
           Text(
             value,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: _getResponsiveFontSize(20),
               fontWeight: FontWeight.bold,
               color: color,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: _screenHeight * 0.005),
           Text(
             title,
             style: TextStyle(
-              fontSize: 12,
-              color: color,
+              fontSize: _getResponsiveFontSize(12),
+              color: Colors.white.withOpacity(0.7),
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
@@ -580,41 +684,49 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildSignOutButton() {
     return Container(
       width: double.infinity,
-      height: 56,
+      height: _screenHeight * 0.07,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFE53E3E), Color(0xFFFF6B6B)],
+        gradient: LinearGradient(
+          colors: [
+            Colors.red.shade700,
+            Colors.red.shade900,
+          ],
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(_screenWidth * 0.04),
+        border: Border.all(color: Colors.red.shade600, width: 1),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFE53E3E).withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+            color: Colors.red.shade700.withOpacity(0.3),
+            blurRadius: _screenWidth * 0.03,
+            offset: Offset(0, _screenHeight * 0.006),
           ),
         ],
       ),
       child: ElevatedButton(
-        onPressed: () => _showSignOutDialog(),
+        onPressed: () {
+          HapticService.triggerMediumHaptic();
+          _showSignOutDialog();
+        },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(_screenWidth * 0.04),
           ),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.logout,
               color: Colors.white,
+              size: _getResponsiveFontSize(20),
             ),
-            SizedBox(width: 8),
+            SizedBox(width: _screenWidth * 0.02),
             Text(
               'Çıkış Yap',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: _getResponsiveFontSize(16),
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
@@ -632,23 +744,51 @@ class _ProfilePageState extends State<ProfilePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('İsim Değiştir'),
+        backgroundColor: const Color(0xFF1A1A1D),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_screenWidth * 0.04),
+          side: BorderSide(color: const Color(0xFF538D4E), width: 2),
+        ),
+        title: Text(
+          'İsim Değiştir',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: _getResponsiveFontSize(18),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Yeni kullanıcı adınızı girin (2-20 karakter)',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
+              style: TextStyle(
+                fontSize: _getResponsiveFontSize(14),
+                color: Colors.white.withOpacity(0.7),
+              ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: _screenHeight * 0.02),
             TextField(
               controller: controller,
               maxLength: 20,
-              decoration: const InputDecoration(
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: _getResponsiveFontSize(16),
+              ),
+              decoration: InputDecoration(
                 labelText: 'Kullanıcı Adı',
+                labelStyle: TextStyle(color: const Color(0xFF538D4E)),
                 hintText: 'Örn: OyuncuAdım',
-                border: OutlineInputBorder(),
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: const Color(0xFF538D4E)),
+                  borderRadius: BorderRadius.circular(_screenWidth * 0.02),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: const Color(0xFF6AAA64), width: 2),
+                  borderRadius: BorderRadius.circular(_screenWidth * 0.02),
+                ),
+                counterStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
               ),
             ),
           ],
@@ -656,25 +796,55 @@ class _ProfilePageState extends State<ProfilePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
+            child: Text(
+              'İptal',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: _getResponsiveFontSize(16),
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
               final newName = controller.text.trim();
               if (newName.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Kullanıcı adı boş olamaz!'),
+                  SnackBar(
+                    content: const Text('Kullanıcı adı boş olamaz!'),
                     backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(_screenWidth * 0.03),
+                    ),
                   ),
                 );
                 return;
               }
               if (newName.length < 2) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Kullanıcı adı en az 2 karakter olmalı!'),
+                  SnackBar(
+                    content: const Text('Kullanıcı adı en az 2 karakter olmalı!'),
                     backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(_screenWidth * 0.03),
+                    ),
+                  ),
+                );
+                return;
+              }
+              
+              // ASCII karakter kontrolü
+              if (!_isValidAsciiUsername(newName)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Kullanıcı adı sadece İngilizce harfler, rakamlar ve temel özel karakterler (_.-) içerebilir!'),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 4),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(_screenWidth * 0.03),
+                    ),
                   ),
                 );
                 return;
@@ -689,17 +859,25 @@ class _ProfilePageState extends State<ProfilePage> {
                   Navigator.pop(context);
                   await _loadUserStats(); // Verileri yeniden yükle
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('İsim başarıyla güncellendi!'),
-                      backgroundColor: Color(0xFF4285F4),
+                    SnackBar(
+                      content: const Text('İsim başarıyla güncellendi!'),
+                      backgroundColor: const Color(0xFF538D4E),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(_screenWidth * 0.03),
+                      ),
                     ),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Bu kullanıcı adı zaten kullanımda! Lütfen farklı bir isim deneyin.'),
+                    SnackBar(
+                      content: const Text('Bu kullanıcı adı zaten kullanımda! Lütfen farklı bir isim deneyin.'),
                       backgroundColor: Colors.red,
-                      duration: Duration(seconds: 4),
+                      duration: const Duration(seconds: 4),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(_screenWidth * 0.03),
+                      ),
                     ),
                   );
                 }
@@ -708,11 +886,28 @@ class _ProfilePageState extends State<ProfilePage> {
                   SnackBar(
                     content: Text('Hata: $e'),
                     backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(_screenWidth * 0.03),
+                    ),
                   ),
                 );
               }
             },
-            child: const Text('Kaydet'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF538D4E),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(_screenWidth * 0.02),
+              ),
+            ),
+            child: Text(
+              'Kaydet',
+              style: TextStyle(
+                fontSize: _getResponsiveFontSize(16),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -723,19 +918,46 @@ class _ProfilePageState extends State<ProfilePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        backgroundColor: const Color(0xFF1A1A1D),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_screenWidth * 0.04),
+          side: BorderSide(color: Colors.red.shade400, width: 2),
+        ),
+        title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Color(0xFFE53E3E)),
-            SizedBox(width: 8),
-            Text('Çıkış Yap'),
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.red.shade400,
+              size: _getResponsiveFontSize(24),
+            ),
+            SizedBox(width: _screenWidth * 0.02),
+            Text(
+              'Çıkış Yap',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: _getResponsiveFontSize(18),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
-        content: const Text('Hesabınızdan çıkmak istediğinizden emin misiniz?'),
+        content: Text(
+          'Hesabınızdan çıkmak istediğinizden emin misiniz?',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.9),
+            fontSize: _getResponsiveFontSize(16),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
+            child: Text(
+              'İptal',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: _getResponsiveFontSize(16),
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -746,13 +968,119 @@ class _ProfilePageState extends State<ProfilePage> {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE53E3E),
+              backgroundColor: Colors.red.shade700,
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(_screenWidth * 0.02),
+              ),
             ),
-            child: const Text('Çıkış Yap'),
+            child: Text(
+              'Çıkış Yap',
+              style: TextStyle(
+                fontSize: _getResponsiveFontSize(16),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildHapticToggleCard() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: HapticService.hapticEnabledNotifier,
+      builder: (context, isEnabled, child) {
+        return Container(
+          padding: _getResponsivePadding(horizontal: 20, vertical: 16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                const Color(0xFF2A2A2D),
+                const Color(0xFF1A1A1D),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(_screenWidth * 0.04),
+            border: Border.all(
+              color: isEnabled ? const Color(0xFF538D4E) : Colors.grey.shade600,
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: _screenWidth * 0.02,
+                offset: Offset(0, _screenHeight * 0.005),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: _screenWidth * 0.12,
+                height: _screenWidth * 0.12,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isEnabled
+                        ? [const Color(0xFF538D4E), const Color(0xFF6AAA64)]
+                        : [Colors.grey.shade600, Colors.grey.shade700],
+                  ),
+                  borderRadius: BorderRadius.circular(_screenWidth * 0.03),
+                ),
+                child: Icon(
+                  isEnabled ? Icons.vibration : Icons.phonelink_erase_rounded,
+                  color: Colors.white,
+                  size: _getResponsiveFontSize(24),
+                ),
+              ),
+              SizedBox(width: _screenWidth * 0.04),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Titreşim',
+                      style: TextStyle(
+                        fontSize: _getResponsiveFontSize(14),
+                        color: Colors.white.withOpacity(0.7),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: _screenHeight * 0.005),
+                    Text(
+                      isEnabled ? 'Açık' : 'Kapalı',
+                      style: TextStyle(
+                        fontSize: _getResponsiveFontSize(16),
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: isEnabled,
+                onChanged: (value) {
+                  HapticService.triggerLightHaptic();
+                  HapticService.toggleHapticSetting();
+                },
+                activeColor: const Color(0xFF538D4E),
+                activeTrackColor: const Color(0xFF538D4E).withOpacity(0.3),
+                inactiveThumbColor: Colors.grey.shade500,
+                inactiveTrackColor: Colors.grey.shade700,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  bool _isValidAsciiUsername(String username) {
+    // ASCII karakter kontrolü - sadece İngilizce karakterler, rakamlar ve temel özel karakterler
+    // a-z, A-Z, 0-9, space, underscore, hyphen, period
+    final validPattern = RegExp(r'^[a-zA-Z0-9 ._-]+$');
+    return validPattern.hasMatch(username);
   }
 } 

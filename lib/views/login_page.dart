@@ -211,6 +211,18 @@ class _LoginPageState extends State<LoginPage>
                   return;
                 }
                 
+                // ASCII karakter kontrolü
+                if (!_isValidAsciiUsername(name)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Kullanıcı adı sadece İngilizce harfler, rakamlar ve temel özel karakterler (_.-) içerebilir!'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 4),
+                    ),
+                  );
+                  return;
+                }
+                
                 // Benzersizlik kontrolü
                 try {
                   final existingUsers = await FirebaseFirestore.instance
@@ -260,6 +272,19 @@ class _LoginPageState extends State<LoginPage>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
+  }
+
+  bool _isValidAsciiUsername(String username) {
+    // ASCII karakter kontrolü - sadece İngilizce karakterler, rakamlar ve temel özel karakterler
+    // a-z, A-Z, 0-9, space, underscore, hyphen, period
+    final validPattern = RegExp(r'^[a-zA-Z0-9 ._-]+$');
+    return validPattern.hasMatch(username);
+  }
+
+  bool _isValidAsciiEmail(String email) {
+    // ASCII karakter kontrolü - email için standart ASCII karakterler
+    final validPattern = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    return validPattern.hasMatch(email);
   }
 
   void _toggleMode() {
@@ -364,6 +389,9 @@ class _LoginPageState extends State<LoginPage>
                                         if (value == null || value.trim().isEmpty) {
                                           return 'Ad soyad gerekli';
                                         }
+                                        if (!_isValidAsciiUsername(value.trim())) {
+                                          return 'Ad soyad sadece ASCII karakterler içermelidir';
+                                        }
                                         return null;
                                       },
                                     ),
@@ -383,15 +411,15 @@ class _LoginPageState extends State<LoginPage>
                                       filled: true,
                                       fillColor: Colors.grey.shade50,
                                     ),
-                                    validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
-                                        return 'E-posta gerekli';
-                                      }
-                                      if (!RegExp(r'^[\w-\.]+@[\w-]+\.[a-z]{2,}$').hasMatch(value)) {
-                                        return 'Geçerli e-posta adresi girin';
-                                      }
-                                      return null;
-                                    },
+                                                        validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'E-posta gerekli';
+                      }
+                      if (!_isValidAsciiEmail(value)) {
+                        return 'E-posta sadece ASCII karakterler içermelidir';
+                      }
+                      return null;
+                    },
                                   ),
                                   const SizedBox(height: 16),
 
