@@ -1,5 +1,5 @@
-name: wordle_turkish
-description: Türkçe Wordle klonu
+name: harfle
+description: Türkçe kelime tahmin oyunu - Harfle
 
 publish_to: 'none' 
 
@@ -30,6 +30,7 @@ dependencies:
 
 dev_dependencies:
   flutter_lints: ^2.0.0
+  flutter_launcher_icons: ^0.13.1
   
   flutter_test:
     sdk: flutter
@@ -42,6 +43,7 @@ flutter:
     - assets/winner/
     - assets/lose/
     - assets/alert/
+    - assets/logo/
 
 flutter_native_splash:
   color: "#667eea"
@@ -50,3 +52,21 @@ flutter_native_splash:
     color: "#667eea"
     color_dark: "#764ba2"
   web: false
+
+flutter_launcher_icons:
+  android: "harfle_icon"
+  ios: true
+  image_path: "assets/logo/logo.png"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/logo/logo.png"
+    background_color: "#667eea"
+    theme_color: "#667eea"
+  windows:
+    generate: true
+    image_path: "assets/logo/logo.png"
+    icon_size: 48
+  macos:
+    generate: true
+    image_path: "assets/logo/logo.png"

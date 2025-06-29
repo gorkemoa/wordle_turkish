@@ -57,6 +57,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final List<FloatingParticle> _particles = [];
   final Random _random = Random();
 
+  // Responsive boyutlar için getter'lar
+  late double _screenWidth;
+  late double _screenHeight;
+  late double _horizontalPadding;
+  late double _verticalPadding;
+  late double _titleLetterSize;
+  late double _gameModeCardHeight;
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +72,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _initializeParticles();
     _loadData();
     HapticService.loadHapticSettings();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _calculateResponsiveSizes();
+  }
+
+  void _calculateResponsiveSizes() {
+    _screenWidth = MediaQuery.of(context).size.width;
+    _screenHeight = MediaQuery.of(context).size.height;
+    
+    // Responsive değerler hesapla
+    _horizontalPadding = _screenWidth * 0.06; // Ekran genişliğinin %6'sı
+    _verticalPadding = _screenHeight * 0.025; // Ekran yüksekliğinin %2.5'i
+    _titleLetterSize = _screenWidth * 0.1; // Ekran genişliğinin %10'u
+    _gameModeCardHeight = _screenHeight * 0.12; // Ekran yüksekliğinin %12'si
+  }
+
+  // Responsive font boyutu hesaplama
+  double _getResponsiveFontSize(double baseSize) {
+    return baseSize * (_screenWidth / 375); // iPhone 6/7/8 baz alınarak
+  }
+
+  // Responsive padding hesaplama
+  EdgeInsets _getResponsivePadding({
+    double horizontal = 16.0,
+    double vertical = 12.0,
+  }) {
+    return EdgeInsets.symmetric(
+      horizontal: horizontal * (_screenWidth / 375),
+      vertical: vertical * (_screenHeight / 667),
+    );
   }
 
   void _initializeAnimations() {
@@ -242,13 +283,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         return AlertDialog(
           backgroundColor: const Color(0xFF1A1A1D),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(_screenWidth * 0.05),
             side: BorderSide(color: Colors.red.shade400, width: 2),
           ),
           title: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(_screenWidth * 0.02),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [Colors.red.shade400, Colors.red.shade600],
@@ -257,12 +298,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
                 child: const Icon(Icons.warning_amber, color: Colors.white),
               ),
-              const SizedBox(width: 12),
-              const Text('Yetersiz Jeton', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              SizedBox(width: _screenWidth * 0.03),
+              Text(
+                'Yetersiz Jeton', 
+                style: TextStyle(
+                  color: Colors.white, 
+                  fontSize: _getResponsiveFontSize(18), 
+                  fontWeight: FontWeight.bold
+                )
+              ),
             ],
           ),
           content: Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(_screenWidth * 0.04),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -270,22 +318,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   const Color(0xFF1A1A1D),
                 ],
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(_screenWidth * 0.03),
             ),
             child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                   'Düello için 2 jetona ihtiyacın var.\nMevcut jetonun: $currentTokens 🪙',
-                  style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 16),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9), 
+                    fontSize: _getResponsiveFontSize(16)
+                  ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: _screenHeight * 0.02),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(_screenWidth * 0.03),
                 decoration: BoxDecoration(
                     color: const Color(0xFF538D4E).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(_screenWidth * 0.02),
                     border: Border.all(color: const Color(0xFF538D4E), width: 1),
                   ),
                   child: const Text(
@@ -300,9 +351,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: EdgeInsets.symmetric(
+                  horizontal: _screenWidth * 0.05, 
+                  vertical: _screenHeight * 0.015
+                ),
               ),
-              child: const Text('İptal', style: TextStyle(color: Colors.grey, fontSize: 16)),
+              child: Text(
+                'İptal', 
+                style: TextStyle(
+                  color: Colors.grey, 
+                  fontSize: _getResponsiveFontSize(16)
+                )
+              ),
             ),
             ElevatedButton(
               onPressed: () {
@@ -312,10 +372,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF538D4E),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: EdgeInsets.symmetric(
+                  horizontal: _screenWidth * 0.06, 
+                  vertical: _screenHeight * 0.015
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(_screenWidth * 0.03)
+                ),
               ),
-              child: const Text('Jeton Al', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: Text(
+                'Jeton Al', 
+                style: TextStyle(
+                  fontSize: _getResponsiveFontSize(16), 
+                  fontWeight: FontWeight.bold
+                )
+              ),
             ),
           ],
         );
@@ -330,13 +401,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         return AlertDialog(
           backgroundColor: const Color(0xFF1A1A1D),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(_screenWidth * 0.05),
             side: BorderSide(color: Colors.red.shade400, width: 2),
           ),
           title: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(_screenWidth * 0.02),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [Colors.red.shade400, Colors.red.shade600],
@@ -345,12 +416,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
                 child: const Icon(Icons.lock_clock, color: Colors.white),
               ),
-              const SizedBox(width: 12),
-              const Text('Zorlu Mod Kilitli', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              SizedBox(width: _screenWidth * 0.03),
+              Text(
+                'Zorlu Mod Kilitli', 
+                style: TextStyle(
+                  color: Colors.white, 
+                  fontSize: _getResponsiveFontSize(18), 
+                  fontWeight: FontWeight.bold
+                )
+              ),
             ],
           ),
           content: Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(_screenWidth * 0.04),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -358,22 +436,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   const Color(0xFF1A1A1D),
                 ],
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(_screenWidth * 0.03),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Zorlu Mod sadece 24 saatte bir oynanabilir!\n\nKalan süre: $hoursLeft saat',
-                  style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 16),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9), 
+                    fontSize: _getResponsiveFontSize(16)
+                  ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: _screenHeight * 0.02),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(_screenWidth * 0.03),
                   decoration: BoxDecoration(
                     color: Colors.red.shade400.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(_screenWidth * 0.02),
                     border: Border.all(color: Colors.red.shade400, width: 1),
                   ),
                   child: const Text(
@@ -390,10 +471,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red.shade600,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: EdgeInsets.symmetric(
+                  horizontal: _screenWidth * 0.06, 
+                  vertical: _screenHeight * 0.015
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(_screenWidth * 0.03)
+                ),
               ),
-              child: const Text('Tamam', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: Text(
+                'Tamam', 
+                style: TextStyle(
+                  fontSize: _getResponsiveFontSize(16), 
+                  fontWeight: FontWeight.bold
+                )
+              ),
             ),
           ],
         );
@@ -409,28 +501,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         return AlertDialog(
           backgroundColor: const Color(0xFF1A1A1D),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(_screenWidth * 0.05),
             side: BorderSide(color: Colors.orange.shade400, width: 3),
           ),
           title: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(_screenWidth * 0.02),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [Colors.orange.shade400, Colors.red.shade600],
                   ),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.warning_amber, color: Colors.white, size: 24),
+                child: Icon(
+                  Icons.warning_amber, 
+                  color: Colors.white, 
+                  size: _getResponsiveFontSize(24)
+                ),
               ),
-              const SizedBox(width: 12),
-              const Expanded(
+              SizedBox(width: _screenWidth * 0.03),
+              Expanded(
                 child: Text(
                   'ZORLU MOD UYARISI', 
                   style: TextStyle(
                     color: Colors.white, 
-                    fontSize: 18, 
+                    fontSize: _getResponsiveFontSize(18), 
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.2,
                   )
@@ -439,7 +535,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ],
           ),
           content: Container(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(_screenWidth * 0.05),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -449,36 +545,36 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(_screenWidth * 0.03),
               border: Border.all(color: Colors.orange.shade400.withOpacity(0.3), width: 1),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(_screenWidth * 0.04),
                   decoration: BoxDecoration(
                     color: Colors.red.shade900.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(_screenWidth * 0.03),
                     border: Border.all(color: Colors.red.shade400, width: 1),
                   ),
                   child: Column(
                     children: [
-                      const Text(
+                      Text(
                         '⚠️ DİKKAT ⚠️',
                         style: TextStyle(
                           color: Colors.red,
-                          fontSize: 20,
+                          fontSize: _getResponsiveFontSize(20),
                           fontWeight: FontWeight.bold,
                           letterSpacing: 2,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      const Text(
+                      SizedBox(height: _screenHeight * 0.015),
+                      Text(
                         '• Zamanlayıcı yok - sınırsız süre\n• İpucu yok - tamamen kendi başına\n• Oyundan çıkarsan hakkını kaybedersin\n• 24 saatte sadece 1 kez oynayabilirsin\n• Kelime uzunluğu her seviyede artar',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: _getResponsiveFontSize(16),
                           height: 1.5,
                         ),
                         textAlign: TextAlign.left,
@@ -486,21 +582,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: _screenHeight * 0.02),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(_screenWidth * 0.03),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [Colors.green.shade800, Colors.green.shade600],
                     ),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(_screenWidth * 0.02),
                   ),
-                  child: const Text(
+                  child: Text(
                     '🏆 Ödül: Her seviyede daha fazla jeton!\n(2-4-6-8-10 jeton)',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      fontSize: _getResponsiveFontSize(14),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -512,11 +608,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: EdgeInsets.symmetric(
+                  horizontal: _screenWidth * 0.05, 
+                  vertical: _screenHeight * 0.015
+                ),
               ),
-              child: const Text(
+              child: Text(
                 'İptal', 
-                style: TextStyle(color: Colors.grey, fontSize: 16)
+                style: TextStyle(
+                  color: Colors.grey, 
+                  fontSize: _getResponsiveFontSize(16)
+                )
               ),
             ),
             ElevatedButton(
@@ -534,13 +636,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange.shade600,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: EdgeInsets.symmetric(
+                  horizontal: _screenWidth * 0.06, 
+                  vertical: _screenHeight * 0.015
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(_screenWidth * 0.03)
+                ),
               ),
-              child: const Text(
+              child: Text(
                 'BAŞLA', 
                 style: TextStyle(
-                  fontSize: 16, 
+                  fontSize: _getResponsiveFontSize(16), 
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
                 )
@@ -558,14 +665,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return Scaffold(
         backgroundColor: const Color(0xFF0A0A0A),
         body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ScaleTransition(
-                      scale: _pulseAnimation,
-                      child: Container(
-                  padding: const EdgeInsets.all(30),
-                        decoration: BoxDecoration(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ScaleTransition(
+                scale: _pulseAnimation,
+                child: Container(
+                  padding: EdgeInsets.all(_screenWidth * 0.08),
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
                         const Color(0xFF538D4E),
@@ -576,23 +683,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFF538D4E).withOpacity(0.5),
-                        blurRadius: 20,
-                        spreadRadius: 5,
+                        blurRadius: _screenWidth * 0.05,
+                        spreadRadius: _screenWidth * 0.01,
                       ),
                     ],
-                        ),
-                        child: const CircularProgressIndicator(
-                          color: Colors.white,
-                    strokeWidth: 4,
-                        ),
-                      ),
-                    ),
-              const SizedBox(height: 30),
-                    const Text(
+                  ),
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: _screenWidth * 0.01,
+                  ),
+                ),
+              ),
+              SizedBox(height: _screenHeight * 0.04),
+              Text(
                 'HARFLE Yükleniyor...',
-                      style: TextStyle(
-                        color: Colors.white,
-                  fontSize: 20,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: _getResponsiveFontSize(20),
                   fontWeight: FontWeight.bold,
                   letterSpacing: 2,
                 ),
@@ -606,7 +713,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
       body: Stack(
-          children: [
+        children: [
           // Animated Background Grid
           AnimatedBuilder(
             animation: _particleAnimation,
@@ -627,18 +734,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               );
             },
           ),
-                     // Main Content
-            SafeArea(
+          // Main Content
+          SafeArea(
             child: FadeTransition(
               opacity: _fadeAnimation,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0).copyWith(top: 16, bottom: 8),
+                padding: EdgeInsets.symmetric(
+                  horizontal: _horizontalPadding,
+                  vertical: _verticalPadding,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _buildPlayerCard(FirebaseAuth.instance.currentUser),
                     _buildAnimatedGameTitle(),
-                                          _buildFreeChallenge(),
+                    _buildFreeChallenge(),
                     _buildGameModeGrid(),
                     _buildBottomPanel(),
                   ],
@@ -646,14 +756,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
             ),
           ),
-          ],
+        ],
       ),
     );
   }
 
   Widget _buildPlayerCard(User? user) {
     final level = userStats?['level'] ?? 1;
-    // userStats yüklenene kadar loading göster veya Firebase Auth'daki adı kullan
     final displayName = isLoading 
         ? (user?.displayName ?? 'Yükleniyor...')
         : (userStats?['displayName'] ?? user?.displayName ?? 'Oyuncu');
@@ -664,7 +773,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         _showUserProfile();
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: _getResponsivePadding(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -674,7 +783,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(_screenWidth * 0.04),
           border: Border.all(color: const Color(0xFF538D4E), width: 1.5),
         ),
         child: Row(
@@ -682,7 +791,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             Hero(
               tag: 'user_avatar',
               child: Container(
-                padding: const EdgeInsets.all(3),
+                padding: EdgeInsets.all(_screenWidth * 0.008),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
@@ -696,26 +805,35 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   future: FirebaseService.getUserAvatar(user?.uid ?? ''),
                   builder: (context, snapshot) {
                     return CircleAvatar(
-                      radius: 24,
+                      radius: _screenWidth * 0.06,
                       backgroundColor: const Color(0xFF3A3A3C),
                       backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
                       child: snapshot.data == null && user?.photoURL == null
-                          ? const Icon(Icons.person, color: Colors.white, size: 24)
-                          : (user?.photoURL == null ? Text(snapshot.data!, style: const TextStyle(fontSize: 20)) : null),
+                          ? Icon(
+                              Icons.person, 
+                              color: Colors.white, 
+                              size: _screenWidth * 0.06,
+                            )
+                          : (user?.photoURL == null 
+                              ? Text(
+                                  snapshot.data!, 
+                                  style: TextStyle(fontSize: _getResponsiveFontSize(20))
+                                ) 
+                              : null),
                     );
                   },
                 ),
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: _screenWidth * 0.04),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     displayName,
-                    style: const TextStyle(
-                      fontSize: 18,
+                    style: TextStyle(
+                      fontSize: _getResponsiveFontSize(18),
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
@@ -724,7 +842,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   Text(
                     'Seviye $level',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: _getResponsiveFontSize(14),
                       color: const Color(0xFF538D4E),
                       fontWeight: FontWeight.w600,
                     ),
@@ -742,7 +860,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     _navigateToTokenShop();
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: _screenWidth * 0.04,
+                      vertical: _screenHeight * 0.01,
+                    ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -750,19 +871,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           Colors.orange.shade600,
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(_screenWidth * 0.05),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.monetization_on, color: Colors.white, size: 18),
-                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.monetization_on, 
+                          color: Colors.white, 
+                          size: _getResponsiveFontSize(18),
+                        ),
+                        SizedBox(width: _screenWidth * 0.015),
                         Text(
                           tokens.toString(),
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: _getResponsiveFontSize(16),
                           ),
                         ),
                       ],
@@ -771,24 +896,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 );
               },
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: _screenWidth * 0.03),
             _buildHapticToggleButton(),
-            const SizedBox(width: 8),
+            SizedBox(width: _screenWidth * 0.02),
             GestureDetector(
               onTap: () {
                 HapticService.triggerLightHaptic();
                 _showUserProfile();
               },
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(_screenWidth * 0.03),
                 decoration: BoxDecoration(
                   color: const Color(0xFF9B59B6),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.person,
                   color: Colors.white,
-                  size: 20,
+                  size: _getResponsiveFontSize(20),
                 ),
               ),
             ),
@@ -808,32 +933,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             HapticService.toggleHapticSetting();
           },
           child: AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Transform.scale(
+            animation: _pulseAnimation,
+            builder: (context, child) {
+              return Transform.scale(
                 scale: isEnabled ? 1.0 + (_pulseAnimation.value - 1.0) * 0.1 : 1.0,
-          child: Container(
-                  padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
+                child: Container(
+                  padding: EdgeInsets.all(_screenWidth * 0.03),
+                  decoration: BoxDecoration(
                     color: isEnabled ? const Color(0xFF538D4E) : Colors.grey.shade700,
                     shape: BoxShape.circle,
                     boxShadow: isEnabled ? [
-                BoxShadow(
+                      BoxShadow(
                         color: const Color(0xFF538D4E).withOpacity(0.5),
-                        blurRadius: 10,
-                        spreadRadius: 2,
+                        blurRadius: _screenWidth * 0.025,
+                        spreadRadius: _screenWidth * 0.005,
                       ),
                     ] : null,
                   ),
-                      child: Icon(
+                  child: Icon(
                     isEnabled ? Icons.vibration : Icons.phonelink_erase_rounded,
-                        color: Colors.white,
-                    size: 20,
+                    color: Colors.white,
+                    size: _getResponsiveFontSize(20),
                   ),
-                      ),
-                    );
-                  },
                 ),
+              );
+            },
+          ),
         );
       },
     );
@@ -864,9 +989,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               child: Transform.rotate(
                 angle: (1 - animationValue) * 0.5,
                 child: Container(
-                  width: 50,
-                  height: 50,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: _titleLetterSize,
+                  height: _titleLetterSize,
+                  margin: EdgeInsets.symmetric(horizontal: _screenWidth * 0.015),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -876,26 +1001,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(_screenWidth * 0.02),
                     boxShadow: [
                       BoxShadow(
                         color: colors[index].withOpacity(0.5),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        blurRadius: _screenWidth * 0.025,
+                        offset: Offset(0, _screenHeight * 0.005),
                       ),
                     ],
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     word[index],
-                    style: const TextStyle(
-                      fontSize: 28,
+                    style: TextStyle(
+                      fontSize: _getResponsiveFontSize(28),
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
-            ),
-          ),
+                ),
+              ),
             );
           }),
         );
@@ -911,7 +1036,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       },
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        padding: EdgeInsets.symmetric(
+          vertical: _screenHeight * 0.025,
+          horizontal: _screenWidth * 0.04,
+        ),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -920,58 +1048,61 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ],
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(_screenWidth * 0.04),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF538D4E).withOpacity(0.4),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+              blurRadius: _screenWidth * 0.02,
+              offset: Offset(0, _screenHeight * 0.005),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: EdgeInsets.all(_screenWidth * 0.02),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.2),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.wb_sunny, color: Colors.white, size: 24),
+              child: Icon(
+                Icons.wb_sunny, 
+                color: Colors.white, 
+                size: _getResponsiveFontSize(24),
+              ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: _screenWidth * 0.03),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'SERBEST OYUN',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: _getResponsiveFontSize(18),
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                       letterSpacing: 1,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: _screenHeight * 0.005),
                   Text(
                     'Sınırsız oyna, pratik yap',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: _getResponsiveFontSize(14),
                       color: Colors.white.withOpacity(0.9),
                     ),
                   ),
                 ],
               ),
             ),
-           
           ],
         ),
       ),
     );
   }
               
-    Widget _buildGameModeGrid() {
+  Widget _buildGameModeGrid() {
     return Column(
       children: [
         Row(
@@ -985,7 +1116,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 onTap: _navigateToTimeRush,
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: _screenWidth * 0.04),
             Expanded(
               child: _buildGameModeCard(
                 title: 'TEMA MODU',
@@ -997,7 +1128,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: _screenHeight * 0.015),
         Row(
           children: [
             Expanded(
@@ -1010,7 +1141,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 notification: activeUsers > 5,
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: _screenWidth * 0.04),
             Expanded(
               child: _buildGameModeCard(
                 title: 'LİDER TABLOSU',
@@ -1022,7 +1153,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: _screenHeight * 0.015),
         Row(
           children: [
             Expanded(
@@ -1039,7 +1170,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 },
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: _screenWidth * 0.04),
             Expanded(
               child: _buildGameModeCard(
                 title: 'JETON MAĞAZASI',
@@ -1068,55 +1199,66 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         HapticService.triggerMediumHaptic();
         onTap();
       },
-              child: Container(
-        height: 110,
-        padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
+      child: Container(
+        height: _gameModeCardHeight,
+        padding: _getResponsivePadding(),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
               const Color(0xFF2A2A2D),
               const Color(0xFF1A1A1D),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(_screenWidth * 0.04),
           border: Border.all(color: color.withOpacity(0.5), width: 1),
         ),
         child: Stack(
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(2),
+                  padding: EdgeInsets.all(_screenWidth * 0.005),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(_screenWidth * 0.02),
                   ),
-                  child: Icon(icon, color: color, size: 29),
+                  child: Icon(
+                    icon, 
+                    color: color, 
+                    size: _getResponsiveFontSize(26),
+                  ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
+                SizedBox(height: _screenHeight * 0.01), 
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: _getResponsiveFontSize(12),
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
-                        fontSize: 12,
+                      SizedBox(height: _screenHeight * 0.002),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: _getResponsiveFontSize(9),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 )
               ],
             ),
@@ -1125,17 +1267,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 top: 0,
                 right: 0,
                 child: Container(
-                  width: 8,
-                  height: 8,
-                decoration: BoxDecoration(
+                  width: _screenWidth * 0.02,
+                  height: _screenWidth * 0.02,
+                  decoration: BoxDecoration(
                     color: Colors.red,
-                  shape: BoxShape.circle,
-                ),
-                ),
-                    ),
-                  ],
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1151,7 +1293,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         Expanded(
           flex: 2,
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            padding: EdgeInsets.symmetric(
+              vertical: _screenHeight * 0.015,
+              horizontal: _screenWidth * 0.02,
+            ),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -1159,7 +1304,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   const Color(0xFF1A1A1D),
                 ],
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(_screenWidth * 0.04),
               border: Border.all(color: Colors.grey.shade800),
             ),
             child: Row(
@@ -1172,11 +1317,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: _screenWidth * 0.03),
         // Sağ: Başarılar
         Expanded(
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            padding: EdgeInsets.symmetric(
+              vertical: _screenHeight * 0.015,
+              horizontal: _screenWidth * 0.02,
+            ),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -1184,7 +1332,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   const Color(0xFF1A1A1D),
                 ],
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(_screenWidth * 0.04),
               border: Border.all(color: Colors.grey.shade800),
             ),
             child: Row(
@@ -1202,42 +1350,48 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildMiniStatItem(IconData icon, Color color, String value, String label) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
+    return Flexible(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: _getResponsiveFontSize(18)),
+          SizedBox(height: _screenHeight * 0.003),
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: _getResponsiveFontSize(12),
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.6),
-            fontSize: 10,
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.6),
+              fontSize: _getResponsiveFontSize(9),
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildMiniAchievement(IconData icon, Color color, bool isUnlocked) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: isUnlocked ? color : Colors.grey.shade700,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        icon,
-        color: Colors.white,
-        size: 18,
+    return Flexible(
+      child: Container(
+        width: _screenWidth * 0.08,
+        height: _screenWidth * 0.08,
+        decoration: BoxDecoration(
+          color: isUnlocked ? color : Colors.grey.shade700,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: _getResponsiveFontSize(16),
+        ),
       ),
     );
   }
@@ -1255,7 +1409,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           onTap();
         },
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: _getResponsivePadding(),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -1265,14 +1419,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(_screenWidth * 0.04),
             border: Border.all(color: Colors.orange.shade400, width: 2),
             boxShadow: [
               BoxShadow(
                 color: Colors.red.shade400.withOpacity(0.4),
-                blurRadius: 12,
-                spreadRadius: 1,
-                offset: const Offset(0, 4),
+                blurRadius: _screenWidth * 0.03,
+                spreadRadius: _screenWidth * 0.0025,
+                offset: Offset(0, _screenHeight * 0.005),
               ),
             ],
           ),
@@ -1282,80 +1436,65 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.whatshot,
                     color: Colors.white,
-                    size: 24,
+                    size: _getResponsiveFontSize(24),
                   ),
-                  const SizedBox(width: 8),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ZORLU',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          height: 1.1
+                  SizedBox(width: _screenWidth * 0.01),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ZORLU',
+                          style: TextStyle(
+                            fontSize: _getResponsiveFontSize(13),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1.2
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      Text(
-                        'MOD',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          height: 1.1
+                        Text(
+                          'MOD',
+                          style: TextStyle(
+                            fontSize: _getResponsiveFontSize(13),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1.1
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      'ÖZEL',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
+              
                 ],
               ),
-              const SizedBox(height: 8),
-              const Text(
-                '4-8 harf • İpucu yok • 24s',
+              SizedBox(height: _screenHeight * 0.01),
+              Text(
+                '4-8 harf',
                 style: TextStyle(
                   color: Colors.white70,
-                  fontSize: 12,
+                  fontSize: _getResponsiveFontSize(11),
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 8),
-          const Row(
-                children: [
-                   Center(
-                  child: Text(
-                    'MÜSAİT!',
-                    style: TextStyle(
-                      color: Color.fromRGBO(230, 224, 233, 1.0),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      letterSpacing: 1.0,
-                      height: 1.4,
-                      leadingDistribution: TextLeadingDistribution.even,
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                  )
-                ],
+              SizedBox(height: _screenHeight * 0.01),
+              Text(
+                'MÜSAİT!',
+                style: TextStyle(
+                  color: const Color.fromRGBO(230, 224, 233, 1.0),
+                  fontWeight: FontWeight.bold,
+                  fontSize: _getResponsiveFontSize(13),
+                  letterSpacing: 1.0,
+                  height: 1.4,
+                  leadingDistribution: TextLeadingDistribution.even,
+                  decoration: TextDecoration.none,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -1369,7 +1508,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           onTap();
         },
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: _getResponsivePadding(),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -1379,14 +1518,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(_screenWidth * 0.04),
             border: Border.all(color: Colors.grey.shade600, width: 2),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.3),
-                blurRadius: 8,
-                spreadRadius: 1,
-                offset: const Offset(0, 4),
+                blurRadius: _screenWidth * 0.02,
+                spreadRadius: _screenWidth * 0.0025,
+                offset: Offset(0, _screenHeight * 0.005),
               ),
             ],
           ),
@@ -1399,74 +1538,84 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   Icon(
                     Icons.lock_clock,
                     color: Colors.grey.shade400,
-                    size: 24,
+                    size: _getResponsiveFontSize(24),
                   ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ZORLU',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade500,
-                          height: 1.1,
+                  SizedBox(width: _screenWidth * 0.02),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ZORLU',
+                          style: TextStyle(
+                            fontSize: _getResponsiveFontSize(13),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade500,
+                            height: 1.1,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      Text(
-                        'MOD',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade500,
-                          height: 1.1,
+                        Text(
+                          'MOD',
+                          style: TextStyle(
+                            fontSize: _getResponsiveFontSize(13),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade500,
+                            height: 1.1,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: _screenWidth * 0.02,
+                      vertical: _screenHeight * 0.005,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.red.shade900.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(_screenWidth * 0.03),
                     ),
-                    child: const Text(
+                    child: Text(
                       'KİLİTLİ',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 10,
+                        fontSize: _getResponsiveFontSize(9),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: _screenHeight * 0.01),
               Text(
                 '24 saatte bir oynanabilir',
                 style: TextStyle(
                   color: Colors.grey.shade400,
-                  fontSize: 12,
+                  fontSize: _getResponsiveFontSize(11),
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: _screenHeight * 0.01),
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: _screenWidth * 0.025,
+                      vertical: _screenHeight * 0.008,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade700,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(_screenWidth * 0.05),
                     ),
                     child: Text(
                       '${hoursLeft}s kaldı',
                       style: TextStyle(
                         color: Colors.grey.shade300,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                        fontSize: _getResponsiveFontSize(11),
                       ),
                     ),
                   ),
@@ -1474,7 +1623,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   Icon(
                     Icons.schedule,
                     color: Colors.grey.shade400,
-                    size: 20,
+                    size: _getResponsiveFontSize(20),
                   ),
                 ],
               ),

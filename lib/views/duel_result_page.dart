@@ -55,10 +55,10 @@ class _DuelResultPageState extends State<DuelResultPage>
   void initState() {
     super.initState();
     
-    // 🎊 KONFETI CONTROLLER - Hızlı ve etkili
-    _confettiController = ConfettiController(duration: const Duration(seconds: 4));
+    // 🎊 KONFETI CONTROLLER - Daha hızlı ve güçlü
+    _confettiController = ConfettiController(duration: const Duration(seconds: 6));
     
-    debugPrint('🎊 ConfettiController oluşturuldu: $_confettiController');
+    debugPrint('🎊 ConfettiController oluşturuldu, hazır: $_confettiController');
     
     // Ana animasyon kontrolcüsü
     _mainAnimationController = AnimationController(
@@ -263,25 +263,28 @@ class _DuelResultPageState extends State<DuelResultPage>
               ),
             ),
             
-                        // 🎊 BASIT ÜSTTEN KONFETI - GARANTİLİ ÇALIŞIR
+                        // 🎊 GÜÇLÜ ÜSTTEN KONFETI - TEST MODLU
             if (isWinner)
               Align(
                 alignment: Alignment.topCenter,
                 child: ConfettiWidget(
                   confettiController: _confettiController,
                   blastDirection: math.pi / 2, // Aşağı doğru
-                  maxBlastForce: 20,
-                  minBlastForce: 5,
-                  emissionFrequency: 0.05,
-                  numberOfParticles: 20,
-                  gravity: 0.2,
+                  maxBlastForce: 30,
+                  minBlastForce: 10,
+                  emissionFrequency: 0.03, // Daha sık
+                  numberOfParticles: 40, // Daha fazla
+                  gravity: 0.15, // Daha yavaş düşme
                   shouldLoop: false,
                   colors: const [
                     Colors.yellow,
                     Colors.orange,
                     Colors.red,
+                    Colors.pink,
+                    Colors.purple,
                     Colors.blue,
                     Colors.green,
+                    Colors.amber,
                   ],
                 ),
               ),
@@ -913,70 +916,47 @@ class _DuelResultPageState extends State<DuelResultPage>
   }
 
   Widget _buildActionButtons() {
-    final bool isWinner = widget.game.winnerId == widget.currentPlayer.playerId;
-    
-    return Column(
+    return Row(
       children: [
-        // 🎊 TEST BUTONU - Sadece kazanma durumunda
-        if (isWinner)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildActionButton(
-              'KONFETİ TEST',
-              Icons.celebration_rounded,
-              Colors.purple.shade600,
-              () {
-                debugPrint('🎊 TEST BUTONU TIKLANDI!');
-                _confettiController.play();
-                debugPrint('🎊 Konfeti play() çağırıldı');
-              },
-            ),
+        Expanded(
+          child: _buildActionButton(
+            'ANA SAYFA',
+            Icons.home_rounded,
+            Colors.blue.shade600,
+            () => Navigator.of(context).popUntil((route) => route.isFirst),
           ),
-        
-        // Ana butonlar
-        Row(
-          children: [
-            Expanded(
-              child: _buildActionButton(
-                'ANA SAYFA',
-                Icons.home_rounded,
-                Colors.blue.shade600,
-                () => Navigator.of(context).popUntil((route) => route.isFirst),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildActionButton(
-                'TEKRAR OYNA',
-                Icons.refresh_rounded,
-                Colors.green.shade600,
-                () {
-                  try {
-                    // DuelViewModel'ı reset et
-                    final viewModel = Provider.of<DuelViewModel>(context, listen: false);
-                    viewModel.resetForNewGame();
-                    
-                    debugPrint('🔄 DuelResultPage - ViewModel reset edildi, yeni oyun başlatılıyor');
-                    
-                    // DuelWaitingRoom'a git (yeni oyun için)
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                        builder: (context) => const DuelWaitingRoom(),
-                      ),
-                    );
-                  } catch (e) {
-                    debugPrint('❌ Tekrar oyna hatası: $e');
-                    // Hata durumunda basit çözüm
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (context) => const DuelWaitingRoom(),
-                    ),
-                  );
-                  }
-                },
-              ),
-            ),
-          ],
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildActionButton(
+            'TEKRAR OYNA',
+            Icons.refresh_rounded,
+            Colors.green.shade600,
+            () {
+              try {
+                // DuelViewModel'ı reset et
+                final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+                viewModel.resetForNewGame();
+                
+                debugPrint('🔄 DuelResultPage - ViewModel reset edildi, yeni oyun başlatılıyor');
+                
+                // DuelWaitingRoom'a git (yeni oyun için)
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                    builder: (context) => const DuelWaitingRoom(),
+                  ),
+                );
+              } catch (e) {
+                debugPrint('❌ Tekrar oyna hatası: $e');
+                // Hata durumunda basit çözüm
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (context) => const DuelWaitingRoom(),
+                ),
+              );
+              }
+            },
+          ),
         ),
       ],
     );

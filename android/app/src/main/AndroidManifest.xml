@@ -11,7 +11,7 @@
     <application
         android:label="wordle_turkish"
         android:name=".Application"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/harfle_icon"
         android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"

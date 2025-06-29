@@ -11,7 +11,7 @@ class AdService {
   // Test ve gerçek reklam ID'leri
   static String get _rewardedAdUnitId {
     // Geliştirme sırasında test ID'leri kullan
-    const bool isDebug = false; // Test reklamlarını kullan - gerçek reklamlar henüz hazır değil
+    const bool isDebug = true; // Test reklamlarını kullan - gerçek reklamlar henüz hazır değil
     
     if (isDebug) {
       // Test reklam ID'leri

@@ -1723,14 +1723,14 @@ class FirebaseService {
       // Online durumunu kaydet
       await userPresenceRef.set({
         'isOnline': true,
-        'lastSeen': FieldValue.serverTimestamp(),
+        'lastSeen': rtdb.ServerValue.timestamp,
         'deviceInfo': 'flutter_app',
       });
       
       // Bağlantı kesildiğinde otomatik offline yap
       await userPresenceRef.onDisconnect().set({
         'isOnline': false,
-        'lastSeen': FieldValue.serverTimestamp(),
+        'lastSeen': rtdb.ServerValue.timestamp,
       });
       
       print('DEBUG - Kullanıcı online olarak işaretlendi (Realtime DB)');
@@ -1750,7 +1750,7 @@ class FirebaseService {
 
       await _database.ref('presence/${user.uid}').set({
         'isOnline': false,
-        'lastSeen': FieldValue.serverTimestamp(),
+        'lastSeen': rtdb.ServerValue.timestamp,
       });
       
       print('DEBUG - Kullanıcı offline olarak işaretlendi (Realtime DB)');

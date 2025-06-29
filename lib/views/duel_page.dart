@@ -133,10 +133,6 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       child: Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
-        title: const Text(
-          'Düello Modu',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
         backgroundColor: const Color(0xFF1E1E1E),
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,

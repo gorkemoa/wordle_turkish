@@ -405,58 +405,39 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
               return _buildTimeoutState();
             }
             
-            // Game State'e göre UI render et
-            switch (gameState) {
-              case GameState.initializing:
-                debugPrint('🔄 DuelWaitingRoom - Initializing state');
-                return _buildLoadingState();
-                
-              case GameState.searching:
-              case GameState.waitingRoom:
-                debugPrint('🔍 DuelWaitingRoom - Searching/Waiting state, game: ${game != null}');
-                return _buildWaitingRoom(context, game, viewModel);
-                
-              case GameState.opponentFound:
-                debugPrint('🎯 === OPPONENT FOUND STATE RENDER EDİLİYOR ===');
-                debugPrint('🎯 OpponentFound: ${viewModel.opponentFound}');
-                debugPrint('🎯 PreGameCountdown: ${viewModel.preGameCountdown}');
-                debugPrint('🎯 CurrentPlayer: ${viewModel.currentPlayer?.playerName}');
-                debugPrint('🎯 OpponentPlayer: ${viewModel.opponentPlayer?.playerName}');
-                return _buildOpponentFoundState(viewModel);
-                
-              case GameState.gameStarting:
-                // Oyun başlıyor, DuelPage'e git
-                if (!_hasNavigated) {
-                  debugPrint('🚀 DuelWaitingRoom - Oyun başlıyor, DuelPage\'e gidiliyor');
-                  _hasNavigated = true;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => const DuelPage()),
-                      );
-                    }
-                  });
-                }
-                return _buildGameStartingState();
-                
-              case GameState.playing:
-                // Oyun çoktan başlamış, DuelPage'e git
-                if (!_hasNavigated) {
-                  debugPrint('🎮 DuelWaitingRoom - Oyun çoktan başlamış, DuelPage\'e gidiliyor');
-                  _hasNavigated = true;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => const DuelPage()),
-                      );
-                    }
-                  });
-                }
-                return _buildGameStartingState();
-                
-              default:
-                return _buildLoadingState();
+            // 🎯 HER ZAMAN WAITING ROOM GÖSTER - Loading ekranı yok!
+            debugPrint('🔍 DuelWaitingRoom - State: $gameState, direkt waiting room gösteriliyor');
+            
+            // Sadece oyun gerçekten başladığında navigation yap
+            if (gameState == GameState.playing) {
+              if (!_hasNavigated) {
+                debugPrint('🚀 DuelWaitingRoom - Oyun başladı, DuelPage\'e gidiliyor');
+                _hasNavigated = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (context) => const DuelPage()),
+                    );
+                  }
+                });
+              }
+              return _buildGameStartingState();
             }
+            
+            // GameStarting durumunda waiting room'da kal ama özel UI göster
+            if (gameState == GameState.gameStarting) {
+              debugPrint('🎮 DuelWaitingRoom - Oyun başlatılıyor, waiting room\'da kalıyoruz');
+              return _buildGameStartingInWaitingRoom(viewModel);
+            }
+            
+            // Opponent found özel durumu
+            if (gameState == GameState.opponentFound) {
+              debugPrint('🎯 === OPPONENT FOUND STATE RENDER EDİLİYOR ===');
+              return _buildOpponentFoundState(viewModel);
+            }
+            
+            // Diğer tüm durumlar için waiting room
+            return _buildWaitingRoom(context, game, viewModel);
           },
         ),
       ),
@@ -845,9 +826,11 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
     final opponentPlayer = viewModel.opponentPlayer;
     final hasOpponent = opponentPlayer != null;
     
+    debugPrint('🎯 VS Section render - hasOpponent: $hasOpponent, countdown: $_waitingCountdown');
+    
     return Center(
-      child: Row(
-        children: [
+        child: Row(
+          children: [
           // Sol Oyuncu (Sen) - Direkt bilgiler
           Expanded(
             child: FutureBuilder<Map<String, dynamic>>(
@@ -864,98 +847,171 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
             ),
           ),
           
-          // Ortada VS - Gelişmiş animasyon
+          // Ortada VS veya GERİ SAYIM - Dinamik
           Container(
-            width: 100,
+            width: 120,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AnimatedBuilder(
-                  animation: _rotationAnimation,
-                  builder: (context, child) {
-                    final pulseScale = 1.0 + (math.sin(_rotationAnimation.value * math.pi * 4) * 0.1);
-                    final glowIntensity = 0.6 + (math.sin(_rotationAnimation.value * math.pi * 5) * 0.3);
-                    
-                    return Transform.scale(
-                      scale: pulseScale,
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              Colors.yellow.shade400,
-                              Colors.orange.shade600,
-                              Colors.red.shade800,
-                            ],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.orange.withOpacity(glowIntensity),
-                              blurRadius: 25,
-                              spreadRadius: 8,
-                            ),
-                            BoxShadow(
-                              color: Colors.red.withOpacity(0.3),
-                              blurRadius: 40,
-                              spreadRadius: 12,
-                            ),
-                          ],
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'VS',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black54,
-                                  blurRadius: 4,
-                                  offset: Offset(2, 2),
+                hasOpponent 
+                  ? // RAKİP VARSA VS GÖSTER
+                    AnimatedBuilder(
+                      animation: _rotationAnimation,
+                      builder: (context, child) {
+                        final pulseScale = 1.0 + (math.sin(_rotationAnimation.value * math.pi * 4) * 0.1);
+                        final glowIntensity = 0.6 + (math.sin(_rotationAnimation.value * math.pi * 5) * 0.3);
+                        
+                        return Transform.scale(
+                          scale: pulseScale,
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  Colors.yellow.shade400,
+                                  Colors.orange.shade600,
+                                  Colors.red.shade800,
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.orange.withOpacity(glowIntensity),
+                                  blurRadius: 25,
+                                  spreadRadius: 8,
+                                ),
+                                BoxShadow(
+                                  color: Colors.red.withOpacity(0.3),
+                                  blurRadius: 40,
+                                  spreadRadius: 12,
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
-                if (!hasOpponent)
-                  AnimatedBuilder(
-                    animation: _rotationAnimation,
-                    builder: (context, child) {
-                      return Transform.rotate(
-                        angle: _rotationAnimation.value * math.pi * 2,
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.orange.shade400,
-                                Colors.red.shade600,
-                              ],
+                            child: const Center(
+                              child: Text(
+                                'VS',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black54,
+                                      blurRadius: 4,
+                                      offset: Offset(2, 2),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
-                          child: const CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 3,
+                        );
+                      },
+                    )
+                  : // RAKİP YOKSA BÜYÜK GERİ SAYIM
+                    AnimatedBuilder(
+                      animation: _rotationAnimation,
+                      builder: (context, child) {
+                        debugPrint('🕐 Countdown widget render edildi: $_waitingCountdown saniye');
+                        final pulseScale = 1.0 + (math.sin(_rotationAnimation.value * math.pi * 3) * 0.05);
+                        final glowIntensity = 0.7 + (math.sin(_rotationAnimation.value * math.pi * 6) * 0.2);
+                        
+                        return Transform.scale(
+                          scale: pulseScale,
+                          child: Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  Colors.blue.shade300,
+                                  Colors.blue.shade600,
+                                  Colors.purple.shade800,
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.blue.withOpacity(glowIntensity * 0.6),
+                                  blurRadius: 30,
+                                  spreadRadius: 10,
+                                ),
+                                BoxShadow(
+                                  color: Colors.purple.withOpacity(0.4),
+                                  blurRadius: 50,
+                                  spreadRadius: 15,
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    '$_waitingCountdown',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.w900,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black54,
+                                          blurRadius: 8,
+                                          offset: Offset(2, 2),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Text(
+                                    'saniye',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
+                        );
+                      },
+                    ),
+                
+                const SizedBox(height: 20),
+                
+                // Alt bilgi: Arama durumu
+                if (!hasOpponent)
+                  Column(
+                    children: [
+                      Text(
+                        'Rakip aranıyor...',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
-                      );
-                    },
+                      ),
+                      const SizedBox(height: 4),
+                      AnimatedBuilder(
+                        animation: _rotationAnimation,
+                        builder: (context, child) {
+                          return Transform.rotate(
+                            angle: _rotationAnimation.value * math.pi * 2,
+                            child: Container(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.blue.shade300,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                // 🕐 BEKLEME ODASINDA GERİ SAYIM
-                if (!hasOpponent) ...[
-                  const SizedBox(height: 30),
-                  _buildWaitingCountdown(),
-                ],
               ],
             ),
           ),
@@ -1200,60 +1256,6 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Test Rakip Butonu
-        SizedBox(
-          height: 50,
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () async {
-              try {
-                debugPrint('🤖 Test rakip oluşturuluyor...');
-                final success = await viewModel.createTestOpponent();
-                if (success && mounted) {
-                  debugPrint('✅ Test rakip oluşturuldu, oyun başlıyor');
-                  // Test modunda direkt oyun sayfasına git
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (context) => const DuelPage()),
-                  );
-                } else {
-                  debugPrint('❌ Test rakip oluşturulamadı');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Test rakip oluşturulamadı'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              } catch (e) {
-                debugPrint('❌ Test rakip hatası: $e');
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Hata: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            icon: const Icon(Icons.smart_toy, color: Colors.white),
-            label: const Text('🤖 Test Rakip Oluştur'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade700,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              shadowColor: Colors.green.shade700,
-              elevation: 8,
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 16),
-        
         // Çıkış Butonu
         SizedBox(
           height: 50,
@@ -1883,6 +1885,265 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildGameStartingInWaitingRoom(DuelViewModel viewModel) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D0F14),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF0D0F14),
+              const Color(0xFF1A1A2E),
+              const Color(0xFF16213E),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              children: [
+                // Başlık
+                _buildGameStartingHeader(),
+                
+                const SizedBox(height: 40),
+                
+                // VS Bölümü - Oyun başlatılıyor durumu
+                Expanded(
+                  child: _buildGameStartingVSSection(viewModel),
+                ),
+                
+                const SizedBox(height: 40),
+                
+                // Hazırlık mesajı
+                _buildGameStartingMessage(),
+                
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGameStartingHeader() {
+    return AnimatedBuilder(
+      animation: _rotationAnimation,
+      builder: (context, child) {
+        final glowIntensity = 0.5 + (math.sin(_rotationAnimation.value * math.pi * 3) * 0.2);
+        return Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.green.shade800,
+                    Colors.blue.shade700,
+                    Colors.green.shade800,
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(glowIntensity),
+                    blurRadius: 20,
+                    spreadRadius: 3,
+                  ),
+                ],
+              ),
+              child: const Text(
+                '🚀 OYUN BAŞLIYOR',
+                style: TextStyle(
+                  fontSize: 26,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black54,
+                      blurRadius: 4,
+                      offset: Offset(2, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Oyun hazırlanıyor...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade300,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildGameStartingVSSection(DuelViewModel viewModel) {
+    final opponentPlayer = viewModel.opponentPlayer;
+    
+    return Center(
+      child: Row(
+        children: [
+          // Sol Oyuncu (Sen)
+          Expanded(
+            child: FutureBuilder<Map<String, dynamic>>(
+              future: _getCurrentUserInfo(),
+              builder: (context, snapshot) {
+                final userInfo = snapshot.data;
+                return _buildPlayerCard(
+                  userInfo?['name'] ?? 'Sen',
+                  userInfo?['avatar'] ?? '👤',
+                  Colors.blue,
+                  isCurrentPlayer: true,
+                );
+              },
+            ),
+          ),
+          
+          // Ortada hazırlık animasyonu
+          Container(
+            width: 120,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedBuilder(
+                  animation: _rotationAnimation,
+                  builder: (context, child) {
+                    final pulseScale = 1.0 + (math.sin(_rotationAnimation.value * math.pi * 4) * 0.1);
+                    final glowIntensity = 0.7 + (math.sin(_rotationAnimation.value * math.pi * 5) * 0.3);
+                    
+                    return Transform.scale(
+                      scale: pulseScale,
+                      child: Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              Colors.green.shade300,
+                              Colors.green.shade600,
+                              Colors.green.shade800,
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.green.withOpacity(glowIntensity * 0.6),
+                              blurRadius: 30,
+                              spreadRadius: 10,
+                            ),
+                            BoxShadow(
+                              color: Colors.green.withOpacity(0.4),
+                              blurRadius: 50,
+                              spreadRadius: 15,
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.play_arrow,
+                            color: Colors.white,
+                            size: 50,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                
+                const SizedBox(height: 20),
+                
+                Text(
+                  'Başlatılıyor...',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                AnimatedBuilder(
+                  animation: _rotationAnimation,
+                  builder: (context, child) {
+                    return Transform.rotate(
+                      angle: _rotationAnimation.value * math.pi * 2,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.green.shade300,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          
+          // Sağ Oyuncu (Rakip)
+          Expanded(
+            child: _buildPlayerCard(
+              opponentPlayer?.playerName ?? 'Rakip',
+              opponentPlayer?.avatar ?? '🤖',
+              Colors.red,
+              isCurrentPlayer: false,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGameStartingMessage() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.green.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.tips_and_updates, color: Colors.green, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Hazır ol!',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Oyun çok yakında başlayacak. En iyi kelime tahminini yapıp rakibini yenmeye hazırlan!',
+            style: TextStyle(
+              color: Colors.grey.shade300,
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
