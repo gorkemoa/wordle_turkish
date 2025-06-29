@@ -88,7 +88,14 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
       final viewModel = _viewModel ?? Provider.of<DuelViewModel>(context, listen: false);
       final currentPlayer = viewModel.currentPlayer;
 
+      debugPrint('🚀 DuelPage - Sonuç sayfasına yönlendiriliyor');
+      debugPrint('🎮 Game status: ${game.status}');
+      debugPrint('🏆 Winner: ${game.winnerId}');
+      debugPrint('👤 CurrentPlayer: ${currentPlayer?.playerName}');
+      debugPrint('🤖 OpponentPlayer: ${viewModel.opponentPlayer?.playerName}');
+
       if (currentPlayer == null) {
+        debugPrint('❌ CurrentPlayer null, navigation iptal ediliyor');
         _hasNavigatedToResult = false;
         return;
       }
@@ -104,6 +111,7 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
           ),
         ),
       );
+      debugPrint('✅ DuelResultPage navigation başarılı');
     } catch (e) {
       debugPrint('❌ DuelPage - Sonuç sayfasına yönlendirme hatası: $e');
       _hasNavigatedToResult = false;
@@ -231,6 +239,12 @@ class _DuelPageState extends State<DuelPage> with TickerProviderStateMixin {
               return _buildGameStartingState();
               
             case GameState.playing:
+              // Oyun başladığında navigation flag'ını sıfırla
+              if (_hasNavigatedToResult) {
+                _hasNavigatedToResult = false;
+                debugPrint('🔄 DuelPage - hasNavigatedToResult sıfırlandı');
+              }
+              
               if (game != null) {
                 return Column(
                   children: [

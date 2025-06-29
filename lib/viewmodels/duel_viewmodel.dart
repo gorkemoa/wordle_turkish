@@ -53,6 +53,10 @@ class DuelViewModel extends ChangeNotifier {
   Function()? onOpponentFoundCallback;
   Function()? onGameStartCallback;
 
+  // Test rakip oluşturma
+  bool _isTestMode = false;
+  bool get isTestMode => _isTestMode;
+
   // Getters
   DuelGame? get currentGame => _currentGame;
   String? get gameId => _gameId;
@@ -411,10 +415,12 @@ class DuelViewModel extends ChangeNotifier {
     debugPrint('📅 Game start scheduled');
     
     Future.delayed(const Duration(seconds: 3), () async {
-      if (_currentGame?.status == GameStatus.active) {
+      if (_isTestMode || _currentGame?.status == GameStatus.active) {
         debugPrint('🎮 Oyun başlıyor!');
         
-        await _deductGameTokens();
+        if (!_isTestMode) {
+          await _deductGameTokens();
+        }
         
         _showingCountdown = false;
         _isGameActive = true;
@@ -423,6 +429,20 @@ class DuelViewModel extends ChangeNotifier {
         
         if (_currentWord.isEmpty) {
           _currentWord = _currentGame!.secretWord;
+        }
+        
+        // Test modunda oyun durumunu active yap
+        if (_isTestMode && _currentGame != null) {
+          _currentGame = DuelGame(
+            gameId: _currentGame!.gameId,
+            secretWord: _currentGame!.secretWord,
+            status: GameStatus.active,
+            createdAt: _currentGame!.createdAt,
+            startedAt: DateTime.now(),
+            finishedAt: null,
+            winnerId: null,
+            players: _currentGame!.players,
+          );
         }
         
         debugPrint('✅ Oyun başladı, kelime: $_currentWord');
@@ -478,6 +498,8 @@ class DuelViewModel extends ChangeNotifier {
   }
 
   void _resetForNewGame() {
+    debugPrint('🔄 _resetForNewGame - Tüm state temizleniyor...');
+    
     _currentGame = null;
     _gameId = null;
     _currentWord = '';
@@ -485,19 +507,25 @@ class DuelViewModel extends ChangeNotifier {
     _isGameActive = false;
     _showingCountdown = false;
     _opponentFound = false;
-    _preGameCountdown = 5;
+    _preGameCountdown = 8;
     _gameStartTime = null;
     _tokensDeducted = false;
     _firstRowVisible = false;
     _allRowsVisible = false;
     _needsShake = false;
+    _isTestMode = false; // Test modunu sıfırla
     _gameState = GameState.initializing;
     _currentGuess = List.filled(wordLength, '');
     _keyboardLetters.clear();
     
+    // Callbacks'leri temizle
+    onOpponentFoundCallback = null;
+    onGameStartCallback = null;
+    
     _cleanupSubscriptions();
     _preGameTimer?.cancel();
     
+    debugPrint('✅ _resetForNewGame - State temizlendi');
     notifyListeners();
   }
 
@@ -728,6 +756,12 @@ class DuelViewModel extends ChangeNotifier {
     try {
       if (_gameId == null) return;
       
+      if (_isTestMode) {
+        // Test modunda tahmin işle
+        await _processTestGuess(guess);
+        return;
+      }
+      
       final success = await FirebaseService.submitGuess(_gameId!, guess);
       if (success) {
         // Tahmin başarılı, state güncellenecek
@@ -746,6 +780,84 @@ class DuelViewModel extends ChangeNotifier {
       HapticService.triggerErrorHaptic();
       notifyListeners();
     }
+  }
+
+  // Test modunda tahmin işle
+  Future<void> _processTestGuess(String guess) async {
+    if (_currentGame == null) return;
+    
+    final user = FirebaseService.getCurrentUser();
+    if (user == null) return;
+    
+    final currentPlayer = _currentGame!.players[user.uid];
+    if (currentPlayer == null) return;
+    
+    // Tahmin renklerini hesapla
+    final colors = _checkGuess(guess, _currentGame!.secretWord);
+    
+    // Oyuncuyu güncelle
+    final updatedPlayer = DuelPlayer(
+      playerId: currentPlayer.playerId,
+      playerName: currentPlayer.playerName,
+      avatar: currentPlayer.avatar,
+      status: colors.every((c) => c == 'green') ? PlayerStatus.won : 
+             (currentPlayer.currentAttempt >= 5 ? PlayerStatus.lost : PlayerStatus.playing),
+      guesses: List.from(currentPlayer.guesses),
+      guessColors: List.from(currentPlayer.guessColors),
+      currentAttempt: currentPlayer.currentAttempt + 1,
+      score: currentPlayer.score,
+    );
+
+    // Tahmin ve renklerini güncelle
+    for (int i = 0; i < 5; i++) {
+      updatedPlayer.guesses[currentPlayer.currentAttempt][i] = guess[i].toUpperCase();
+      updatedPlayer.guessColors[currentPlayer.currentAttempt][i] = colors[i];
+    }
+
+    // Oyunu güncelle
+    final updatedPlayers = Map<String, DuelPlayer>.from(_currentGame!.players);
+    updatedPlayers[user.uid] = updatedPlayer;
+    
+    // Kazanma durumu kontrolü
+    bool gameFinished = false;
+    String? winnerId;
+    
+    if (colors.every((c) => c == 'green')) {
+      gameFinished = true;
+      winnerId = user.uid;
+      debugPrint('🏆 Test oyununda sen kazandın!');
+    } else if (currentPlayer.currentAttempt >= 5) {
+      gameFinished = true;
+      winnerId = 'test_opponent';
+      debugPrint('💔 Test oyununda kaybettin (6 tahmin tükendi)');
+    } else {
+      // Test rakibini hareket ettir
+      _moveTestOpponent();
+    }
+    
+    _currentGame = DuelGame(
+      gameId: _currentGame!.gameId,
+      secretWord: _currentGame!.secretWord,
+      status: gameFinished ? GameStatus.finished : _currentGame!.status,
+      createdAt: _currentGame!.createdAt,
+      startedAt: _currentGame!.startedAt,
+      finishedAt: gameFinished ? DateTime.now() : null,
+      winnerId: winnerId,
+      players: updatedPlayers,
+    );
+
+    // State güncelle
+    if (gameFinished) {
+      _gameState = GameState.finished;
+      _isGameActive = false;
+      debugPrint('🏁 Test oyunu bitti, state: ${_gameState}');
+    }
+
+    // UI güncelle
+    _currentGuess = List.filled(wordLength, '');
+    _currentColumn = 0;
+    _updateKeyboardColors();
+    notifyListeners();
   }
 
   // Klavye renklerini güncelle
@@ -787,6 +899,194 @@ class DuelViewModel extends ChangeNotifier {
     if (user == null) return 0;
     return await FirebaseService.getUserTokens(user.uid);
   }
+
+  // Test rakip oluştur
+  Future<bool> createTestOpponent() async {
+    try {
+      debugPrint('🤖 Test rakip oluşturuluyor...');
+      
+      _isTestMode = true;
+      _gameState = GameState.initializing;
+      _cleanupPreviousGame(); // Önceki oyun state'ini temizle
+      notifyListeners();
+
+      final user = FirebaseService.getCurrentUser();
+      if (user == null) {
+        debugPrint('❌ HATA: Kullanıcı giriş yapmamış');
+        return false;
+      }
+
+      await loadValidWords();
+      
+      final userProfile = await FirebaseService.getUserProfile(user.uid);
+      _playerName = userProfile?['displayName'] ?? user.displayName ?? 'Sen';
+      
+      final secretWord = _selectRandomWord();
+      debugPrint('🔤 Test kelime: $secretWord');
+
+      // Test oyunu oluştur
+      _currentGame = _createTestGame(user.uid, secretWord);
+      _gameId = _currentGame!.gameId;
+      _currentWord = secretWord;
+      
+      _gameState = GameState.opponentFound;
+      _startOpponentFoundSequence();
+      
+      return true;
+    } catch (e) {
+      debugPrint('❌ Test rakip oluşturma hatası: $e');
+      return false;
+    }
+  }
+
+  // Test oyunu oluştur
+  DuelGame _createTestGame(String userId, String secretWord) {
+    final now = DateTime.now();
+    
+    // Test rakip oluştur
+    final testOpponent = DuelPlayer(
+      playerId: 'test_opponent',
+      playerName: 'Test Rakip 🤖',
+      avatar: '🤖',
+      status: PlayerStatus.playing,
+      guesses: List.generate(6, (index) => List.filled(5, '_')),
+      guessColors: List.generate(6, (index) => List.filled(5, 'none')),
+      currentAttempt: 0,
+      score: 0,
+    );
+
+    // Mevcut oyuncu
+    final currentPlayer = DuelPlayer(
+      playerId: userId,
+      playerName: _playerName,
+      avatar: '👤', // Varsayılan avatar
+      status: PlayerStatus.playing,
+      guesses: List.generate(6, (index) => List.filled(5, '_')),
+      guessColors: List.generate(6, (index) => List.filled(5, 'none')),
+      currentAttempt: 0,
+      score: 0,
+    );
+
+    return DuelGame(
+      gameId: 'test_game_${DateTime.now().millisecondsSinceEpoch}',
+      secretWord: secretWord,
+      status: GameStatus.waiting,
+      createdAt: now,
+      players: {
+        userId: currentPlayer,
+        'test_opponent': testOpponent,
+      },
+    );
+  }
+
+  // Test rakibini hareket ettir (otomatik)
+  void _moveTestOpponent() {
+    if (!_isTestMode || _currentGame == null) return;
+    
+    final testPlayer = _currentGame!.players['test_opponent'];
+    if (testPlayer == null || testPlayer.currentAttempt >= 6) return;
+
+    // Test rakibi rastgele bir kelime tahmin etsin
+    Future.delayed(Duration(milliseconds: 1500 + math.Random().nextInt(2000)), () {
+      if (!_isTestMode || _currentGame == null) return;
+      
+      final testWord = _selectRandomWord();
+      final colors = _checkGuess(testWord, _currentGame!.secretWord);
+      
+      final updatedPlayer = DuelPlayer(
+        playerId: testPlayer.playerId,
+        playerName: testPlayer.playerName,
+        avatar: testPlayer.avatar,
+        status: colors.every((c) => c == 'green') ? PlayerStatus.won : PlayerStatus.playing,
+        guesses: List.from(testPlayer.guesses),
+        guessColors: List.from(testPlayer.guessColors),
+        currentAttempt: testPlayer.currentAttempt + 1,
+        score: testPlayer.score,
+      );
+
+      // Tahmin ve renklerini güncelle
+      for (int i = 0; i < 5; i++) {
+        updatedPlayer.guesses[testPlayer.currentAttempt][i] = testWord[i].toUpperCase();
+        updatedPlayer.guessColors[testPlayer.currentAttempt][i] = colors[i];
+      }
+
+      // Oyunu güncelle
+      final updatedPlayers = Map<String, DuelPlayer>.from(_currentGame!.players);
+      updatedPlayers['test_opponent'] = updatedPlayer;
+      
+      _currentGame = DuelGame(
+        gameId: _currentGame!.gameId,
+        secretWord: _currentGame!.secretWord,
+        status: colors.every((c) => c == 'green') ? GameStatus.finished : _currentGame!.status,
+        createdAt: _currentGame!.createdAt,
+        startedAt: _currentGame!.startedAt,
+        finishedAt: colors.every((c) => c == 'green') ? DateTime.now() : null,
+        winnerId: colors.every((c) => c == 'green') ? 'test_opponent' : _currentGame!.winnerId,
+        players: updatedPlayers,
+      );
+
+      if (colors.every((c) => c == 'green')) {
+        _gameState = GameState.finished;
+        _isGameActive = false;
+      }
+      
+      notifyListeners();
+    });
+  }
+
+  // Tahmin kontrolü - Wordle mantığı
+  List<String> _checkGuess(String guess, String secretWord) {
+    final colors = List<String>.filled(5, 'grey');
+    final guessChars = guess.toUpperCase().split('');
+    final secretChars = secretWord.toUpperCase().split('');
+    final used = List<bool>.filled(5, false);
+
+    // Önce doğru pozisyondakileri işaretle (yeşil)
+    for (int i = 0; i < 5; i++) {
+      if (guessChars[i] == secretChars[i]) {
+        colors[i] = 'green';
+        used[i] = true;
+      }
+    }
+
+    // Sonra yanlış pozisyondakileri işaretle (turuncu)
+    for (int i = 0; i < 5; i++) {
+      if (colors[i] == 'grey') {
+        for (int j = 0; j < 5; j++) {
+          if (!used[j] && guessChars[i] == secretChars[j]) {
+            colors[i] = 'orange';
+            used[j] = true;
+            break;
+          }
+        }
+      }
+    }
+
+    return colors;
+  }
+
+  // Önceki oyun state'ini temizle
+  void _cleanupPreviousGame() {
+    _currentGame = null;
+    _gameId = null;
+    _currentWord = '';
+    _currentColumn = 0;
+    _isGameActive = false;
+    _showingCountdown = false;
+    _opponentFound = false;
+    _preGameCountdown = 8;
+    _gameStartTime = null;
+    _currentGuess = List.filled(wordLength, '');
+    _keyboardLetters.clear();
+    _firstRowVisible = false;
+    _allRowsVisible = false;
+    _tokensDeducted = false;
+    _needsShake = false;
+    _cleanupSubscriptions();
+    _preGameTimer?.cancel();
+  }
+
+
 }
 
 // Game State enum

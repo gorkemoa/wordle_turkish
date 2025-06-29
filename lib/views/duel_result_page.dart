@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:confetti/confetti.dart';
 import 'dart:math' as math;
 import '../models/duel_game.dart';
 import '../services/firebase_service.dart';
+import '../viewmodels/duel_viewmodel.dart';
 import 'duel_page.dart';
+import 'duel_waiting_room.dart';
 
 // Düello sonuç sayfası
 
@@ -31,7 +35,9 @@ class DuelResultPage extends StatefulWidget {
 class _DuelResultPageState extends State<DuelResultPage> 
     with TickerProviderStateMixin {
   
-  late AnimationController _confettiController;
+  // 🎊 KONFETI CONTROLLER - Profesyonel paket
+  late ConfettiController _confettiController;
+  
   late AnimationController _mainAnimationController;
   late AnimationController _pulseController;
   late AnimationController _slideController;
@@ -41,7 +47,6 @@ class _DuelResultPageState extends State<DuelResultPage>
   late Animation<double> _pulseAnimation;
   late Animation<Offset> _slideAnimation;
   
-  List<ConfettiParticle> confettiParticles = [];
   bool _hasAnimated = false;
   int _tokensEarned = 0;
   int _tokensLost = 0;
@@ -50,15 +55,14 @@ class _DuelResultPageState extends State<DuelResultPage>
   void initState() {
     super.initState();
     
+    // 🎊 KONFETI CONTROLLER - Hızlı ve etkili
+    _confettiController = ConfettiController(duration: const Duration(seconds: 4));
+    
+    debugPrint('🎊 ConfettiController oluşturuldu: $_confettiController');
+    
     // Ana animasyon kontrolcüsü
     _mainAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-    
-    // Konfeti animasyonu - daha uzun süre
-    _confettiController = AnimationController(
-      duration: const Duration(seconds: 4),
       vsync: this,
     );
     
@@ -116,6 +120,7 @@ class _DuelResultPageState extends State<DuelResultPage>
 
   @override
   void dispose() {
+    _confettiController.stop();
     _confettiController.dispose();
     _mainAnimationController.dispose();
     _pulseController.dispose();
@@ -130,6 +135,8 @@ class _DuelResultPageState extends State<DuelResultPage>
     final bool isWinner = widget.game.winnerId == widget.currentPlayer.playerId;
     final bool hasOpponent = widget.opponentPlayer != null;
     
+    debugPrint('🎊 DuelResult _startAnimations - isWinner: $isWinner, hasOpponent: $hasOpponent');
+    
     // Jeton hesapla - Basit sistem
     if (isWinner && hasOpponent) {
       _tokensEarned = 20;
@@ -142,15 +149,16 @@ class _DuelResultPageState extends State<DuelResultPage>
       _mainAnimationController.forward();
     }
     
-    // Pulse animasyonunu sürekli çalıştır (sadece kazananda)
-    if (isWinner && hasOpponent && mounted) {
+    // 🎊 KONFETI İÇİN GENİŞLETİLMİŞ KOŞUL - Test modu dahil
+    if (isWinner && mounted) { // hasOpponent koşulunu kaldırdık
+      debugPrint('🎉 KAZANDIN! Konfeti başlatılıyor HEMEN!');
       _pulseController.repeat(reverse: true);
       
-      // Konfeti patlat
-      Future.delayed(const Duration(milliseconds: 500), () {
+      // 🎊 PROFESYONEL KONFETI PAKETI - 1 saniye gecikme ile
+      Future.delayed(const Duration(milliseconds: 1000), () {
         if (mounted) {
-          _createAdvancedConfetti();
-          _confettiController.forward();
+          debugPrint('🎊 ✅ 1 saniye sonra konfeti başlatılıyor!');
+          _confettiController.play();
         }
       });
     }
@@ -163,41 +171,7 @@ class _DuelResultPageState extends State<DuelResultPage>
     });
   }
 
-  void _createAdvancedConfetti() {
-    final random = math.Random();
-    final screenCenter = MediaQuery.of(context).size.width / 2;
-    final screenHeight = MediaQuery.of(context).size.height;
-    
-    confettiParticles = List.generate(80, (index) {
-      // Merkezi patlatma efekti için açı hesapla
-      final angle = (index / 80) * 2 * math.pi;
-      final speed = random.nextDouble() * 8 + 4;
-      final distance = random.nextDouble() * 300 + 100;
-      
-      return ConfettiParticle(
-        x: screenCenter + math.cos(angle) * 50, // Merkezden başla
-        y: screenHeight * 0.3, // Ekranın üst kısmından
-        color: [
-          Colors.yellow.shade400,
-          Colors.orange.shade400,
-          Colors.red.shade400,
-          Colors.pink.shade400,
-          Colors.purple.shade400,
-          Colors.blue.shade400,
-          Colors.green.shade400,
-          Colors.cyan.shade400,
-        ][random.nextInt(8)],
-        size: random.nextDouble() * 12 + 6,
-        speedX: math.cos(angle) * speed,
-        speedY: -random.nextDouble() * 8 - 2, // Yukarı doğru patlama
-        rotation: random.nextDouble() * 2 * math.pi,
-        rotationSpeed: (random.nextDouble() - 0.5) * 0.3,
-        gravity: random.nextDouble() * 0.3 + 0.1,
-        life: 1.0,
-        fadeSpeed: random.nextDouble() * 0.02 + 0.01,
-      );
-    });
-  }
+
 
   Future<void> _saveGameResult() async {
     try {
@@ -289,19 +263,27 @@ class _DuelResultPageState extends State<DuelResultPage>
               ),
             ),
             
-            // Konfeti animasyonu - tam ekran
-            if (confettiParticles.isNotEmpty)
-              AnimatedBuilder(
-                animation: _confettiController,
-                builder: (context, child) {
-                  return CustomPaint(
-                    painter: AdvancedConfettiPainter(
-                      particles: confettiParticles,
-                      progress: _confettiController.value,
-                    ),
-                    size: Size.infinite,
-                  );
-                },
+                        // 🎊 BASIT ÜSTTEN KONFETI - GARANTİLİ ÇALIŞIR
+            if (isWinner)
+              Align(
+                alignment: Alignment.topCenter,
+                child: ConfettiWidget(
+                  confettiController: _confettiController,
+                  blastDirection: math.pi / 2, // Aşağı doğru
+                  maxBlastForce: 20,
+                  minBlastForce: 5,
+                  emissionFrequency: 0.05,
+                  numberOfParticles: 20,
+                  gravity: 0.2,
+                  shouldLoop: false,
+                  colors: const [
+                    Colors.yellow,
+                    Colors.orange,
+                    Colors.red,
+                    Colors.blue,
+                    Colors.green,
+                  ],
+                ),
               ),
           ],
         ),
@@ -428,7 +410,10 @@ class _DuelResultPageState extends State<DuelResultPage>
   }
 
   Widget _buildMainResult(bool isWinner, bool hasOpponent) {
-    return AnimatedBuilder(
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20.0),
+        child: AnimatedBuilder(
       animation: _scaleAnimation,
       child: Center(
         child: Column(
@@ -464,40 +449,91 @@ class _DuelResultPageState extends State<DuelResultPage>
           ),
         );
       },
+        ),
+      ),
     );
   }
 
   Widget _buildResultIcon(bool isWinner, bool hasOpponent) {
-    String emoji;
-    IconData icon;
+    double iconSize = 120;
+    
+    if (isWinner) {
+      // 🏆 KAZANMA ANİMASYONU + GIF
+      return Container(
+        width: iconSize + 40,
+        height: iconSize + 40,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 3),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.yellow.withOpacity(0.3),
+              blurRadius: 20,
+              spreadRadius: 5,
+            ),
+          ],
+        ),
+        child: AnimatedBuilder(
+          animation: _pulseAnimation,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: _pulseAnimation.value,
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/winner/Animation - 1751114693941.gif',
+                  width: iconSize,
+                  height: iconSize,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true, // Kesintisiz oynatma
+                  errorBuilder: (context, error, stackTrace) {
+                    debugPrint('❌ Winner gif yüklenemedi: $error');
+                    // Hata durumunda fallback ikon
+                    return Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('🏆', style: TextStyle(fontSize: 36)),
+                        const SizedBox(height: 4),
+                        Icon(
+                          Icons.emoji_events_rounded,
+                          color: Colors.amber,
+                          size: 32,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } else {
+      // 💔 KAYBETME VEYA RAKİP YOK ANİMASYONU + GIF
+      IconData iconData;
     Color iconColor;
+      String? gifPath;
+      String emoji;
     
     if (!hasOpponent) {
       emoji = '🚫';
-      icon = Icons.person_off_rounded;
+        iconData = Icons.person_off_rounded;
       iconColor = Colors.orange;
-    } else if (isWinner) {
-      emoji = '🏆';
-      icon = Icons.emoji_events_rounded;
-      iconColor = Colors.amber;
+        gifPath = 'assets/alert/Animation - 1751119517404.gif';
     } else {
       emoji = '💔';
-      icon = Icons.sentiment_dissatisfied_rounded;
+        iconData = Icons.sentiment_dissatisfied_rounded;
       iconColor = Colors.red.shade300;
-    }
-    
-    Widget iconWidget = Container(
-      width: 120,
-      height: 120,
+        gifPath = 'assets/lose/Animation - 1751114981463.gif';
+      }
+
+      return Container(
+        width: iconSize + 40,
+        height: iconSize + 40,
       decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
         shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            Colors.white.withOpacity(0.3),
-            Colors.white.withOpacity(0.1),
-          ],
-        ),
-        border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 3),
         boxShadow: [
           BoxShadow(
             color: iconColor.withOpacity(0.3),
@@ -506,38 +542,33 @@ class _DuelResultPageState extends State<DuelResultPage>
           ),
         ],
       ),
-      child: Column(
+        child: ClipOval(
+          child: Image.asset(
+            gifPath,
+            width: iconSize,
+            height: iconSize,
+            fit: BoxFit.cover,
+            gaplessPlayback: true, // Kesintisiz oynatma
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('❌ Lose/Alert gif yüklenemedi: $error');
+              // Hata durumunda fallback ikon
+              return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            emoji,
-            style: const TextStyle(fontSize: 36),
-          ),
+                  Text(emoji, style: const TextStyle(fontSize: 36)),
           const SizedBox(height: 4),
           Icon(
-            icon,
+                    iconData,
             color: iconColor,
             size: 32,
           ),
         ],
-      ),
-    );
-    
-    // Kazananda pulse efekti
-    if (isWinner && hasOpponent) {
-      return AnimatedBuilder(
-        animation: _pulseAnimation,
-        child: iconWidget,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _pulseAnimation.value,
-            child: child,
           );
         },
+          ),
+        ),
       );
     }
-    
-    return iconWidget;
   }
 
   Widget _buildResultMessage(bool isWinner, bool hasOpponent) {
@@ -882,31 +913,70 @@ class _DuelResultPageState extends State<DuelResultPage>
   }
 
   Widget _buildActionButtons() {
-    return Row(
+    final bool isWinner = widget.game.winnerId == widget.currentPlayer.playerId;
+    
+    return Column(
       children: [
-        Expanded(
-          child: _buildActionButton(
-            'ANA SAYFA',
-            Icons.home_rounded,
-            Colors.blue.shade600,
-            () => Navigator.of(context).popUntil((route) => route.isFirst),
+        // 🎊 TEST BUTONU - Sadece kazanma durumunda
+        if (isWinner)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildActionButton(
+              'KONFETİ TEST',
+              Icons.celebration_rounded,
+              Colors.purple.shade600,
+              () {
+                debugPrint('🎊 TEST BUTONU TIKLANDI!');
+                _confettiController.play();
+                debugPrint('🎊 Konfeti play() çağırıldı');
+              },
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildActionButton(
-            'TEKRAR OYNA',
-            Icons.refresh_rounded,
-            Colors.green.shade600,
-            () {
-              // Yeni DuelPage instance'ı ile temiz başlangıç
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (context) => const DuelPage(),
-                ),
-              );
-            },
-          ),
+        
+        // Ana butonlar
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionButton(
+                'ANA SAYFA',
+                Icons.home_rounded,
+                Colors.blue.shade600,
+                () => Navigator.of(context).popUntil((route) => route.isFirst),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildActionButton(
+                'TEKRAR OYNA',
+                Icons.refresh_rounded,
+                Colors.green.shade600,
+                () {
+                  try {
+                    // DuelViewModel'ı reset et
+                    final viewModel = Provider.of<DuelViewModel>(context, listen: false);
+                    viewModel.resetForNewGame();
+                    
+                    debugPrint('🔄 DuelResultPage - ViewModel reset edildi, yeni oyun başlatılıyor');
+                    
+                    // DuelWaitingRoom'a git (yeni oyun için)
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                        builder: (context) => const DuelWaitingRoom(),
+                      ),
+                    );
+                  } catch (e) {
+                    debugPrint('❌ Tekrar oyna hatası: $e');
+                    // Hata durumunda basit çözüm
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (context) => const DuelWaitingRoom(),
+                    ),
+                  );
+                  }
+                },
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -956,114 +1026,4 @@ class _DuelResultPageState extends State<DuelResultPage>
   }
 }
 
-// Gelişmiş konfeti parçacığı
-class ConfettiParticle {
-  double x;
-  double y;
-  final Color color;
-  final double size;
-  double speedX;
-  double speedY;
-  double rotation;
-  final double rotationSpeed;
-  final double gravity;
-  double life;
-  final double fadeSpeed;
-
-  ConfettiParticle({
-    required this.x,
-    required this.y,
-    required this.color,
-    required this.size,
-    required this.speedX,
-    required this.speedY,
-    required this.rotation,
-    required this.rotationSpeed,
-    required this.gravity,
-    required this.life,
-    required this.fadeSpeed,
-  });
-
-  void update() {
-    x += speedX;
-    y += speedY;
-    speedY += gravity; // Yerçekimi etkisi
-    rotation += rotationSpeed;
-    life -= fadeSpeed;
-    
-    // Hava direnci
-    speedX *= 0.995;
-    speedY *= 0.995;
-  }
-}
-
-// Gelişmiş konfeti çizici
-class AdvancedConfettiPainter extends CustomPainter {
-  final List<ConfettiParticle> particles;
-  final double progress;
-
-  AdvancedConfettiPainter({
-    required this.particles,
-    required this.progress,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (final particle in particles) {
-      particle.update();
-      
-      // Yaşam süresi bittiyse atla
-      if (particle.life <= 0) continue;
-      
-      final paint = Paint()
-        ..color = particle.color.withOpacity(particle.life.clamp(0.0, 1.0))
-        ..style = PaintingStyle.fill;
-
-      canvas.save();
-      canvas.translate(particle.x, particle.y);
-      canvas.rotate(particle.rotation);
-      
-      // Farklı şekillerde konfeti
-      if (particle.size > 8) {
-        // Büyük parçacıklar için yıldız şekli
-        _drawStar(canvas, paint, particle.size);
-      } else {
-        // Küçük parçacıklar için kare
-        canvas.drawRect(
-          Rect.fromCenter(
-            center: Offset.zero,
-            width: particle.size,
-            height: particle.size,
-          ),
-          paint,
-        );
-      }
-      
-      canvas.restore();
-    }
-  }
-
-  void _drawStar(Canvas canvas, Paint paint, double size) {
-    final path = Path();
-    const double angleStep = math.pi / 5;
-    
-    for (int i = 0; i < 10; i++) {
-      final double angle = i * angleStep;
-      final double radius = (i % 2 == 0) ? size : size * 0.5;
-      final double x = radius * math.cos(angle);
-      final double y = radius * math.sin(angle);
-      
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-} 
+ 

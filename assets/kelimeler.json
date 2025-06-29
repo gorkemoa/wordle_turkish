@@ -463,7 +463,7 @@
     "HAYAT", "DOĞUM", "ÖLÜM", "EVDE", "SOKAK", "MAHALLE", "ŞEHİR", "KÖYÜN", "KASABA", "MEYDAN",
     "PAZAR", "ÇARŞI", "DÜKKAN", "MAĞAZA", "MARKET", "BAKKAL", "ECZANE", "OKUL", "HASTANE",
     "YEMEK", "İÇMEK", "UYUMAK", "KALKMAK", "GİTMEK", "GELMEK", "ALMAK", "VERMEK", "SATMAK", "ALIŞVERIŞ",
-    "PARA", "LIRA", "KURUŞ", "FIYAT", "ÜCRET", "MAAŞ", "İŞÇİ", "PATRON", "MÜDÜR", "DOKTOR",
+    "PARA", "LIRA", "KURUŞ", "FİYAT", "ÜCRET", "MAAŞ", "İŞÇİ", "PATRON", "MÜDÜR", "DOKTOR",
     "ÖĞRETMEN", "POLIS", "HEMŞIRE", "BERBER", "AŞÇI", "ŞEF", "TERZI", "AYAKKABI", "GİYSİ", "ELBİSE",
     "PANTOLON", "GÖMLEK", "AYAKKABI", "ÇORAP", "ŞAPKA", "KEMER", "ÇANTA", "CÜZDAN", "ANAHTAR", "KAPIDA",
     "PENCERE", "DUVAR", "TAVAN", "ZEMİN", "MERMER", "KİLİT", "ZİL", "TELEFON", "BİLGİSAYAR", "TELEVIZYON",

@@ -33,10 +33,17 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
   bool _hasNavigated = false;
   bool _hasStartedGame = false; // Oyun başlatma kontrolü için flag
   bool _hasTimedOut = false; // Timeout kontrolü için flag
+  
+  // 🕐 BEKLEME ODASINDA GERİ SAYIM İÇİN
+  int _waitingCountdown = 30; // 30 saniye bekleme süresi
+  Timer? _waitingTimer;
 
   @override
   void initState() {
     super.initState();
+    
+    // 🕐 BEKLEME ODASINDA GERİ SAYIM BAŞLAT
+    _startWaitingCountdown();
     
     // Slide/Fade animasyonu (giriş efekti için)
     _slideFadeController = AnimationController(
@@ -117,8 +124,32 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
     });
   }
 
+  // 🕐 BEKLEME ODASINDA GERİ SAYIM BAŞLAT
+  void _startWaitingCountdown() {
+    _waitingTimer?.cancel();
+    _waitingCountdown = 30; // 30 saniye
+    
+    _waitingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_waitingCountdown > 0) {
+            _waitingCountdown--;
+            debugPrint('⏰ Bekleme countdown: $_waitingCountdown saniye kaldı');
+          } else {
+            // Süre doldu
+            _waitingCountdown = 30; // Reset countdown
+            debugPrint('⏰ Bekleme süresi doldu, reset ediliyor');
+          }
+        });
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _waitingTimer?.cancel(); // Timer'ı temizle
     _rotationController.dispose();
     _slideFadeController.dispose();
     _collisionController.dispose();
@@ -730,8 +761,8 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
                 
                 const SizedBox(height: 20),
                 
-                // Çıkış Butonu
-                _buildFooter(viewModel),
+                            // Test ve Çıkış Butonları
+            _buildFooter(viewModel),
               ],
             ),
           ),
@@ -920,6 +951,11 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
                       );
                     },
                   ),
+                // 🕐 BEKLEME ODASINDA GERİ SAYIM
+                if (!hasOpponent) ...[
+                  const SizedBox(height: 30),
+                  _buildWaitingCountdown(),
+                ],
               ],
             ),
           ),
@@ -1161,22 +1197,83 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
   }
 
   Widget _buildFooter(DuelViewModel viewModel) {
-    return SizedBox(
-      height: 50, // Buton için sabit alan
-      child: ElevatedButton.icon(
-        onPressed: _showExitDialog,
-        icon: const Icon(Icons.cancel, color: Colors.white),
-        label: const Text('Aramayı İptal Et'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.red.shade800.withOpacity(0.8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Test Rakip Butonu
+        SizedBox(
+          height: 50,
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () async {
+              try {
+                debugPrint('🤖 Test rakip oluşturuluyor...');
+                final success = await viewModel.createTestOpponent();
+                if (success && mounted) {
+                  debugPrint('✅ Test rakip oluşturuldu, oyun başlıyor');
+                  // Test modunda direkt oyun sayfasına git
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => const DuelPage()),
+                  );
+                } else {
+                  debugPrint('❌ Test rakip oluşturulamadı');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Test rakip oluşturulamadı'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              } catch (e) {
+                debugPrint('❌ Test rakip hatası: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Hata: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.smart_toy, color: Colors.white),
+            label: const Text('🤖 Test Rakip Oluştur'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade700,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              shadowColor: Colors.green.shade700,
+              elevation: 8,
+            ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-          shadowColor: Colors.red.shade800,
-          elevation: 8,
         ),
-      ),
+        
+        const SizedBox(height: 16),
+        
+        // Çıkış Butonu
+        SizedBox(
+          height: 50,
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _showExitDialog,
+            icon: const Icon(Icons.cancel, color: Colors.white),
+            label: const Text('Aramayı İptal Et'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade800.withOpacity(0.8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              shadowColor: Colors.red.shade800,
+              elevation: 8,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1726,6 +1823,65 @@ class _DuelWaitingRoomState extends State<DuelWaitingRoom>
               fontSize: 12,
             ),
           ),
+      ],
+    );
+  }
+
+  // 🕐 BEKLEME ODASINDA GERİ SAYIM WİDGET'I
+  Widget _buildWaitingCountdown() {
+    return Column(
+      children: [
+        // Countdown circle
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                Colors.blue.withOpacity(0.3),
+                Colors.purple.withOpacity(0.1),
+              ],
+            ),
+            border: Border.all(
+              color: Colors.blue.withOpacity(0.6),
+              width: 3,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.blue.withOpacity(0.3),
+                blurRadius: 15,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              '$_waitingCountdown',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Rakip aranıyor...',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.7),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Text(
+          '${_waitingCountdown}s kaldı',
+          style: TextStyle(
+            color: Colors.blue.withOpacity(0.8),
+            fontSize: 12,
+          ),
+        ),
       ],
     );
   }
