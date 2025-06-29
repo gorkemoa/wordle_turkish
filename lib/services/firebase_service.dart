@@ -2089,7 +2089,7 @@ class FirebaseService {
   /// Reklam izleyerek jeton kazan
   static Future<void> earnTokensFromAd(String uid) async {
     try {
-      const int adTokenReward = 1; // Reklam başına 1 jeton
+      const int adTokenReward = 2; // Reklam başına 2 jeton
       await earnTokens(uid, adTokenReward, 'Reklam İzleme');
       
       // Reklam izleme istatistiği
