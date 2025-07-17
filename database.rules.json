@@ -3,13 +3,34 @@
     "users": {
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
-        ".write": "auth != null && auth.uid == $uid"
+        ".write": "auth != null && auth.uid == $uid",
+        "avatar": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "lastActiveAt": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
+        }
       }
     },
     "presence": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && auth.uid == $uid"
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $uid",
+        "isOnline": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "lastSeen": {
+          ".read": "auth != null", 
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "deviceInfo": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $uid"
+        }
       }
     },
     "duel_games": {
@@ -25,6 +46,73 @@
         ".read": "auth != null",
         ".write": "auth != null && auth.uid == $uid"
       }
+    },
+    "queue": {
+      ".read": "auth != null",
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": "auth != null && auth.uid == $userId",
+        "userId": {
+          ".validate": "newData.isString() && newData.val() == auth.uid"
+        },
+        "displayName": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
+        },
+        "avatar": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 10"
+        },
+        "entryTime": {
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        "status": {
+          ".validate": "newData.isString() && (newData.val() == 'searching' || newData.val() == 'expired')"
+        }
+      }
+    },
+    "userStatus": {
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": "auth != null && auth.uid == $userId",
+        "status": {
+          ".validate": "newData.isString() && (newData.val() == 'online' || newData.val() == 'offline' || newData.val() == 'in_queue' || newData.val() == 'in_game' || newData.val() == 'disconnected')"
+        },
+        "lastSeen": {
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        "currentMatch": {
+          ".validate": "newData.isString() || newData.val() == null"
+        }
+      }
+    },
+    "connections": {
+      "$userId": {
+        "$connectionId": {
+          ".read": "auth != null && auth.uid == $userId",
+          ".write": "auth != null && auth.uid == $userId",
+          "connectedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          },
+          "platform": {
+            ".validate": "newData.isString()"
+          }
+        }
+      }
+    },
+    "matches": {
+      "$matchId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "queueOperations": {
+      "$operationId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "matchmakingConfig": {
+      ".read": "auth != null",
+      ".write": false
     }
   }
 } 

@@ -1,0 +1,154 @@
+{
+  "_comment": "🎮 Firebase Realtime Database - Düello Eşleşme Sistemi Yapısı",
+  "_description": "Çakışmasız, güvenli ve ölçeklenebilir düello eşleşme sistemi",
+  
+  "queue": {
+    "_comment": "Eşleşme kuyruğu - Her kullanıcı sadece kendi entry'sini yönetebilir",
+    "_structure": "queue/{userId}",
+    "exampleUserId1": {
+      "userId": "user123",
+      "displayName": "Ahmet",
+      "avatar": "👤",
+      "entryTime": 1703001234567,
+      "status": "searching",
+      "_comment_status": "searching | matched | cancelled | expired",
+      "gamePreferences": {
+        "difficulty": "normal",
+        "timeLimit": 300
+      },
+      "deviceInfo": {
+        "platform": "android",
+        "version": "1.0.0"
+      },
+      "_serverTimestamp": {
+        ".sv": "timestamp"
+      }
+    }
+  },
+
+  "matches": {
+    "_comment": "Aktif eşleşmeler - Sadece sistem tarafından oluşturulur",
+    "_structure": "matches/{matchId}",
+    "match_1703001234567_abc123": {
+      "matchId": "match_1703001234567_abc123",
+      "players": {
+        "player1": {
+          "userId": "user123",
+          "displayName": "Ahmet",
+          "avatar": "👤",
+          "joinedAt": 1703001234567,
+          "status": "connected"
+        },
+        "player2": {
+          "userId": "user456", 
+          "displayName": "Ayşe",
+          "avatar": "👩",
+          "joinedAt": 1703001234568,
+          "status": "connected"
+        }
+      },
+      "gameData": {
+        "secretWord": "KELIME",
+        "wordLength": 5,
+        "maxAttempts": 6,
+        "timeLimit": 300
+      },
+      "status": "active",
+      "_comment_status": "waiting | active | finished | cancelled | expired",
+      "createdAt": 1703001234567,
+      "startedAt": null,
+      "finishedAt": null,
+      "winnerId": null,
+      "settings": {
+        "autoStart": true,
+        "spectators": false
+      },
+      "_serverTimestamp": {
+        ".sv": "timestamp"
+      }
+    }
+  },
+
+  "userStatus": {
+    "_comment": "Kullanıcı durumu takibi - onDisconnect ile otomatik temizlik",
+    "_structure": "userStatus/{userId}",
+    "user123": {
+      "status": "in_queue",
+      "_comment_status": "online | offline | in_queue | in_game | disconnected",
+      "lastSeen": 1703001234567,
+      "currentMatch": null,
+      "currentQueue": true,
+      "connectionCount": 1,
+      "_comment_connectionCount": "Çoklu sekme desteği için",
+      "_serverTimestamp": {
+        ".sv": "timestamp"
+      }
+    }
+  },
+
+  "matchmakingConfig": {
+    "_comment": "Sistem konfigürasyonu - Sadece admin erişimi",
+    "settings": {
+      "queueTimeout": 30000,
+      "_comment_queueTimeout": "30 saniye sonra kuyruktan otomatik çıkar",
+      "maxPlayersInQueue": 1000,
+      "matchTimeout": 600000,
+      "_comment_matchTimeout": "10 dakika sonra maçı otomatik bitir",
+      "retryAttempts": 3,
+      "retryDelay": 2000
+    },
+    "statistics": {
+      "totalMatches": 0,
+      "activeMatches": 0,
+      "playersInQueue": 0,
+      "averageWaitTime": 0
+    }
+  },
+
+  "matchHistory": {
+    "_comment": "Tamamlanan maçlar - İstatistikler için",
+    "_structure": "matchHistory/{matchId}",
+    "match_1703001234567_finished": {
+      "matchId": "match_1703001234567_finished",
+      "players": ["user123", "user456"],
+      "winner": "user123",
+      "duration": 180000,
+      "completedAt": 1703001414567,
+      "gameData": {
+        "secretWord": "KELIME",
+        "attempts": {
+          "user123": 4,
+          "user456": 6
+        }
+      }
+    }
+  },
+
+  "queueOperations": {
+    "_comment": "Kuyruk işlemleri için atomic operations - Sistem kullanımı",
+    "_structure": "queueOperations/{operationId}",
+    "operation_1703001234567": {
+      "type": "match_attempt",
+      "status": "processing",
+      "_comment_status": "pending | processing | completed | failed",
+      "participants": ["user123", "user456"],
+      "createdAt": 1703001234567,
+      "completedAt": null,
+      "result": null
+    }
+  },
+
+  "_systemInfo": {
+    "_comment": "Sistem bilgileri ve sürüm takibi",
+    "version": "2.0.0",
+    "lastUpdated": 1703001234567,
+    "maintainer": "Düello Sistemi v2.0",
+    "features": [
+      "Çakışmasız eşleşme",
+      "Transaction-based operations", 
+      "Auto cleanup on disconnect",
+      "Retry mechanism",
+      "Real-time monitoring"
+    ]
+  }
+} 

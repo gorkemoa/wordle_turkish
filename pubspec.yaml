@@ -1,7 +1,7 @@
 name: harfle
 description: Türkçe kelime tahmin oyunu - Harfle
 
-publish_to: 'none' 
+publish_to: 'none'
 
 version: 1.0.0+1
 
@@ -22,6 +22,7 @@ dependencies:
   cloud_firestore: ^5.6.9
   firebase_database: ^11.1.9
   google_sign_in: ^6.2.1
+  sign_in_with_apple: ^6.1.2
   uuid: ^4.5.1
   video_player: ^2.10.0
   google_mobile_ads: ^5.2.0

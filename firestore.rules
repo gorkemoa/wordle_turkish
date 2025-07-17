@@ -4,7 +4,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Kullanıcılar - sadece kendi verilerine erişim
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
     }
     
     // Kullanıcı istatistikleri - sadece kendi verilerine erişim

@@ -4,9 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart' as rtdb;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:uuid/uuid.dart';
-import '../models/duel_game.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
 import 'avatar_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
@@ -174,6 +175,194 @@ class FirebaseService {
     }
   }
 
+  // Game Center ile giriş yap (iOS için)
+  static Future<User?> signInWithGameCenter() async {
+    try {
+      print('🎮 Game Center authentication başlatılıyor...');
+      
+      // iOS platform kontrolü
+      if (!Platform.isIOS) {
+        throw Exception('Game Center sadece iOS platformunda desteklenir');
+      }
+      
+      // Apple ID ile giriş yap (Game Center entitlement'ları kullanılır)
+      print('🍎 Apple Sign-In başlatılıyor...');
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        // Game Center kullanıcıları için özel requestlar
+        webAuthenticationOptions: WebAuthenticationOptions(
+          clientId: 'com.rivorya.kelime', // Bundle ID
+          redirectUri: Uri.parse('https://kelimebul-5a4d0.firebaseapp.com/__/auth/handler'),
+        ),
+      );
+      
+      print('🍎 Apple ID credential alındı');
+      print('User ID: ${appleCredential.userIdentifier}');
+      print('Email: ${appleCredential.email ?? 'Gizli'}');
+      print('Given Name: ${appleCredential.givenName ?? 'Gizli'}');
+      print('Family Name: ${appleCredential.familyName ?? 'Gizli'}');
+      
+      // Firebase OAuthCredential oluştur
+      print('🔥 Firebase credential oluşturuluyor...');
+      
+      // Token'ları kontrol et
+      if (appleCredential.identityToken == null) {
+        throw Exception('Apple Identity Token alınamadı');
+      }
+      if (appleCredential.authorizationCode == null) {
+        throw Exception('Apple Authorization Code alınamadı');
+      }
+      
+      final oauthCredential = OAuthProvider("apple.com").credential(
+        idToken: appleCredential.identityToken!,
+        accessToken: appleCredential.authorizationCode!,
+      );
+      
+      print('🔥 Firebase credential oluşturuldu');
+      
+      // Firebase ile giriş yap
+      print('🔐 Firebase ile giriş yapılıyor...');
+      final UserCredential result = await _auth.signInWithCredential(oauthCredential);
+      
+      print('✅ Firebase giriş başarılı');
+      print('User UID: ${result.user?.uid}');
+      print('Display Name: ${result.user?.displayName}');
+      print('Email: ${result.user?.email}');
+      
+      // Kullanıcı profili oluştur/güncelle
+      if (result.user != null) {
+        // Kullanıcı adını belirle
+        String displayName = result.user!.displayName ?? '';
+        
+        // Apple'dan gelen isim bilgileri varsa kullan
+        if (displayName.isEmpty && appleCredential.givenName != null) {
+          final givenName = appleCredential.givenName!;
+          final familyName = appleCredential.familyName ?? '';
+          displayName = '$givenName $familyName'.trim();
+        }
+        
+        // Hala boşsa Game Center benzeri isim oluştur
+        if (displayName.isEmpty) {
+          final gameKitNames = [
+            'GameCenter Oyuncusu', 'iOS Oyuncusu', 'Apple Oyuncusu', 
+            'Kelime Ustası', 'Harfle Şampiyonu', 'Türkçe Uzmanı'
+          ];
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          displayName = '${gameKitNames[timestamp % gameKitNames.length]} ${timestamp % 10000}';
+        }
+        
+        // İlk kez giriş yapıyorsa kullanıcı verilerini sakla
+        if (result.additionalUserInfo?.isNewUser == true) {
+          print('🆕 Yeni Game Center kullanıcısı, profil oluşturuluyor...');
+          
+          // Display name'i Firebase Auth'a kaydet
+          await result.user!.updateDisplayName(displayName);
+          
+                     // Firestore'a profil bilgilerini kaydet
+           await _saveGameCenterProfile(
+             result.user!, 
+             displayName,
+             result.user!.email ?? '',
+             appleCredential.userIdentifier ?? result.user!.uid,
+           );
+          
+          print('✅ Game Center kullanıcı profili oluşturuldu');
+        } else {
+          print('🔄 Mevcut Game Center kullanıcısı, profil güncelleniyor...');
+          
+          // Mevcut kullanıcı için son aktif zamanını güncelle
+          await _updateUserLastActive(result.user!.uid);
+        }
+      }
+      
+      return result.user;
+    } on SignInWithAppleAuthorizationException catch (e) {
+      print('🍎 Apple Sign-In hatası: ${e.code} - ${e.message}');
+      throw _handleAppleAuthException(e);
+    } on FirebaseAuthException catch (e) {
+      print('🔥 Firebase Auth hatası: ${e.code} - ${e.message}');
+      throw _handleAuthException(e);
+    } on PlatformException catch (e) {
+      print('📱 Platform hatası: ${e.code} - ${e.message}');
+      throw Exception('Game Center platform hatası: ${e.message}');
+    } catch (e) {
+      print('❌ Game Center giriş genel hatası: $e');
+      throw Exception('Game Center ile giriş başarısız: $e');
+    }
+  }
+
+  // Apple Auth exception handler
+  static Exception _handleAppleAuthException(SignInWithAppleAuthorizationException e) {
+    switch (e.code) {
+      case AuthorizationErrorCode.canceled:
+        return Exception('Game Center girişi iptal edildi');
+      case AuthorizationErrorCode.failed:
+        return Exception('Game Center girişi başarısız');
+      case AuthorizationErrorCode.invalidResponse:
+        return Exception('Game Center yanıtı geçersiz');
+      case AuthorizationErrorCode.notHandled:
+        return Exception('Game Center isteği işlenemedi');
+      case AuthorizationErrorCode.unknown:
+      default:
+        return Exception('Game Center girişi bilinmeyen hata: ${e.message}');
+    }
+  }
+
+  // Game Center kullanıcı profili kaydet
+  static Future<void> _saveGameCenterProfile(
+    User user,
+    String displayName,
+    String email,
+    String appleUserId,
+  ) async {
+    try {
+      // Kullanıcı için deterministik avatar oluştur
+      String userAvatar = AvatarService.generateAvatar(user.uid);
+      
+      final profileData = {
+        'uid': user.uid,
+        'displayName': displayName,
+        'email': email,
+        'photoURL': user.photoURL,
+        'avatar': userAvatar,
+        'isAnonymous': false,
+        'authProvider': 'apple_gamecenter',
+        'appleUserId': appleUserId,
+        'platform': 'ios',
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastActiveAt': FieldValue.serverTimestamp(),
+        'gamesPlayed': 0,
+        'gamesWon': 0,
+        'tokens': 5, // Game Center kullanıcıları 5 jetonla başlar
+      };
+      
+      await _firestore.collection('users').doc(user.uid).set(profileData, SetOptions(merge: true));
+      
+      // Kullanıcı istatistiklerini ve günlük görevlerini başlat
+      await initializeUserStats(user.uid);
+      await initializeDailyTasks(user.uid);
+      
+      print('✅ Game Center kullanıcı profili Firestore\'a kaydedildi');
+    } catch (e) {
+      print('❌ Game Center kullanıcı profil kaydetme hatası: $e');
+      rethrow;
+    }
+  }
+
+  // Kullanıcının son aktif zamanını güncelle
+  static Future<void> _updateUserLastActive(String uid) async {
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'lastActiveAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Son aktif zaman güncelleme hatası: $e');
+    }
+  }
+
   // Auth exception handler
   static Exception _handleAuthException(FirebaseAuthException e) {
     switch (e.code) {
@@ -315,7 +504,20 @@ class FirebaseService {
       final user = getCurrentUser();
       print('DEBUG - Current user: ${user?.uid}, Auth: ${user != null}');
       
-      final snapshot = await _database.ref('users/$uid/avatar').get();
+      // Auth kontrolü
+      if (user == null || user.uid != uid) {
+        print('DEBUG - Auth kontrolü başarısız, varsayılan avatar döndürülüyor');
+        return AvatarService.generateAvatar(uid);
+      }
+      
+      // Timeout ile Database erişimi
+      final snapshot = await _database.ref('users/$uid/avatar').get().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('DEBUG - Avatar alma timeout, varsayılan döndürülüyor');
+          throw Exception('Database timeout');
+        },
+      );
       
       if (snapshot.exists) {
         final savedAvatar = snapshot.value as String?;
@@ -328,8 +530,15 @@ class FirebaseService {
       // Avatar yoksa oluştur ve kaydet
       print('DEBUG - Avatar bulunamadı, yeni oluşturuluyor...');
       final newAvatar = AvatarService.generateAvatar(uid);
-      await updateUserAvatar(uid, newAvatar);
-      print('DEBUG - Yeni avatar Realtime DB\'ye kaydedildi: $newAvatar');
+      
+      // Kaydetme işlemini try-catch ile koru
+      try {
+        await updateUserAvatar(uid, newAvatar);
+        print('DEBUG - Yeni avatar Realtime DB\'ye kaydedildi: $newAvatar');
+      } catch (saveError) {
+        print('DEBUG - Avatar kaydetme hatası (göz ardı edildi): $saveError');
+      }
+      
       return newAvatar;
     } catch (e) {
       print('Avatar alma hatası: $e');
@@ -975,387 +1184,9 @@ class FirebaseService {
     }
   }
 
-  // Oyun durumunu dinle (Realtime Database)
-  static Stream<DuelGame?> listenToGame(String gameId) {
-    return _database.ref('duel_games/$gameId').onValue.map((event) {
-      if (event.snapshot.exists) {
-        try {
-          final gameData = event.snapshot.value as Map<dynamic, dynamic>;
-          return DuelGame.fromRealtimeDatabase(gameData);
-        } catch (e) {
-          print('Oyun parse hatası: $e');
-          return null;
-        }
-      }
-      return null;
-    });
-  }
-
-  // Tahmin yap (Realtime Database)
-  static Future<bool> makeGuess(String gameId, List<String> guess, List<String> guessColors) async {
-    try {
-      final user = getCurrentUser();
-      if (user == null) return false;
-
-      final gameSnapshot = await _database.ref('duel_games/$gameId').get();
-      if (!gameSnapshot.exists) return false;
-
-      final gameData = gameSnapshot.value as Map<dynamic, dynamic>;
-      final game = DuelGame.fromRealtimeDatabase(gameData);
-      final player = game.players[user.uid];
-      if (player == null) return false;
-
-      // Player'ın tahminlerini güncelle
-      final updatedGuesses = List<List<String>>.from(player.guesses);
-      final updatedGuessColors = List<List<String>>.from(player.guessColors);
-      
-      updatedGuesses[player.currentAttempt] = guess;
-      updatedGuessColors[player.currentAttempt] = guessColors;
-
-      // Kazanma durumunu kontrol et
-      final isWinner = guess.join('').toUpperCase() == game.secretWord.toUpperCase();
-      final isLastAttempt = player.currentAttempt >= 5; // 6 tahmin (0-5 index)
-      
-      PlayerStatus newStatus;
-      if (isWinner) {
-        newStatus = PlayerStatus.won;
-      } else if (isLastAttempt) {
-        newStatus = PlayerStatus.lost;
-      } else {
-        newStatus = PlayerStatus.playing;
-      }
-      
-      final newAttempt = (isWinner || isLastAttempt) ? player.currentAttempt : player.currentAttempt + 1;
-
-      // Oyun bitip bitmediğini kontrol et
-      bool gameFinished = false;
-      String? winnerId;
-      
-      if (isWinner) {
-        // Bu oyuncu kazandı
-        gameFinished = true;
-        winnerId = user.uid;
-      } else if (isLastAttempt) {
-        // Bu oyuncu son tahminini yaptı ve kelimeyi bulamadı
-        gameFinished = true;
-        
-        // Diğer oyuncunun durumunu kontrol et
-        final opponentPlayer = game.players.values.firstWhere(
-          (p) => p.playerId != user.uid,
-          orElse: () => DuelPlayer(
-            playerId: '',
-            playerName: '',
-            status: PlayerStatus.waiting,
-            guesses: [],
-            guessColors: [],
-            currentAttempt: 0,
-            score: 0,
-          ),
-        );
-        
-        // Eğer rakip daha önce kelimeyi bilmişse onun kazanması
-        if (opponentPlayer.status == PlayerStatus.won) {
-          winnerId = opponentPlayer.playerId;
-        } else if (opponentPlayer.status == PlayerStatus.lost) {
-          // Her iki oyuncu da kelimeyi bulamadı - berabere
-          winnerId = null;
-        } else {
-          // Rakip hala oynuyor, bu oyuncu kaybetti - rakip kazandı
-          winnerId = opponentPlayer.playerId;
-          
-          // Rakip oyuncunun durumunu da güncelle
-          await _database.ref('duel_games/$gameId/players/${opponentPlayer.playerId}').update({
-            'status': PlayerStatus.won.name,
-            'finishedAt': FieldValue.serverTimestamp(),
-          });
-        }
-      }
-
-      final updateData = <String, dynamic>{
-        'players/${user.uid}/guesses': updatedGuesses,
-        'players/${user.uid}/guessColors': updatedGuessColors,
-        'players/${user.uid}/currentAttempt': newAttempt,
-        'players/${user.uid}/status': newStatus.name,
-        'updatedAt': rtdb.ServerValue.timestamp,
-      };
-
-      if (isWinner || isLastAttempt) {
-        updateData['players/${user.uid}/finishedAt'] = FieldValue.serverTimestamp();
-      }
-
-      if (gameFinished) {
-        updateData['status'] = 'finished';
-        updateData['finishedAt'] = FieldValue.serverTimestamp();
-        if (winnerId != null) {
-          updateData['winnerId'] = winnerId;
-        }
-      }
-
-      await _database.ref('duel_games/$gameId').update(updateData);
-
-      print('Tahmin yapıldı - isWinner: $isWinner, gameFinished: $gameFinished, winnerId: $winnerId');
-      
-      // Oyun bittiyse geçmişe kaydet
-      if (gameFinished) {
-        await _saveDuelGameToHistory(gameId, game, winnerId);
-      }
-      
-      return true;
-    } catch (e) {
-      print('Tahmin yapma hatası: $e');
-      return false;
-    }
-  }
-
-  // Bitmiş düello oyununu geçmişe kaydet (Firestore)
-  static Future<void> _saveDuelGameToHistory(String gameId, DuelGame game, String? winnerId) async {
-    try {
-      final gameHistoryData = {
-        'gameId': gameId,
-        'gameType': 'Duello',
-        'secretWord': game.secretWord,
-        'players': game.players.map((playerId, player) => MapEntry(playerId, {
-          'playerId': player.playerId,
-          'playerName': player.playerName,
-          'status': player.status.name,
-          'score': player.score,
-          'avatar': player.avatar,
-          'currentAttempt': player.currentAttempt,
-        })),
-        'winnerId': winnerId,
-        'status': 'finished',
-        'createdAt': game.createdAt,
-        'finishedAt': FieldValue.serverTimestamp(),
-      };
-      
-      // Firestore'a oyun geçmişi olarak kaydet
-      await _firestore.collection('duel_game_history').add(gameHistoryData);
-      
-      // Her oyuncu için ayrı kayıt ekle
-      for (final player in game.players.values) {
-        final isWinner = player.playerId == winnerId;
-        await addGameToHistory(player.playerId, {
-          'gameType': 'Duello',
-          'secretWord': game.secretWord,
-          'isWon': isWinner,
-          'score': player.score,
-          'attempts': player.currentAttempt,
-          'opponentName': game.players.values
-              .firstWhere((p) => p.playerId != player.playerId, 
-                         orElse: () => DuelPlayer(
-                           playerId: '', 
-                           playerName: 'Bilinmeyen', 
-                           status: PlayerStatus.waiting,
-                           guesses: [], 
-                           guessColors: [], 
-                           currentAttempt: 0, 
-                           score: 0
-                         )).playerName,
-        });
-      }
-      
-      print('Düello oyunu geçmişe kaydedildi: $gameId');
-    } catch (e) {
-      print('Düello oyunu geçmişe kaydetme hatası: $e');
-    }
-  }
-
-  // Oyunu terk et (Realtime Database)
-  static Future<void> leaveGame(String gameId) async {
-    try {
-      final user = getCurrentUser();
-      if (user == null) return;
-
-      final gameSnapshot = await _database.ref('duel_games/$gameId').get();
-      if (gameSnapshot.exists) {
-        final gameData = gameSnapshot.value as Map<dynamic, dynamic>;
-        final players = gameData['players'] as Map<dynamic, dynamic>? ?? {};
-        
-        if (players.length <= 1) {
-          // Son oyuncu çıkıyorsa oyunu sil
-          await _database.ref('duel_games/$gameId').remove();
-          print('Son oyuncu çıktı, oyun silindi: $gameId');
-        } else {
-          // Oyuncunun durumunu disconnected yap
-          await _database.ref('duel_games/$gameId/players/${user.uid}/status').set('disconnected');
-          await _database.ref('duel_games/$gameId/updatedAt').set(rtdb.ServerValue.timestamp);
-          print('Oyuncu bağlantısı kesildi: ${user.uid}');
-        }
-      }
-    } catch (e) {
-      print('Oyun terk etme hatası: $e');
-    }
-  }
-
-  // Tahmin gönder (Realtime Database)
-  static Future<bool> submitGuess(String gameId, String guess) async {
-    try {
-      final user = getCurrentUser();
-      if (user == null) return false;
-
-      final gameRef = _database.ref('duel_games/$gameId');
-      final gameSnapshot = await gameRef.get();
-      
-      if (!gameSnapshot.exists) return false;
-      
-      final gameData = gameSnapshot.value as Map<dynamic, dynamic>;
-      final players = gameData['players'] as Map<dynamic, dynamic>? ?? {};
-      final currentPlayer = players[user.uid] as Map<dynamic, dynamic>?;
-      
-      if (currentPlayer == null) return false;
-      
-      final currentAttempt = currentPlayer['currentAttempt'] ?? 0;
-      final guesses = List<List<dynamic>>.from(currentPlayer['guesses'] ?? []);
-      final guessColors = List<List<dynamic>>.from(currentPlayer['guessColors'] ?? []);
-      final secretWord = gameData['secretWord'] as String;
-      
-      // Tahmin değerlendirmesi
-      final colors = _evaluateGuess(guess, secretWord);
-      
-      // Tahmin ve renklerini güncelle
-      if (currentAttempt < guesses.length) {
-        guesses[currentAttempt] = guess.split('');
-        guessColors[currentAttempt] = colors;
-      }
-      
-      // Oyun durumunu kontrol et
-      bool isWinner = guess == secretWord;
-      bool isGameOver = isWinner || currentAttempt >= 5;
-      
-      String newStatus = 'playing';
-      if (isWinner) {
-        newStatus = 'won';
-      } else if (isGameOver) {
-        newStatus = 'lost';
-      }
-      
-      // Oyuncu bilgilerini güncelle
-      await gameRef.child('players/${user.uid}').update({
-        'guesses': guesses,
-        'guessColors': guessColors,
-        'currentAttempt': currentAttempt + 1,
-        'status': newStatus,
-        'updatedAt': rtdb.ServerValue.timestamp,
-      });
-      
-      // Oyun bitti mi kontrol et
-      if (isWinner) {
-        await gameRef.update({
-          'status': 'finished',
-          'winnerId': user.uid,
-          'finishedAt': FieldValue.serverTimestamp(),
-        });
-      } else if (isGameOver) {
-        // Bu oyuncu kaybetti, karşı oyuncuyu kontrol et
-        String? opponentId;
-        for (final playerId in players.keys) {
-          if (playerId != user.uid) {
-            opponentId = playerId.toString();
-            break;
-          }
-        }
-        
-        if (opponentId != null) {
-          final opponentData = players[opponentId] as Map<dynamic, dynamic>?;
-          final opponentStatus = opponentData?['status'] ?? 'playing';
-          final opponentAttempt = opponentData?['currentAttempt'] ?? 0;
-          
-          // Eğer karşı oyuncu hala oynuyorsa, o otomatik kazanır
-          if (opponentStatus == 'playing' && opponentAttempt < 6) {
-            await gameRef.child('players/$opponentId').update({
-              'status': 'won',
-              'updatedAt': rtdb.ServerValue.timestamp,
-            });
-            
-            await gameRef.update({
-              'status': 'finished',
-              'winnerId': opponentId,
-              'finishedAt': FieldValue.serverTimestamp(),
-            });
-          } else {
-            // İki oyuncu da bitmiş, berabere durumu kontrol et
-            final allPlayers = players.values.toList();
-            bool allFinished = true;
-            
-            for (final player in allPlayers) {
-              final playerData = player as Map<dynamic, dynamic>;
-              final playerAttempt = playerData['currentAttempt'] ?? 0;
-              final playerStatus = playerData['status'] ?? 'playing';
-              
-              if (playerStatus == 'playing' && playerAttempt < 6) {
-                allFinished = false;
-                break;
-              }
-            }
-            
-            if (allFinished) {
-              await gameRef.update({
-                'status': 'finished',
-                'finishedAt': FieldValue.serverTimestamp(),
-              });
-            }
-          }
-        }
-      }
-      
-      return true;
-    } catch (e) {
-      print('Tahmin gönderme hatası: $e');
-      return false;
-    }
-  }
-
-  // Tahmin değerlendirme metoduu
-  static List<String> _evaluateGuess(String guess, String secretWord) {
-    List<String> colors = List.filled(5, 'grey');
-    List<String> secretLetters = secretWord.split('');
-    List<String> guessLetters = guess.split('');
-    
-    // İlk geçiş: Doğru pozisyondaki harfler
-    for (int i = 0; i < 5; i++) {
-      if (guessLetters[i] == secretLetters[i]) {
-        colors[i] = 'green';
-        secretLetters[i] = '_'; // İşaretlendi
-        guessLetters[i] = '_'; // İşaretlendi
-      }
-    }
-    
-    // İkinci geçiş: Yanlış pozisyondaki harfler
-    for (int i = 0; i < 5; i++) {
-      if (guessLetters[i] != '_' && secretLetters.contains(guessLetters[i])) {
-        colors[i] = 'orange';
-        int secretIndex = secretLetters.indexOf(guessLetters[i]);
-        secretLetters[secretIndex] = '_'; // Kullanıldığını işaretle
-      }
-    }
-    
-    return colors;
-  }
-
-  // Oyunu sil (Realtime Database temizlik)
-  static Future<void> deleteGame(String gameId) async {
-    try {
-      await _database.ref('duel_games/$gameId').remove();
-    } catch (e) {
-      print('Oyun silme hatası: $e');
-    }
-  }
-
-  // Oyuncunun hazır durumunu ayarla (Realtime Database)
-  static Future<void> setPlayerReady(String gameId) async {
-    try {
-      final user = getCurrentUser();
-      if (user == null) return;
-
-      await _database.ref('duel_games/$gameId/players/${user.uid}/status').set('ready');
-      await _database.ref('duel_games/$gameId/updatedAt').set(rtdb.ServerValue.timestamp);
-
-      // Her iki oyuncu da hazır mı kontrol et
-      await _checkAndStartGame(gameId);
-    } catch (e) {
-      print('Oyuncu hazır durumu ayarlama hatası: $e');
-    }
-  }
+ 
+  
+  
 
   // ============= HOME PAGE DYNAMIC DATA METHODS =============
 
@@ -1829,33 +1660,7 @@ class FirebaseService {
     return (totalPoints / 500).floor() + 1;
   }
 
-  // Realtime Database ile aktif kullanıcı sayısını dinle
-  static Stream<int> getActiveUsersCount() {
-    return _database.ref('presence').onValue.map((event) {
-      if (event.snapshot.value == null) {
-        print('DEBUG - Aktif kullanıcı sayısı: 0');
-        return 0;
-      }
-      
-      final presence = event.snapshot.value as Map<dynamic, dynamic>;
-      int activeCount = 0;
-      
-      // DEBUG: Aktif kullanıcıları listele
-      print('DEBUG - Presence verileri:');
-      for (final entry in presence.entries) {
-        final userData = entry.value as Map<dynamic, dynamic>;
-        final isOnline = userData['isOnline'] as bool? ?? false;
-        final lastSeen = userData['lastSeen'];
-        print('  UID: ${entry.key}, Online: $isOnline, LastSeen: $lastSeen');
-        if (isOnline) {
-          activeCount++;
-        }
-      }
-      
-      print('DEBUG - Aktif kullanıcı sayısı: $activeCount');
-      return activeCount;
-    });
-  }
+
 
   // Test için presence verilerini temizle
   static Future<void> clearAllPresenceData() async {
@@ -1871,29 +1676,44 @@ class FirebaseService {
   static Future<void> setUserOnline() async {
     try {
       final user = getCurrentUser();
-      if (user == null) return;
+      if (user == null) {
+        print('DEBUG - Kullanıcı oturum açmamış, online durumu kaydedilemiyor');
+        return;
+      }
 
+      print('DEBUG - Online durumu kaydediliyor: ${user.uid}');
       final userPresenceRef = _database.ref('presence/${user.uid}');
       
-      // Online durumunu kaydet
+      // Timeout ile online durumunu kaydet
       await userPresenceRef.set({
-        'isOnline': true,
+        'online': true,
         'lastSeen': rtdb.ServerValue.timestamp,
         'deviceInfo': 'flutter_app',
-      });
+      }).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('DEBUG - Online durumu kaydetme timeout');
+          throw Exception('Presence timeout');
+        },
+      );
       
       // Bağlantı kesildiğinde otomatik offline yap
       await userPresenceRef.onDisconnect().set({
-        'isOnline': false,
+        'online': false,
         'lastSeen': rtdb.ServerValue.timestamp,
-      });
+      }).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          print('DEBUG - OnDisconnect ayarlama timeout');
+          throw Exception('OnDisconnect timeout');
+        },
+      );
       
       print('DEBUG - Kullanıcı online olarak işaretlendi (Realtime DB)');
       
-      // İlk giriş yapılırken eski oyunları temizle
-      cleanupOldDuelGames();
-    } catch (e) {
+          } catch (e) {
       print('Online durumu kaydetme hatası: $e');
+      // Bu hata kritik değil, uygulamanın çalışmaya devam etmesine izin ver
     }
   }
 
@@ -1904,7 +1724,7 @@ class FirebaseService {
       if (user == null) return;
 
       await _database.ref('presence/${user.uid}').set({
-        'isOnline': false,
+        'online': false,
         'lastSeen': rtdb.ServerValue.timestamp,
       });
       
@@ -1920,76 +1740,6 @@ class FirebaseService {
     // Ama uyumluluk için bırakıyoruz
   }
 
-  // Eski düello oyunlarını temizle (Realtime Database)
-  static Future<void> cleanupOldDuelGames() async {
-    try {
-      final oneHourAgo = DateTime.now().subtract(const Duration(hours: 1)).millisecondsSinceEpoch;
-      
-      final allGamesSnapshot = await _database.ref('duel_games').get();
-      if (!allGamesSnapshot.exists) return;
-      
-      final allGames = allGamesSnapshot.value as Map<dynamic, dynamic>;
-      final gamesToDelete = <String>[];
-      final finishedGamesToSave = <String, Map<dynamic, dynamic>>{};
-      
-      for (final entry in allGames.entries) {
-        final gameId = entry.key as String;
-        final gameData = entry.value as Map<dynamic, dynamic>;
-        final status = gameData['status'] as String?;
-        final createdAt = gameData['createdAt'] as int?;
-        
-        // Bitmiş oyunları geçmişe kaydet
-        if (status == 'finished') {
-          finishedGamesToSave[gameId] = gameData;
-          gamesToDelete.add(gameId);
-        }
-        // 1 saatten eski aktif oyunları da temizle
-        else if (createdAt != null && createdAt < oneHourAgo) {
-          gamesToDelete.add(gameId);
-        }
-      }
-      
-      print('DEBUG - Temizlenecek eski oyun sayısı: ${gamesToDelete.length}');
-      print('DEBUG - Geçmişe kaydedilecek bitmiş oyun sayısı: ${finishedGamesToSave.length}');
-      
-      // Önce bitmiş oyunları geçmişe kaydet
-      for (final entry in finishedGamesToSave.entries) {
-        try {
-          final gameId = entry.key;
-          final gameData = entry.value;
-          final game = DuelGame.fromRealtimeDatabase(gameData);
-          final winnerId = gameData['winnerId'] as String?;
-          
-          await _saveDuelGameToHistory(gameId, game, winnerId);
-        } catch (e) {
-          print('DEBUG - Oyun geçmişe kaydetme hatası ($entry.key): $e');
-        }
-      }
-      
-      // Sonra Realtime Database'den sil
-      if (gamesToDelete.isNotEmpty) {
-        final updates = <String, dynamic>{};
-        for (final gameId in gamesToDelete) {
-          updates['duel_games/$gameId'] = null; // null = sil
-        }
-        
-        await _database.ref().update(updates);
-        print('DEBUG - ${gamesToDelete.length} eski oyun temizlendi');
-      }
-    } catch (e) {
-      print('DEBUG - Eski oyun temizleme hatası: $e');
-    }
-  }
-
-  // Tüm düello oyunlarını sil (acil durum için - Realtime Database)
-  static Future<void> clearAllDuelGames() async {
-    try {
-      await _database.ref('duel_games').remove();
-      print('DEBUG - Tüm düello oyunları silindi (Realtime Database)');
-    } catch (e) {
-      print('DEBUG - Tüm oyunları silme hatası: $e');
-    }
-  }
 
   // Kullanıcı seviyesini güncelle
   static Future<void> updateUserLevel(String uid) async {
@@ -2467,4 +2217,34 @@ class FirebaseService {
       return 0;
     }
   }
+
+  static Future<List<Map<String, dynamic>>> getLeaderboardStats({String orderBy = 'totalScore', bool descending = true}) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('leaderboard_stats')
+          .orderBy(orderBy, descending: descending)
+          .limit(100)
+          .get();
+      return querySnapshot.docs.map((doc) => doc.data()).toList();
+    } catch (e) {
+      print('Firestore leaderboard sorgusunda hata: $e');
+      if (e.toString().contains('FAILED_PRECONDITION')) {
+        print('Firestore index hatası: $e');
+      }
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getMatchmakingQueueDebug() async {
+    try {
+      final queueSnapshot = await _database.ref('matchmaking_queue').get();
+      if (!queueSnapshot.exists) return null;
+      return Map<String, dynamic>.from(queueSnapshot.value as Map);
+    } catch (e) {
+      print('Realtime Database matchmaking_queue sorgusunda hata: $e');
+      rethrow;
+    }
+  }
+
+ 
 } 

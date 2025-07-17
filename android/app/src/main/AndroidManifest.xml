@@ -44,6 +44,13 @@
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-7601198457132530~7853705138"/>
+        <!-- Google Play Games için -->
+        <meta-data 
+            android:name="com.google.android.gms.games.APP_ID" 
+            android:value="@string/app_id" />
+        <meta-data 
+            android:name="com.google.android.gms.version" 
+            android:value="@integer/google_play_services_version" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

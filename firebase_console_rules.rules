@@ -1,0 +1,182 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "queue": {
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": "auth != null && auth.uid == $userId && (!data.exists() || data.child('status').val() != 'matched')",
+        ".validate": "newData.hasChildren(['userId', 'displayName', 'avatar', 'entryTime', 'status', 'gamePreferences', 'deviceInfo']) && newData.child('userId').val() == auth.uid && (newData.child('status').val() == 'searching' || newData.child('status').val() == 'expired')",
+        "userId": {
+          ".validate": "newData.isString() && newData.val() == auth.uid"
+        },
+        "displayName": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
+        },
+        "avatar": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 10"
+        },
+        "entryTime": {
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        "status": {
+          ".validate": "newData.isString() && (newData.val() == 'searching' || newData.val() == 'expired')"
+        },
+        "gamePreferences": {
+          ".validate": "newData.hasChildren(['difficulty', 'timeLimit'])",
+          "difficulty": {
+            ".validate": "newData.isString() && (newData.val() == 'easy' || newData.val() == 'normal' || newData.val() == 'hard')"
+          },
+          "timeLimit": {
+            ".validate": "newData.isNumber() && newData.val() >= 60 && newData.val() <= 600"
+          }
+        },
+        "deviceInfo": {
+          ".validate": "newData.hasChildren(['platform', 'version'])",
+          "platform": {
+            ".validate": "newData.isString() && (newData.val() == 'android' || newData.val() == 'ios' || newData.val() == 'web')"
+          },
+          "version": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "matches": {
+      "$matchId": {
+        ".read": "auth != null && (data.child('players/player1/userId').val() == auth.uid || data.child('players/player2/userId').val() == auth.uid)",
+        ".write": "auth != null && root.child('systemOperations').child(auth.uid).child('canCreateMatches').val() == true",
+        ".validate": "newData.hasChildren(['matchId', 'players', 'gameData', 'status', 'createdAt'])",
+        "matchId": {
+          ".validate": "newData.isString() && newData.val() == $matchId"
+        },
+        "players": {
+          ".validate": "newData.hasChildren(['player1', 'player2'])",
+          "player1": {
+            ".validate": "newData.hasChildren(['userId', 'displayName', 'joinedAt', 'status'])"
+          },
+          "player2": {
+            ".validate": "newData.hasChildren(['userId', 'displayName', 'joinedAt', 'status'])"
+          }
+        },
+        "gameData": {
+          ".validate": "newData.hasChildren(['secretWord', 'wordLength', 'maxAttempts'])",
+          "secretWord": {
+            ".validate": "newData.isString() && newData.val().length >= 3 && newData.val().length <= 10"
+          },
+          "wordLength": {
+            ".validate": "newData.isNumber() && newData.val() >= 3 && newData.val() <= 10"
+          },
+          "maxAttempts": {
+            ".validate": "newData.isNumber() && newData.val() >= 3 && newData.val() <= 10"
+          }
+        },
+        "status": {
+          ".validate": "newData.isString() && (newData.val() == 'waiting' || newData.val() == 'active' || newData.val() == 'finished' || newData.val() == 'cancelled')"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        "gameState": {
+          "$playerId": {
+            ".read": "auth != null && (root.child('matches').child($matchId).child('players/player1/userId').val() == auth.uid || root.child('matches').child($matchId).child('players/player2/userId').val() == auth.uid)",
+            ".write": "auth != null && auth.uid == $playerId && (root.child('matches').child($matchId).child('players/player1/userId').val() == auth.uid || root.child('matches').child($matchId).child('players/player2/userId').val() == auth.uid)"
+          }
+        }
+      }
+    },
+    "userStatus": {
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": "auth != null && auth.uid == $userId",
+        ".validate": "newData.child('status').exists() && newData.child('lastSeen').exists()",
+        "status": {
+          ".validate": "newData.isString() && (newData.val() == 'online' || newData.val() == 'offline' || newData.val() == 'in_queue' || newData.val() == 'in_game' || newData.val() == 'disconnected')"
+        },
+        "lastSeen": {
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        "currentMatch": {
+          ".validate": "newData.isString() || newData.val() == null"
+        },
+        "currentQueue": {
+          ".validate": "newData.isBoolean()"
+        },
+        "connectionCount": {
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        }
+      }
+    },
+    "matchmakingConfig": {
+      ".read": "auth != null",
+      ".write": false,
+      "settings": {
+        ".read": "auth != null"
+      },
+      "statistics": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('systemOperations').child(auth.uid).child('canUpdateStats').val() == true"
+      }
+    },
+    "matchHistory": {
+      "$matchId": {
+        ".read": "auth != null && (data.child('players').child(auth.uid).exists() || data.child('players').child('0').val() == auth.uid || data.child('players').child('1').val() == auth.uid)",
+        ".write": "auth != null && root.child('systemOperations').child(auth.uid).child('canWriteHistory').val() == true"
+      }
+    },
+    "queueOperations": {
+      "$operationId": {
+        ".read": "auth != null && root.child('systemOperations').child(auth.uid).child('canReadOperations').val() == true",
+        ".write": "auth != null && root.child('systemOperations').child(auth.uid).child('canWriteOperations').val() == true",
+        ".validate": "newData.hasChildren(['type', 'status', 'createdAt'])"
+      }
+    },
+    "systemOperations": {
+      ".read": false,
+      ".write": false,
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": false
+      }
+    },
+    "connections": {
+      "$userId": {
+        "$connectionId": {
+          ".read": "auth != null && auth.uid == $userId",
+          ".write": "auth != null && auth.uid == $userId",
+          ".validate": "newData.hasChildren(['connectedAt', 'platform'])",
+          "connectedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          },
+          "platform": {
+            ".validate": "newData.isString() && (newData.val() == 'android' || newData.val() == 'ios' || newData.val() == 'web')"
+          },
+          "lastActivity": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          }
+        }
+      }
+    },
+    "gameSessions": {
+      "$sessionId": {
+        ".read": "auth != null && (data.child('player1').val() == auth.uid || data.child('player2').val() == auth.uid)",
+        ".write": "auth != null && (data.child('player1').val() == auth.uid || data.child('player2').val() == auth.uid) && data.child('status').val() == 'active'",
+        "moves": {
+          "$moveIndex": {
+            ".write": "auth != null && ((newData.child('playerId').val() == auth.uid && data.parent().child((+$moveIndex - 1) + '').child('playerId').val() != auth.uid) || $moveIndex == '0')"
+          }
+        }
+      }
+    },
+    "systemStats": {
+      ".read": "auth != null",
+      ".write": false
+    },
+    "$other": {
+      ".validate": false
+    }
+  }
+} 

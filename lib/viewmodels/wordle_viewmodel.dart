@@ -271,19 +271,32 @@ class WordleViewModel extends ChangeNotifier {
       // Normal modlarda JSON dosyasını yükle
       final String data = await rootBundle.loadString('assets/kelimeler.json');
 
-      // JSON verisini bir Map'e dönüştür
-      final Map<String, dynamic> jsonData = json.decode(data);
+      // JSON verisini çöz. Dosya hem liste hem de kategori haritası formatında olabilir
+      final dynamic jsonData = json.decode(data);
 
-      // Tüm kategorilerden kelimeleri topla
-      List<String> allWords = [];
-      for (var category in jsonData.values) {
-        if (category is List) {
-          for (var word in category) {
-            if (word is String && word.trim().isNotEmpty) {
-              allWords.add(word.trim().toTurkishUpperCase());
+      // Tüm kelimeleri toplayacağımız liste
+      final List<String> allWords = [];
+
+      if (jsonData is List) {
+        // Dosya doğrudan liste ise
+        for (var word in jsonData) {
+          if (word is String && word.trim().isNotEmpty) {
+            allWords.add(word.trim().toTurkishUpperCase());
+          }
+        }
+      } else if (jsonData is Map<String, dynamic>) {
+        // Eski format: kategori -> [kelimeler]
+        for (var category in jsonData.values) {
+          if (category is List) {
+            for (var word in category) {
+              if (word is String && word.trim().isNotEmpty) {
+                allWords.add(word.trim().toTurkishUpperCase());
+              }
             }
           }
         }
+      } else {
+        debugPrint('Beklenmeyen kelime dosyası formatı.');
       }
 
       // Uygun uzunluktaki kelimeleri filtrele
@@ -306,8 +319,12 @@ class WordleViewModel extends ChangeNotifier {
 }
 
   String selectRandomWord() {
-    
-    List<String> words = validWordsSet.toList();
+    if (validWordsSet.isEmpty) {
+      debugPrint('Uygun kelime bulunamadı, yedek kelime olarak "KELIME" kullanıldı.');
+      return 'KELIME';
+    }
+
+    final List<String> words = validWordsSet.toList();
     words.shuffle();
     return words.first.toTurkishUpperCase();
   }

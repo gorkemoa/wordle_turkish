@@ -1,0 +1,142 @@
+{
+  "multiplayer": {
+    "waiting_room": {
+      "description": "Eşleşme bekleyen kullanıcılar",
+      "structure": {
+        "{user_id}": {
+          "uid": "string",
+          "displayName": "string",
+          "avatar": "string",
+          "joinedAt": "timestamp",
+          "lastSeen": "timestamp",
+          "gameMode": "string",
+          "preferredWordLength": "number",
+          "level": "number",
+          "status": "waiting|searching|matched|timeout"
+        }
+      }
+    },
+    "matches": {
+      "description": "Aktif eşleşmeler",
+      "structure": {
+        "{match_id}": {
+          "matchId": "string",
+          "gameMode": "multiplayer",
+          "secretWord": "string",
+          "wordLength": "number",
+          "status": "waiting|active|finished|abandoned",
+          "createdAt": "timestamp",
+          "startedAt": "timestamp",
+          "finishedAt": "timestamp",
+          "winner": "string|null",
+          "maxAttempts": 6,
+          "currentTurn": "string",
+          "turnTimeout": "timestamp",
+          "players": {
+            "{player1_uid}": {
+              "uid": "string",
+              "displayName": "string",
+              "avatar": "string",
+              "status": "waiting|ready|playing|finished|disconnected",
+              "joinedAt": "timestamp",
+              "lastActionAt": "timestamp",
+              "currentAttempt": "number",
+              "isFinished": "boolean",
+              "finishedAt": "timestamp|null",
+              "attempts": "number",
+              "score": "number",
+              "connectionStatus": "online|offline"
+            },
+            "{player2_uid}": {
+              "uid": "string",
+              "displayName": "string",
+              "avatar": "string",
+              "status": "waiting|ready|playing|finished|disconnected",
+              "joinedAt": "timestamp",
+              "lastActionAt": "timestamp",
+              "currentAttempt": "number",
+              "isFinished": "boolean",
+              "finishedAt": "timestamp|null",
+              "attempts": "number",
+              "score": "number",
+              "connectionStatus": "online|offline"
+            }
+          }
+        }
+      }
+    },
+    "moves": {
+      "description": "Oyun hamleleri",
+      "structure": {
+        "{match_id}": {
+          "{player_uid}": {
+            "moves": [
+              {
+                "moveId": "string",
+                "playerId": "string",
+                "attempt": "number",
+                "guess": "string",
+                "result": [
+                  {
+                    "letter": "string",
+                    "status": "correct|present|absent",
+                    "position": "number"
+                  }
+                ],
+                "timestamp": "timestamp",
+                "duration": "number"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "game_events": {
+      "description": "Oyun olayları ve bildirimleri",
+      "structure": {
+        "{match_id}": {
+          "events": [
+            {
+              "eventId": "string",
+              "type": "player_joined|player_left|game_started|move_made|game_finished|player_disconnected",
+              "playerId": "string",
+              "timestamp": "timestamp",
+              "data": "object"
+            }
+          ]
+        }
+      }
+    },
+    "user_presence": {
+      "description": "Kullanıcı online durumu",
+      "structure": {
+        "{user_id}": {
+          "online": "boolean",
+          "lastSeen": "timestamp",
+          "currentMatch": "string|null",
+          "status": "available|in_game|away",
+          "platform": "string"
+        }
+      }
+    },
+    "match_statistics": {
+      "description": "Eşleşme istatistikleri",
+      "structure": {
+        "{match_id}": {
+          "duration": "number",
+          "totalMoves": "number",
+          "averageResponseTime": "number",
+          "gameMode": "string",
+          "wordLength": "number",
+          "result": {
+            "winner": "string|null",
+            "winType": "solved|time|opponent_quit",
+            "finalScores": {
+              "{player_uid}": "number"
+            }
+          }
+        }
+      }
+    }
+  }
+} 

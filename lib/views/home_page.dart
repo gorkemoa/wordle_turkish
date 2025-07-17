@@ -9,7 +9,6 @@ import 'dart:math';
 import '../services/firebase_service.dart';
 import '../services/haptic_service.dart';
 
-import 'duel_page.dart';
 import 'leaderboard_page.dart';
 import 'token_shop_page.dart';
 import 'free_game_page.dart';
@@ -20,7 +19,6 @@ import 'themed_mode_page.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'duel_waiting_room.dart';
 
 // Ana sayfa
 
@@ -180,7 +178,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       await FirebaseService.initializeUserDataIfNeeded(user.uid);
       _startListeningToUserStats(user.uid);
       _startListeningToUserProfile(user.uid);
-      _startListeningToActiveUsers();
       await FirebaseService.setUserOnline();
     } catch (e) {
       debugPrint('Veri yükleme hatası: $e');
@@ -233,13 +230,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
   }
 
-  void _startListeningToActiveUsers() {
-    _activeUsersSubscription = FirebaseService.getActiveUsersCount().listen((count) {
-      if (mounted) setState(() => activeUsers = count);
-    }, onError: (error) {
-      debugPrint('Aktif kullanıcıları dinleme hatası: $error');
-    });
-  }
+    
 
   void _showUserProfile() => Navigator.pushNamed(context, '/profile');
   void _navigateToTokenShop() => Navigator.push(context, MaterialPageRoute(builder: (context) => const TokenShopPage()));
@@ -268,12 +259,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         return;
       }
     }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const DuelWaitingRoom(),
-      ),
-    );
+    
   }
 
   void _showDuelTokenDialog(BuildContext context, int currentTokens) {
@@ -1087,7 +1073,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             Expanded(
               child: _buildGameModeCard(
                 title: 'ZAMANA KARŞI',
-                subtitle: '60 saniye, maks puan',
+                subtitle: '60 saniye, maks jeton',
                 icon: Icons.timer_outlined,
                 color: const Color(0xFFE74C3C),
                 onTap: _navigateToTimeRush,

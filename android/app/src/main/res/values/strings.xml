@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Google Play Games App ID - Google Play Console'dan alınacak -->
+    <!-- Bu değeri gerçek oyun ID'si ile değiştirin -->
+    <string name="app_id">123456789012</string>
+    
+    <!-- Uygulama adı -->
+    <string name="app_name">Türkçe Wordle</string>
+</resources> 

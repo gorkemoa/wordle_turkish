@@ -6,15 +6,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'services/firebase_service.dart';
+import 'services/presence_service.dart';
 import 'services/ad_service.dart';
 import 'services/haptic_service.dart';
 import 'viewmodels/wordle_viewmodel.dart';
-import 'viewmodels/duel_viewmodel.dart';
 import 'viewmodels/leaderboard_viewmodel.dart';
 import 'views/home_page.dart';
 import 'views/login_page.dart';
 import 'views/wordle_page.dart';
-import 'views/duel_page.dart';
 import 'views/leaderboard_page.dart';
 import 'views/profile_page.dart';
 import 'widgets/video_splash_screen.dart';
@@ -50,7 +49,6 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => WordleViewModel()),
-        ChangeNotifierProvider(create: (_) => DuelViewModel()),
         ChangeNotifierProvider(create: (_) => LeaderboardViewModel()),
       ],
       child: const MyApp(),
@@ -73,6 +71,13 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _initializeApp();
+  }
+
+  @override
+  void dispose() {
+    // Uygulama kapatılırken presence servisini temizle
+    PresenceService.dispose();
+    super.dispose();
   }
 
   void _initializeApp() {
@@ -129,6 +134,8 @@ class _MyAppState extends State<MyApp> {
           if (snapshot.hasData && snapshot.data != null) {
             // Kullanıcı giriş yaptığında online durumunu ayarla
             FirebaseService.setUserOnline();
+            // Yeni presence servisini başlat
+            PresenceService.initialize();
             return HomePage(toggleTheme: _toggleTheme);
           } else {
             return const LoginPage();
@@ -160,8 +167,6 @@ class _MyAppState extends State<MyApp> {
                 gameMode: gameMode,
               ),
             );
-          case '/duel_full':
-            return MaterialPageRoute(builder: (context) => const DuelPage());
           case '/leaderboard':
             return MaterialPageRoute(builder: (context) => const LeaderboardPage());
           case '/profile':
