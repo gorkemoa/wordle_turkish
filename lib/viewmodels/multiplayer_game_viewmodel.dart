@@ -7,6 +7,8 @@ import '../models/multiplayer_game.dart';
 import '../services/matchmaking_service.dart';
 import '../services/firebase_service.dart';
 import '../services/haptic_service.dart';
+import 'package:flutter/material.dart'; // Added for Color
+import 'package:firebase_database/firebase_database.dart'; // Added for Firebase Database
 
 /// 🎮 Multiplayer oyun ViewModel'i
 /// 
@@ -93,6 +95,11 @@ class MultiplayerGameViewModel extends ChangeNotifier {
       }
       _currentPlayerId = user.uid;
       
+      debugPrint('🎮 MultiplayerGameViewModel başlatılıyor - User: ${user.uid}');
+      
+      // Firebase Database bağlantısını test et
+      await _testFirebaseConnection();
+      
       // Matchmaking servisini başlat
       await _matchmakingService.initialize();
       
@@ -106,6 +113,44 @@ class MultiplayerGameViewModel extends ChangeNotifier {
       _setError('Başlatma hatası: $e');
       _setLoading(false);
       debugPrint('❌ ViewModel başlatma hatası: $e');
+    }
+  }
+  
+  /// 🛠️ Firebase bağlantısını test et
+  Future<void> _testFirebaseConnection() async {
+    try {
+      debugPrint('🔍 Firebase bağlantısı test ediliyor...');
+      
+      // Firebase Auth durumunu kontrol et
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Kullanıcı authentication yapılmamış');
+      }
+      
+      debugPrint('✅ Firebase Auth OK - User: ${user.uid}');
+      
+      // Firebase Database'e basit bir test yazma
+      final testRef = FirebaseDatabase.instance.ref('test_connection');
+      await testRef.set({
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'userId': user.uid,
+        'test': 'connection_test',
+      });
+      
+      debugPrint('✅ Firebase Database yazma testi başarılı');
+      
+      // Test verisini okuma
+      final snapshot = await testRef.get();
+      if (snapshot.exists) {
+        debugPrint('✅ Firebase Database okuma testi başarılı');
+        await testRef.remove(); // Test verisini temizle
+      } else {
+        throw Exception('Firebase Database okuma testi başarısız');
+      }
+      
+    } catch (e) {
+      debugPrint('❌ Firebase bağlantı testi başarısız: $e');
+      throw Exception('Firebase bağlantı sorunu: $e');
     }
   }
   
@@ -500,6 +545,24 @@ class MultiplayerGameViewModel extends ChangeNotifier {
   /// ⌨️ Klavye harfinin rengini al
   LetterStatus getKeyboardLetterColor(String letter) {
     return _keyboardColors[letter] ?? LetterStatus.absent;
+  }
+
+  /// Map keyboard letter statuses to colors for the keyboard widget
+  Map<String, Color> get keyboardColorsMapped => _keyboardColors.map(
+        (key, status) => MapEntry(key, _letterStatusToColor(status)),
+      );
+
+  Color _letterStatusToColor(LetterStatus status) {
+    switch (status) {
+      case LetterStatus.correct:
+        return const Color(0xFF538D4E); // Green
+      case LetterStatus.present:
+        return const Color(0xFFB59F3B); // Yellow
+      case LetterStatus.absent:
+        return const Color(0xFF3A3A3C); // Dark grey
+      default:
+        return const Color(0xFF818384); // Default grey
+    }
   }
   
   /// 📊 Oyun istatistiklerini al

@@ -33,7 +33,7 @@ enum MatchmakingStatus {
 /// 🎮 Multiplayer eşleştirme servisi
 /// 
 /// Bu servis şu özellikleri sağlar:
-/// - Güvenli eşleştirme (atomic operations)
+/// - Basitleştirilmiş eşleştirme (atomic operations)
 /// - Otomatik timeout yönetimi
 /// - Bağlantı kesintisi takibi
 /// - Gerçek zamanlı durum güncellemeleri
@@ -43,12 +43,12 @@ class MatchmakingService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final Uuid _uuid = const Uuid();
   
-  // Realtime Database referansları
-  static DatabaseReference get _waitingRoomRef => _database.ref('multiplayer/waiting_room');
-  static DatabaseReference get _matchesRef => _database.ref('multiplayer/matches');
-  static DatabaseReference get _movesRef => _database.ref('multiplayer/moves');
-  static DatabaseReference get _eventsRef => _database.ref('multiplayer/game_events');
-  static DatabaseReference get _presenceRef => _database.ref('multiplayer/user_presence');
+  // Realtime Database referansları - Basitleştirilmiş
+  static DatabaseReference get _waitingRoomRef => _database.ref('waiting_room');
+  static DatabaseReference get _matchesRef => _database.ref('matches');
+  static DatabaseReference get _movesRef => _database.ref('moves');
+  static DatabaseReference get _eventsRef => _database.ref('events');
+  static DatabaseReference get _presenceRef => _database.ref('presence');
   
   // Singleton pattern
   static final MatchmakingService _instance = MatchmakingService._internal();
@@ -85,6 +85,39 @@ class MatchmakingService {
   Stream<List<GameEvent>> get eventsStream => _eventsController.stream;
   Stream<int> get waitingPlayersStream => _waitingPlayersController.stream;
   
+  /// 🛠️ Database bağlantısını test et
+  Future<bool> _testDatabaseConnection() async {
+    try {
+      debugPrint('🔍 Firebase Database bağlantısı test ediliyor...');
+      
+      // Basit bir test yazma işlemi
+      final testRef = _database.ref('test');
+      await testRef.set({
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'userId': _currentUserId,
+        'test': true,
+      });
+      
+      debugPrint('✅ Database yazma testi başarılı');
+      
+      // Test verisini oku
+      final snapshot = await testRef.get();
+      if (snapshot.exists) {
+        debugPrint('✅ Database okuma testi başarılı');
+        // Test verisini temizle
+        await testRef.remove();
+        return true;
+      } else {
+        debugPrint('❌ Database okuma testi başarısız');
+        return false;
+      }
+      
+    } catch (e) {
+      debugPrint('❌ Database bağlantı testi başarısız: $e');
+      return false;
+    }
+  }
+  
   /// 🚀 Servisi başlat
   Future<void> initialize() async {
     try {
@@ -95,6 +128,12 @@ class MatchmakingService {
       
       _currentUserId = user.uid;
       debugPrint('🎮 MatchmakingService başlatıldı - User: ${user.uid}');
+      
+      // Database bağlantısını test et
+      final isConnected = await _testDatabaseConnection();
+      if (!isConnected) {
+        throw Exception('Database bağlantısı kurulamadı');
+      }
       
       // Presence durumunu ayarla
       await _setUserPresence(available: true);
@@ -112,7 +151,7 @@ class MatchmakingService {
     }
   }
   
-  /// 🔍 Eşleştirme ara
+  /// 🔍 Eşleştirme ara - Basitleştirilmiş
   Future<MatchmakingResult> findMatch({
     int wordLength = 5,
     String gameMode = 'multiplayer',
@@ -130,24 +169,32 @@ class MatchmakingService {
       
       _updateStatus(MatchmakingStatus.searching);
       
-      // Bekleme odasına katıl
-      final joinResult = await _joinWaitingRoom(
-        wordLength: wordLength,
-        gameMode: gameMode,
-      );
+      // Önce mevcut bekleyen oyuncular var mı kontrol et
+      final waitingUsers = await _findWaitingPlayers(wordLength, gameMode);
       
-      if (!joinResult) {
-        _updateStatus(MatchmakingStatus.error);
-        return MatchmakingResult.error;
+      if (waitingUsers.isNotEmpty) {
+        // Mevcut oyuncularla eşleştir
+        final opponent = waitingUsers.first;
+        final match = await _createDirectMatch(opponent, wordLength);
+        
+        if (match != null) {
+          _currentMatchId = match.matchId;
+          _updateStatus(MatchmakingStatus.matched);
+          _matchController.add(match);
+          return MatchmakingResult.success;
+        }
       }
       
-      // Eşleştirme dinleyicisini başlat
-      final matchResult = await _startMatchmakingListener();
+      // Bekleme listesine katıl
+      await _joinWaitingRoom(wordLength: wordLength, gameMode: gameMode);
       
-      // Bekleme odasından çık
+      // Timeout ile bekle
+      final result = await _waitForMatch();
+      
+      // Bekleme listesinden çık
       await _leaveWaitingRoom();
       
-      return matchResult;
+      return result;
       
     } catch (e) {
       debugPrint('❌ Eşleştirme arama hatası: $e');
@@ -157,13 +204,13 @@ class MatchmakingService {
   }
   
   /// 🚪 Bekleme odasına katıl
-  Future<bool> _joinWaitingRoom({
+  Future<void> _joinWaitingRoom({
     required int wordLength,
     required String gameMode,
   }) async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return false;
+      if (user == null) return;
       
       // Kullanıcı profilini al
       final userProfile = await FirebaseService.getUserProfile(user.uid);
@@ -197,11 +244,9 @@ class MatchmakingService {
       }
       
       debugPrint('🚪 Bekleme odasına katıldı: ${user.uid}');
-      return true;
       
     } catch (e) {
       debugPrint('❌ Bekleme odasına katılma hatası: $e');
-      return false;
     }
   }
   
@@ -219,52 +264,150 @@ class MatchmakingService {
     }
   }
   
-  /// 👂 Eşleştirme dinleyicisi
-  Future<MatchmakingResult> _startMatchmakingListener() async {
+  /// 🔍 Bekleyen oyuncuları bul
+  Future<List<WaitingRoomUser>> _findWaitingPlayers(int wordLength, String gameMode) async {
+    try {
+      final snapshot = await _waitingRoomRef.get();
+      if (!snapshot.exists) return [];
+      
+      final data = snapshot.value as Map<dynamic, dynamic>;
+      final waitingUsers = <WaitingRoomUser>[];
+      
+      for (final entry in data.entries) {
+        if (entry.key == _currentUserId) continue; // Kendini atla
+        
+        try {
+          final userData = Map<String, dynamic>.from(entry.value as Map);
+          final user = WaitingRoomUser.fromFirebase(userData);
+          
+          if (user.gameMode == gameMode && 
+              user.preferredWordLength == wordLength &&
+              user.status == 'waiting') {
+            waitingUsers.add(user);
+          }
+        } catch (e) {
+          debugPrint('❌ Waiting user parse hatası: $e');
+          // Hatalı veriyi temizle
+          await _waitingRoomRef.child(entry.key).remove();
+        }
+      }
+      
+      return waitingUsers;
+      
+    } catch (e) {
+      debugPrint('❌ Bekleyen oyuncuları bulma hatası: $e');
+      return [];
+    }
+  }
+  
+  /// 🎮 Doğrudan eşleştirme oluştur
+  Future<MultiplayerMatch?> _createDirectMatch(WaitingRoomUser opponent, int wordLength) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+      
+      final matchId = _uuid.v4();
+      
+      // Rakibi eşleşme durumuna getir
+      await _waitingRoomRef.child(opponent.uid).update({
+        'status': 'matched',
+        'matchId': matchId,
+      });
+      
+      // Kısa bekleme
+      await Future.delayed(const Duration(milliseconds: 200));
+      
+      // Rakibin durumunu kontrol et
+      final opponentSnapshot = await _waitingRoomRef.child(opponent.uid).get();
+      if (!opponentSnapshot.exists) {
+        debugPrint('❌ Rakip bulunamadı');
+        return null;
+      }
+      
+      final opponentData = Map<String, dynamic>.from(opponentSnapshot.value as Map);
+      if (opponentData['status'] != 'matched' || opponentData['matchId'] != matchId) {
+        debugPrint('❌ Rakip eşleşmedi');
+        return null;
+      }
+      
+      // Kullanıcı profilini al
+      final userProfile = await FirebaseService.getUserProfile(user.uid);
+      final userAvatar = await FirebaseService.getUserAvatar(user.uid);
+      
+      // Match oluştur
+      final match = await _createMultiplayerMatch(
+        matchId: matchId,
+        user1: WaitingRoomUser(
+          uid: user.uid,
+          displayName: userProfile?['displayName'] ?? user.displayName ?? 'Oyuncu',
+          avatar: userAvatar ?? AvatarService.generateAvatar(user.uid),
+          joinedAt: DateTime.now(),
+          lastSeen: DateTime.now(),
+          gameMode: 'multiplayer',
+          preferredWordLength: wordLength,
+          level: userProfile?['level'] ?? 1,
+          status: 'matched',
+        ),
+        user2: WaitingRoomUser.fromFirebase(opponentData),
+      );
+      
+      // Bekleme listesinden ikisini de sil
+      await _waitingRoomRef.child(user.uid).remove();
+      await _waitingRoomRef.child(opponent.uid).remove();
+      
+      debugPrint('🎮 Doğrudan eşleştirme oluşturuldu: $matchId');
+      return match;
+      
+    } catch (e) {
+      debugPrint('❌ Doğrudan eşleştirme hatası: $e');
+      return null;
+    }
+  }
+  
+  /// ⏳ Eşleştirme için bekle
+  Future<MatchmakingResult> _waitForMatch() async {
     final completer = Completer<MatchmakingResult>();
     Timer? timeoutTimer;
+    StreamSubscription? subscription;
     
     try {
-      // Timeout timer'ını başlat
+      // Timeout timer'ı
       timeoutTimer = Timer(_matchmakingTimeout, () {
         if (!completer.isCompleted) {
           completer.complete(MatchmakingResult.timeout);
         }
       });
       
-      // Eşleştirme arayan diğer kullanıcıları dinle
-      final subscription = _waitingRoomRef.onChildAdded.listen((event) async {
+      // Kendi durumunu dinle
+      subscription = _waitingRoomRef.child(_currentUserId!).onValue.listen((event) async {
         if (completer.isCompleted) return;
         
-        final data = event.snapshot.value as Map<dynamic, dynamic>?;
-        if (data == null) return;
+        if (!event.snapshot.exists) {
+          // Eşleşme tamamlandığında kaydımız silinir
+          completer.complete(MatchmakingResult.success);
+          return;
+        }
         
-        final otherUser = WaitingRoomUser.fromFirebase(
-          Map<String, dynamic>.from(data),
-        );
-        
-        // Kendini eşleştirme
-        if (otherUser.uid == _currentUserId) return;
-        
-        // Uygun eşleşme var mı kontrol et
-        if (_isCompatibleMatch(otherUser)) {
-          final matchResult = await _createMatch(otherUser);
-          if (matchResult != null) {
-            _currentMatchId = matchResult.matchId;
+        final data = Map<String, dynamic>.from(event.snapshot.value as Map);
+        if (data['status'] == 'matched') {
+          final matchId = data['matchId'];
+          if (matchId != null) {
+            _currentMatchId = matchId;
             _updateStatus(MatchmakingStatus.matched);
-            _matchController.add(matchResult);
             
-            if (!completer.isCompleted) {
-              completer.complete(MatchmakingResult.success);
-            }
+            // Match'i yükle
+            await _loadMatch(matchId);
+            
+            completer.complete(MatchmakingResult.success);
           }
         }
       });
       
-      // Temizlik
       final result = await completer.future;
+      
+      // Temizlik
       timeoutTimer?.cancel();
-      subscription.cancel();
+      subscription?.cancel();
       
       if (result == MatchmakingResult.timeout) {
         _updateStatus(MatchmakingStatus.timeout);
@@ -274,78 +417,25 @@ class MatchmakingService {
       
     } catch (e) {
       timeoutTimer?.cancel();
-      debugPrint('❌ Eşleştirme dinleyici hatası: $e');
+      subscription?.cancel();
+      debugPrint('❌ Eşleştirme bekleme hatası: $e');
       return MatchmakingResult.error;
     }
   }
   
-  /// 🤝 Eşleştirme uygunluğunu kontrol et
-  bool _isCompatibleMatch(WaitingRoomUser otherUser) {
-    // Kelime uzunluğu uyumlu mu?
-    // Şimdilik basit kontrol, gelecekte seviye bazlı eşleştirme eklenebilir
-    return otherUser.gameMode == 'multiplayer' && 
-           otherUser.status == 'waiting' &&
-           otherUser.isActive;
-  }
-  
-  /// 🎮 Eşleştirme oluştur
-  Future<MultiplayerMatch?> _createMatch(WaitingRoomUser opponent) async {
+  /// 📥 Match'i yükle
+  Future<void> _loadMatch(String matchId) async {
     try {
-      final user = _auth.currentUser;
-      if (user == null) return null;
-      
-      // Atomic lock ile eşleştirme oluştur
-      final lockKey = 'match_${DateTime.now().millisecondsSinceEpoch}';
-      final matchId = _uuid.v4();
-      
-      // İki kullanıcıyı da lock'la
-      final userRef = _waitingRoomRef.child(user.uid);
-      final opponentRef = _waitingRoomRef.child(opponent.uid);
-      
-      // Atomic güncelleme
-      await userRef.update({
-        'status': 'matched',
-        'matchId': matchId,
-        'lockKey': lockKey,
-      });
-      
-      await opponentRef.update({
-        'status': 'matched',
-        'matchId': matchId,
-        'lockKey': lockKey,
-      });
-      
-      // Kısa bekleme sonrası doğrula
-      await Future.delayed(const Duration(milliseconds: 100));
-      
-      final userCheck = await userRef.get();
-      final opponentCheck = await opponentRef.get();
-      
-      if (!userCheck.exists || !opponentCheck.exists) {
-        throw Exception('Eşleştirme doğrulama başarısız');
+      final snapshot = await _matchesRef.child(matchId).get();
+      if (snapshot.exists) {
+        final match = MultiplayerMatch.fromFirebase(
+          Map<String, dynamic>.from(snapshot.value as Map),
+        );
+        _matchController.add(match);
+        _startMatchListener(matchId);
       }
-      
-      final userData = Map<String, dynamic>.from(userCheck.value as Map);
-      final opponentData = Map<String, dynamic>.from(opponentCheck.value as Map);
-      
-      // Lock key'leri aynı mı?
-      if (userData['lockKey'] != lockKey || opponentData['lockKey'] != lockKey) {
-        throw Exception('Lock key eşleşmiyor');
-      }
-      
-      // Oyunu oluştur
-      final match = await _createMultiplayerMatch(
-        matchId: matchId,
-        user1: WaitingRoomUser.fromFirebase(userData),
-        user2: WaitingRoomUser.fromFirebase(opponentData),
-      );
-      
-      debugPrint('🎮 Eşleştirme oluşturuldu: $matchId');
-      return match;
-      
     } catch (e) {
-      debugPrint('❌ Eşleştirme oluşturma hatası: $e');
-      return null;
+      debugPrint('❌ Match yükleme hatası: $e');
     }
   }
   
@@ -666,30 +756,35 @@ class MatchmakingService {
     }
   }
   
-  /// 🎮 Mevcut eşleşmeyi kontrol et
+  /// 🎮 Mevcut eşleşmeyi kontrol et - Basitleştirilmiş
   Future<void> _checkExistingMatch() async {
     try {
       final user = _auth.currentUser;
       if (user == null) return;
       
-      // Aktif eşleşme var mı?
-      final matchesSnapshot = await _matchesRef
-          .orderByChild('players/${user.uid}/status')
-          .equalTo('playing')
-          .limitToFirst(1)
-          .get();
-      
-      if (matchesSnapshot.exists) {
-        final matchData = matchesSnapshot.value as Map<dynamic, dynamic>;
-        final matchId = matchData.keys.first;
+      // Kullanıcının presence durumunu kontrol et
+      final presenceSnapshot = await _presenceRef.child(user.uid).get();
+      if (presenceSnapshot.exists) {
+        final presenceData = Map<String, dynamic>.from(presenceSnapshot.value as Map);
+        final currentMatchId = presenceData['currentMatch'];
         
-        _currentMatchId = matchId;
-        _updateStatus(MatchmakingStatus.matched);
-        
-        // Match dinleyicisini başlat
-        _startMatchListener(matchId);
-        
-        debugPrint('🎮 Mevcut eşleşme bulundu: $matchId');
+        if (currentMatchId != null) {
+          // Mevcut match'i kontrol et
+          final matchSnapshot = await _matchesRef.child(currentMatchId).get();
+          if (matchSnapshot.exists) {
+            final matchData = Map<String, dynamic>.from(matchSnapshot.value as Map);
+            final match = MultiplayerMatch.fromFirebase(matchData);
+            
+            if (match.status == MultiplayerGameStatus.active) {
+              _currentMatchId = currentMatchId;
+              _updateStatus(MatchmakingStatus.matched);
+              _matchController.add(match);
+              _startMatchListener(currentMatchId);
+              
+              debugPrint('🎮 Mevcut eşleşme bulundu: $currentMatchId');
+            }
+          }
+        }
       }
       
     } catch (e) {
@@ -729,7 +824,7 @@ class MatchmakingService {
     _activeSubscriptions['waiting_room_count'] = subscription;
   }
   
-  /// 🌐 Kullanıcı presence durumunu ayarla
+  /// 🌐 Kullanıcı presence durumunu ayarla - Basitleştirilmiş
   Future<void> _setUserPresence({required bool available}) async {
     try {
       final user = _auth.currentUser;
@@ -737,22 +832,30 @@ class MatchmakingService {
       
       final presenceRef = _presenceRef.child(user.uid);
       
-      await presenceRef.set({
+      final presenceData = {
         'online': available,
         'lastSeen': ServerValue.timestamp,
         'currentMatch': _currentMatchId,
         'status': available ? 'available' : 'away',
         'platform': 'flutter',
-      });
+        'uid': user.uid,
+      };
       
-      // Disconnect listener
+      await presenceRef.set(presenceData);
+      
+      // Disconnect listener - basitleştirilmiş
       if (available) {
-        await presenceRef.onDisconnect().update({
+        await presenceRef.onDisconnect().set({
           'online': false,
           'lastSeen': ServerValue.timestamp,
+          'currentMatch': _currentMatchId,
           'status': 'away',
+          'platform': 'flutter',
+          'uid': user.uid,
         });
       }
+      
+      debugPrint('✅ Presence ayarlandı: $available');
       
     } catch (e) {
       debugPrint('❌ Presence ayarlama hatası: $e');

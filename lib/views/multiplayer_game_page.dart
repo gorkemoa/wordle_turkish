@@ -3,13 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/multiplayer_game_viewmodel.dart';
-import '../models/multiplayer_game.dart';
 import '../widgets/multiplayer_game_grid.dart';
-import '../widgets/multiplayer_keyboard.dart';
 import '../widgets/multiplayer_player_card.dart';
 import '../widgets/multiplayer_status_bar.dart';
 import '../widgets/multiplayer_waiting_screen.dart';
 import '../services/haptic_service.dart';
+import '../widgets/multiplayer_keyboard.dart';
 
 /// 🎮 Multiplayer oyun sayfası
 /// 
@@ -289,7 +288,7 @@ class _MultiplayerGamePageState extends State<MultiplayerGamePage>
         
         // Klavye
         MultiplayerKeyboard(
-          keyboardColors: viewModel.keyboardColors,
+          keyboardColors: viewModel.keyboardColorsMapped,
           onKeyPressed: viewModel.canMakeMove ? (key) {
             _handleKeyPress(viewModel, key);
           } : null,

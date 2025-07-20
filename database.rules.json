@@ -33,6 +33,52 @@
         }
       }
     },
+    "waiting_room": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["status", "gameMode", "preferredWordLength"],
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "matches": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["status", "createdAt"],
+      "$matchId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "moves": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$matchId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$playerId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $playerId"
+        }
+      }
+    },
+    "events": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$matchId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "test": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "test_connection": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
     "duel_games": {
       ".read": "auth != null",
       ".write": "auth != null",
@@ -96,12 +142,6 @@
             ".validate": "newData.isString()"
           }
         }
-      }
-    },
-    "matches": {
-      "$matchId": {
-        ".read": "auth != null",
-        ".write": "auth != null"
       }
     },
     "queueOperations": {

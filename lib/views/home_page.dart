@@ -19,6 +19,7 @@ import 'themed_mode_page.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'multiplayer_game_page.dart';
 
 // Ana sayfa
 
@@ -259,7 +260,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         return;
       }
     }
-    
+    // MultiplayerGameWrapper sayfasına yönlendir
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MultiplayerGameWrapper(),
+      ),
+    );
   }
 
   void _showDuelTokenDialog(BuildContext context, int currentTokens) {
