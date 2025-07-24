@@ -57,7 +57,7 @@ class DuelService {
 
       // Sadece 5 harfli kelimeleri filtrele ve yükle
       _validWords = words
-          .map((word) => word.toString().toUpperCase())
+          .map((word) => word.toString().toTurkishUpperCase())
           .where((word) => word.length == 5)
           .toSet();
 
@@ -175,12 +175,47 @@ class DuelService {
   /// Oyunu terk et (Ana metod)
   static Future<void> leaveGame(String gameId, String playerId) async {
     try {
-      // Oyun durumunu güncelle
-      await _database.child('$_duelGamesPath/$gameId').update({
-        'status': 'abandoned',
-        'abandonedBy': playerId,
-        'abandonedAt': DateTime.now().millisecondsSinceEpoch,
-      });
+      // Oyun verisini al
+      final gameSnapshot = await _database.child('$_duelGamesPath/$gameId').get();
+      if (!gameSnapshot.exists) {
+        print('Oyun bulunamadı: $gameId');
+        return;
+      }
+      final gameData = Map<String, dynamic>.from(gameSnapshot.value as Map);
+      final game = DuelGame.fromMap(gameData);
+
+      // Rakip oyuncuyu bul
+      final opponent = game.players.firstWhere(
+        (p) => p.playerId != playerId,
+        orElse: () => DuelPlayer(
+          playerId: '',
+          playerName: '',
+          avatar: '',
+          guesses: [],
+          joinedAt: DateTime.now(),
+        ),
+      );
+      if (opponent.playerId.isNotEmpty) {
+        // Rakip oyuncuya galibiyet yaz
+        await _database.child('$_duelGamesPath/$gameId/players/${game.players.indexWhere((p) => p.playerId == opponent.playerId)}').update({
+          'isWinner': true,
+        });
+        // Oyun durumunu güncelle
+        await _database.child('$_duelGamesPath/$gameId').update({
+          'status': GameStatus.finished.name,
+          'winnerId': opponent.playerId,
+          'finishedAt': DateTime.now().millisecondsSinceEpoch,
+          'abandonedBy': playerId,
+          'abandonedAt': DateTime.now().millisecondsSinceEpoch,
+        });
+      } else {
+        // Rakip yoksa sadece abandoned olarak işaretle
+        await _database.child('$_duelGamesPath/$gameId').update({
+          'status': 'abandoned',
+          'abandonedBy': playerId,
+          'abandonedAt': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
 
       // Matchmaking kuyruğundan çıkar ve aktif kullanıcı listesinden kaldır
       await leaveMatchmakingQueue(playerId);
@@ -505,22 +540,61 @@ class DuelService {
               joinedAt: DateTime.now(),
             ),
           );
-          
           final winnerId = winner.playerId.isNotEmpty ? winner.playerId : null;
-          
           print('🏁 Oyun bitti - Tüm denemeler tükendi:');
           print('  - Kazanan: ${winnerId ?? "Kimse kazanmadı"}');
-          
           await _database.child('$_duelGamesPath/$gameId').update({
             'status': GameStatus.finished.name,
             'finishedAt': DateTime.now().millisecondsSinceEpoch,
             'winnerId': winnerId,
           });
-          
           // Oyuncuları matchmaking kuyruğundan çıkar ve aktif durumlarını kapat
           for (final p in updatedGame.players) {
             await leaveMatchmakingQueue(p.playerId);
-            await setUserActiveInDuel(p.playerId, false);
+          }
+        } else {
+          // --- YENİ KURAL: Eğer bu oyuncu 6 hakkını doldurdu ve kazanamadıysa, rakip otomatik kazanır ---
+          final loser = updatedGame.players.firstWhere(
+            (p) => p.playerId == playerId,
+            orElse: () => DuelPlayer(
+              playerId: '',
+              playerName: '',
+              avatar: '',
+              guesses: [],
+              joinedAt: DateTime.now(),
+            ),
+          );
+          if (!loser.isWinner && loser.guesses.length >= 6) {
+            // Rakip oyuncuyu bul
+            final winnerPlayer = updatedGame.players.firstWhere(
+              (p) => p.playerId != playerId,
+              orElse: () => DuelPlayer(
+                playerId: '',
+                playerName: '',
+                avatar: '',
+                guesses: [],
+                joinedAt: DateTime.now(),
+              ),
+            );
+            if (winnerPlayer.playerId.isNotEmpty) {
+              // Rakip oyuncunun isWinner'ını true yap
+              await _database.child('$_duelGamesPath/$gameId/players/${updatedGame.players.indexWhere((p) => p.playerId == winnerPlayer.playerId)}').update({
+                'isWinner': true,
+              });
+              // Oyun durumunu güncelle
+              await _database.child('$_duelGamesPath/$gameId').update({
+                'status': GameStatus.finished.name,
+                'finishedAt': DateTime.now().millisecondsSinceEpoch,
+                'winnerId': winnerPlayer.playerId,
+              });
+              // Oyuncuları matchmaking kuyruğundan çıkar ve aktif durumlarını kapat
+              for (final p in updatedGame.players) {
+                await leaveMatchmakingQueue(p.playerId);
+                await setUserActiveInDuel(p.playerId, false);
+              }
+              print('🏆 Otomatik kazanan: ${winnerPlayer.playerId} (rakip)');
+              return;
+            }
           }
         }
       } else {

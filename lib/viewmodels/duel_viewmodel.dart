@@ -463,8 +463,18 @@ class DuelViewModel extends ChangeNotifier {
     }
   }
 
+  // Helper metodlar
+  List<String> get correctGuesses => [];
+  int get currentAttempt => currentPlayer?.guesses.length ?? 0;
+  int get maxAttempts => 6;
+  String get secretWord => _secretWord;
+
+  bool _isCleaned = false;
+
   /// Temizlik
   Future<void> _cleanup() async {
+    if (_isCleaned) return;
+    _isCleaned = true;
     try {
       _gameSubscription?.cancel();
 
@@ -502,10 +512,4 @@ class DuelViewModel extends ChangeNotifier {
     _cleanup();
     super.dispose();
   }
-
-  // Helper metodlar
-  List<String> get correctGuesses => [];
-  int get currentAttempt => currentPlayer?.guesses.length ?? 0;
-  int get maxAttempts => 6;
-  String get secretWord => _secretWord;
 }

@@ -142,6 +142,24 @@ class WordleViewModel extends ChangeNotifier {
   int get timeRushSeconds => _timeRushSeconds;
   bool get timeRushActive => _timeRushActive;
 
+  // Zorlu moda erişim kontrolü
+  bool get canPlayChallengeMode {
+    if (_lastChallengeModePlay == null) return true;
+    final now = DateTime.now();
+    final difference = now.difference(_lastChallengeModePlay!);
+    return difference.inHours >= 24;
+  }
+  
+  // Zorlu mod için kalan süre (saat cinsinden)
+  int get hoursUntilNextChallengeMode {
+    if (_lastChallengeModePlay == null) return 0;
+    final now = DateTime.now();
+    final difference = now.difference(_lastChallengeModePlay!);
+    final hoursLeft = 24 - difference.inHours;
+    return hoursLeft > 0 ? hoursLeft : 0;
+  }
+
+  // Zorlu mod için kalan süre (saniye cinsinden)
   int get secondsUntilNextChallengeMode {
     if (_lastChallengeModePlay == null) return 0;
     final now = DateTime.now();
@@ -162,31 +180,6 @@ class WordleViewModel extends ChangeNotifier {
       }
     }
     return false;
-  }
-
-  // Zorlu moda erişim kontrolü
-  bool get canPlayChallengeMode {
-    // TEST İÇİN SÜREKLI AÇIK
-    return true;
-    
-    // Orijinal 24 saatlik kısıtlama (test bitince aç)
-    // if (_lastChallengeModePlay == null) return true;
-    // final now = DateTime.now();
-    // final difference = now.difference(_lastChallengeModePlay!);
-    // return difference.inHours >= 24;
-  }
-  
-  // Zorlu mod için kalan süre (saat cinsinden)
-  int get hoursUntilNextChallengeMode {
-    // TEST İÇİN SÜREKLI 0 (erişilebilir)
-    return 0;
-    
-    // Orijinal 24 saatlik kısıtlama hesabı (test bitince aç)
-    // if (_lastChallengeModePlay == null) return 0;
-    // final now = DateTime.now();
-    // final difference = now.difference(_lastChallengeModePlay!);
-    // final hoursLeft = 24 - difference.inHours;
-    // return hoursLeft > 0 ? hoursLeft : 0;
   }
 
   Future<void> resetGame({GameMode? mode, String? themeId, int? customWordLength, int? customTimerDuration}) async {

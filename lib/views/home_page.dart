@@ -312,7 +312,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Zorlu Mod sadece 24 saatte bir oynanabilir!\n\nKalan süre: $hoursLeft saat',
+                  'Zorlu Mod sadece 24 saatte bir oynanabilir!',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9), 
                     fontSize: _getResponsiveFontSize(16)
@@ -320,6 +320,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   textAlign: TextAlign.center,
                 ),
                 SizedBox(height: _screenHeight * 0.02),
+              
                 Container(
                   padding: EdgeInsets.all(_screenWidth * 0.03),
                   decoration: BoxDecoration(
@@ -328,7 +329,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     border: Border.all(color: Colors.red.shade400, width: 1),
                   ),
                   child: const Text(
-                    '⚡ Bu özel mod için sabırla bekle!',
+                    ' Bu özel mod için bekleyin!',
                     style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -1093,10 +1094,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 builder: (context, viewModel, child) {
                   final canPlay = viewModel.canPlayChallengeMode;
                   final hoursLeft = viewModel.hoursUntilNextChallengeMode;
+                  final secondsLeft = viewModel.secondsUntilNextChallengeMode;
                   
                   return _buildChallengeCard(
                     canPlay: canPlay,
                     hoursLeft: hoursLeft,
+                    secondsLeft: secondsLeft,
                     onTap: _navigateToChallenge,
                   );
                 },
@@ -1334,6 +1337,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget _buildChallengeCard({
     required bool canPlay,
     required int hoursLeft,
+    required int secondsLeft,
     required VoidCallback onTap,
   }) {
     if (canPlay) {
@@ -1419,157 +1423,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              SizedBox(height: _screenHeight * 0.01),
-              Text(
-                'MÜSAİT!',
-                style: TextStyle(
-                  color: const Color.fromRGBO(230, 224, 233, 1.0),
-                  fontWeight: FontWeight.bold,
-                  fontSize: _getResponsiveFontSize(11),
-                  letterSpacing: 0.5,
-                  height: 1.2,
-                  leadingDistribution: TextLeadingDistribution.even,
-                  decoration: TextDecoration.none,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
+             
             ],
           ),
         ),
       );
     } else {
       // Kilitli durum
-      return GestureDetector(
-        onTap: () {
-          HapticService.triggerErrorHaptic();
-          onTap();
-        },
-        child: Container(
-          padding: _getResponsivePadding(),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.grey.shade800,
-                Colors.grey.shade700,
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(_screenWidth * 0.04),
-            border: Border.all(color: Colors.grey.shade600, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: _screenWidth * 0.02,
-                spreadRadius: _screenWidth * 0.0025,
-                offset: Offset(0, _screenHeight * 0.005),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.lock_clock,
-                    color: Colors.grey.shade400,
-                    size: _getResponsiveFontSize(24),
-                  ),
-                  SizedBox(width: _screenWidth * 0.02),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'ZORLU',
-                          style: TextStyle(
-                            fontSize: _getResponsiveFontSize(11),
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade500,
-                            height: 1.1,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                        Text(
-                          'MOD',
-                          style: TextStyle(
-                            fontSize: _getResponsiveFontSize(11),
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade500,
-                            height: 1.1,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: _screenWidth * 0.02,
-                      vertical: _screenHeight * 0.005,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color.fromARGB(255, 28, 44, 183).withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(_screenWidth * 0.03),
-                    ),
-                    child: Text(
-                      'KİLİTLİ',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: _getResponsiveFontSize(9),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: _screenHeight * 0.01),
-              Text(
-                '24 saatte bir oynanabilir',
-                style: TextStyle(
-                  color: Colors.grey.shade400,
-                  fontSize: _getResponsiveFontSize(11),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              SizedBox(height: _screenHeight * 0.01),
-              Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: _screenWidth * 0.025,
-                      vertical: _screenHeight * 0.008,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade700,
-                      borderRadius: BorderRadius.circular(_screenWidth * 0.05),
-                    ),
-                    child: Text(
-                      '${hoursLeft}s kaldı',
-                      style: TextStyle(
-                        color: Colors.grey.shade300,
-                        fontWeight: FontWeight.bold,
-                        fontSize: _getResponsiveFontSize(11),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    Icons.schedule,
-                    color: Colors.grey.shade400,
-                    size: _getResponsiveFontSize(20),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+      return _ChallengeCountdownCard(
+        hoursLeft: hoursLeft,
+        secondsLeft: secondsLeft,
+        onTap: onTap,
+        screenWidth: _screenWidth,
+        screenHeight: _screenHeight,
+        getResponsiveFontSize: _getResponsiveFontSize,
+        getResponsivePadding: _getResponsivePadding,
       );
     }
   }
@@ -1651,4 +1519,175 @@ class _ParticlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class _ChallengeCountdownCard extends StatefulWidget {
+  final int hoursLeft;
+  final int secondsLeft;
+  final VoidCallback onTap;
+  final double screenWidth;
+  final double screenHeight;
+  final double Function(double) getResponsiveFontSize;
+  final EdgeInsets Function() getResponsivePadding;
+
+  const _ChallengeCountdownCard({
+    required this.hoursLeft,
+    required this.secondsLeft,
+    required this.onTap,
+    required this.screenWidth,
+    required this.screenHeight,
+    required this.getResponsiveFontSize,
+    required this.getResponsivePadding,
+  });
+
+  @override
+  State<_ChallengeCountdownCard> createState() => _ChallengeCountdownCardState();
+}
+
+class _ChallengeCountdownCardState extends State<_ChallengeCountdownCard> {
+  late int _remainingSeconds;
+  late Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _remainingSeconds = widget.secondsLeft;
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_remainingSeconds > 0) {
+        setState(() {
+          _remainingSeconds--;
+        });
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  String _formatDuration(int totalSeconds) {
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    } else {
+      return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticService.triggerErrorHaptic();
+        widget.onTap();
+      },
+      child: Container(
+        height: widget.screenHeight * 0.13, // optimize yükseklik
+        padding: EdgeInsets.symmetric(
+          horizontal: widget.screenWidth * 0.03,
+          vertical: widget.screenHeight * 0.012,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.grey.shade800,
+              Colors.grey.shade700,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(widget.screenWidth * 0.04),
+          border: Border.all(color: Colors.grey.shade600, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: widget.screenWidth * 0.01,
+              spreadRadius: widget.screenWidth * 0.0015,
+              offset: Offset(0, widget.screenHeight * 0.003),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.lock_clock,
+                  color: Colors.grey.shade400,
+                  size: widget.getResponsiveFontSize(22),
+                ),
+                SizedBox(width: widget.screenWidth * 0.025),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Zorlu Mod',
+                        style: TextStyle(
+                          fontSize: widget.getResponsiveFontSize(13),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade200,
+                          height: 1.1,
+                          letterSpacing: 0.2,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      SizedBox(height: widget.screenHeight * 0.004),
+                      Text(
+                        '24 saatte bir',
+                        style: TextStyle(
+                          color: Colors.grey.shade400,
+                          fontSize: widget.getResponsiveFontSize(9),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: widget.screenHeight * 0.01),
+            Text(
+              '4-8 harf',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: widget.getResponsiveFontSize(11),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: widget.screenHeight * 0.01),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(Icons.schedule, size: widget.getResponsiveFontSize(13), color: Colors.grey.shade400),
+                SizedBox(width: 4),
+                Text(
+                  _formatDuration(_remainingSeconds) + ' kaldı',
+                  style: TextStyle(
+                    color: Colors.grey.shade300,
+                    fontWeight: FontWeight.bold,
+                    fontSize: widget.getResponsiveFontSize(11),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

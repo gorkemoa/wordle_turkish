@@ -24,6 +24,7 @@ class DuelGamePage extends StatefulWidget {
 class _DuelGamePageState extends State<DuelGamePage> {
   late DuelViewModel _viewModel;
   late VoidCallback _listener;
+  bool _hasNavigatedToResultPage = false;
 
   @override
   void initState() {
@@ -50,43 +51,43 @@ class _DuelGamePageState extends State<DuelGamePage> {
 
   // Sonuç ekranına yönlendirme fonksiyonu
   Future<void> _navigateToResultPage() async {
+    if (_hasNavigatedToResultPage) return;
+    _hasNavigatedToResultPage = true;
     try {
       // Sonuç sayfasına hemen git
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DuelResultPage(
-              isWinner: (_viewModel.currentPlayer?.isWinner == true) || (_viewModel.currentGame?.winnerId == _viewModel.currentPlayerId),
-              secretWord: _viewModel.secretWord,
-              myAttempts: _viewModel.currentAttempt,
-              opponentAttempts: _viewModel.opponentPlayer?.guesses.length,
-              elapsedSeconds: _viewModel.elapsedSeconds,
-            ),
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DuelResultPage(
+            isWinner: (_viewModel.currentPlayer?.isWinner == true) || (_viewModel.currentGame?.winnerId == _viewModel.currentPlayerId),
+            secretWord: _viewModel.secretWord,
+            myAttempts: _viewModel.currentAttempt,
+            opponentAttempts: _viewModel.opponentPlayer?.guesses.length,
+            elapsedSeconds: _viewModel.elapsedSeconds,
           ),
-        );
-      }
+        ),
+      );
       // Temizlik işlemlerini beklemeden başlat
-      _viewModel.leaveGame();
-      DuelService.deleteGame(widget.gameId);
+      await _viewModel.leaveGame();
+      await DuelService.deleteGame(widget.gameId);
       // await Future.delayed(const Duration(milliseconds: 200)); // Artık gerek yok
     } catch (e) {
       print('❌ Sonuç sayfasına yönlendirme hatası: $e');
       // Hata olsa bile sonuç sayfasına git
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DuelResultPage(
-              isWinner: false,
-              secretWord: _viewModel.secretWord,
-              myAttempts: _viewModel.currentAttempt,
-              opponentAttempts: 0,
-              elapsedSeconds: _viewModel.elapsedSeconds,
-            ),
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DuelResultPage(
+            isWinner: false,
+            secretWord: _viewModel.secretWord,
+            myAttempts: _viewModel.currentAttempt,
+            opponentAttempts: 0,
+            elapsedSeconds: _viewModel.elapsedSeconds,
           ),
-        );
-      }
+        ),
+      );
     }
   }
 
@@ -520,42 +521,6 @@ class _DuelGamePageState extends State<DuelGamePage> {
                   },
             extra: viewModel.isOpponentWordsJokerDisabled ? 'Kullanıldı' : null,
           ),
-          _buildJokerButton(
-            emoji: '🔍',
-            cost: '8💰',
-            onTap: viewModel.isFirstGuessJokerUsed
-                ? () {}
-                : () {
-                    () async {
-                      final confirmed = await _showJokerConfirmDialog(
-                        context,
-                        '🔍 İlk Tahmin Jokeri',
-                        'Rakibin ilk tahminini görmek için 8 jeton harcanacak. Emin misin?',
-                        '8💰',
-                      );
-                      if (confirmed == true) {
-                        final result = await viewModel.useJoker('first_guess');
-                        if (result == null) {
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              backgroundColor: const Color(0xFF23232A),
-                              title: const Text('Yetersiz Jeton', style: TextStyle(color: Colors.white)),
-                              content: const Text('Bu jokeri kullanmak için yeterli jetonun yok.', style: TextStyle(color: Colors.white70)),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Tamam'),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                      }
-                    }();
-                  },
-            extra: viewModel.isFirstGuessJokerUsed ? 'Kullanıldı' : null,
-          ),
         ],
       ),
     );
@@ -655,8 +620,6 @@ class _DuelGamePageState extends State<DuelGamePage> {
         return '🎯 Kelimedeki rastgele bir doğru harfi gösterir.';
       case 'opponent_words':
         return '👀 Rakibin doğru bildiği kelimeleri gösterir.';
-      case 'first_guess':
-        return '🔍 Rakibin ilk tahminini gösterir.';
       default:
         return '';
     }
@@ -681,12 +644,10 @@ class _DuelGamePageState extends State<DuelGamePage> {
             child: const Text('İptal'),
           ),
           ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await viewModel.leaveGame();
-              if (mounted) {
-                Navigator.of(context).pop();
-              }
+            onPressed: () {
+              Navigator.pop(context); // dialogu kapat
+              Navigator.of(context).pop(); // sayfadan çık
+              viewModel.leaveGame(); // cleanup arka planda
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text(
