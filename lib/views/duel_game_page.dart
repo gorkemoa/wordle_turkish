@@ -423,128 +423,138 @@ class _DuelGamePageState extends State<DuelGamePage> {
           _buildJokerButton(
             emoji: '🎯',
             cost: '10💰',
-            onTap: () async {
-              final confirmed = await _showJokerConfirmDialog(
-                context,
-                '🎯 Harf Jokeri',
-                'Kelimedeki rastgele bir doğru harfi açmak için 10 jeton harcanacak. Emin misin?',
-                '10💰',
-              );
-              if (confirmed == true) {
-                final revealed = await viewModel.useJoker('letter_hint');
-                if (revealed == null) {
-                  if (viewModel.letterHintUsedCount >= viewModel.maxLetterHint) {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        backgroundColor: const Color(0xFF23232A),
-                        title: const Text('Joker Limiti', style: TextStyle(color: Colors.white)),
-                        content: const Text('Bu jokeri en fazla 3 kez kullanabilirsin.', style: TextStyle(color: Colors.white70)),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Tamam'),
-                          ),
-                        ],
-                      ),
+            onTap: viewModel.isLetterHintJokerDisabled
+                ? () {}
+                : () async {
+                    final confirmed = await _showJokerConfirmDialog(
+                      context,
+                      '🎯 Harf Jokeri',
+                      'Kelimedeki rastgele bir doğru harfi açmak için 10 jeton harcanacak. Emin misin?',
+                      '10💰',
                     );
-                  } else {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        backgroundColor: const Color(0xFF23232A),
-                        title: const Text('Yetersiz Jeton', style: TextStyle(color: Colors.white)),
-                        content: const Text('Bu jokeri kullanmak için yeterli jetonun yok.', style: TextStyle(color: Colors.white70)),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Tamam'),
+                    if (confirmed == true) {
+                      final revealed = await viewModel.useJoker('letter_hint');
+                      if (revealed == null) {
+                        if (viewModel.letterHintUsedCount >= viewModel.maxLetterHint) {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              backgroundColor: const Color(0xFF23232A),
+                              title: const Text('Joker Limiti', style: TextStyle(color: Colors.white)),
+                              content: const Text('Bu jokeri en fazla 3 kez kullanabilirsin.', style: TextStyle(color: Colors.white70)),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Tamam'),
+                                ),
+                              ],
+                            ),
+                          );
+                        } else {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              backgroundColor: const Color(0xFF23232A),
+                              title: const Text('Yetersiz Jeton', style: TextStyle(color: Colors.white)),
+                              content: const Text('Bu jokeri kullanmak için yeterli jetonun yok.', style: TextStyle(color: Colors.white70)),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Tamam'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      } else {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: const Color(0xFF23232A),
+                            title: const Text('Açılan Harf', style: TextStyle(color: Colors.white)),
+                            content: Text('Açılan harf: $revealed', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Tamam'),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    );
-                  }
-                } else {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      backgroundColor: const Color(0xFF23232A),
-                      title: const Text('Açılan Harf', style: TextStyle(color: Colors.white)),
-                      content: Text('Açılan harf: $revealed', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Tamam'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-              }
-            },
-            extra: 'x${viewModel.maxLetterHint - viewModel.letterHintUsedCount}',
+                        );
+                      }
+                    }
+                  },
+            extra: viewModel.isLetterHintJokerDisabled ? 'Kullanıldı' : 'x${viewModel.maxLetterHint - viewModel.letterHintUsedCount}',
           ),
           _buildJokerButton(
             emoji: '👀',
             cost: '20💰',
-            onTap: () async {
-              final confirmed = await _showJokerConfirmDialog(
-                context,
-                '👀 Rakip Jokeri',
-                'Rakibin doğru bildiği kelimeleri görmek için 20 jeton harcanacak. Emin misin?',
-                '20💰',
-              );
-              if (confirmed == true) {
-                final result = await viewModel.useJoker('opponent_words');
-                if (result == null && viewModel.isOpponentRevealed == false) {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      backgroundColor: const Color(0xFF23232A),
-                      title: const Text('Yetersiz Jeton', style: TextStyle(color: Colors.white)),
-                      content: const Text('Bu jokeri kullanmak için yeterli jetonun yok.', style: TextStyle(color: Colors.white70)),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Tamam'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-              }
-            },
+            onTap: viewModel.isOpponentWordsJokerDisabled
+                ? () {}
+                : () async {
+                    final confirmed = await _showJokerConfirmDialog(
+                      context,
+                      '👀 Rakip Jokeri',
+                      'Rakibin doğru bildiği kelimeleri görmek için 20 jeton harcanacak. Emin misin?',
+                      '20💰',
+                    );
+                    if (confirmed == true) {
+                      final result = await viewModel.useJoker('opponent_words');
+                      if (result == null && viewModel.isOpponentRevealed == false) {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: const Color(0xFF23232A),
+                            title: const Text('Yetersiz Jeton', style: TextStyle(color: Colors.white)),
+                            content: const Text('Bu jokeri kullanmak için yeterli jetonun yok.', style: TextStyle(color: Colors.white70)),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Tamam'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    }
+                  },
+            extra: viewModel.isOpponentWordsJokerDisabled ? 'Kullanıldı' : null,
           ),
           _buildJokerButton(
             emoji: '🔍',
             cost: '8💰',
-            onTap: () async {
-              final confirmed = await _showJokerConfirmDialog(
-                context,
-                '🔍 İlk Tahmin Jokeri',
-                'Rakibin ilk tahminini görmek için 8 jeton harcanacak. Emin misin?',
-                '8💰',
-              );
-              if (confirmed == true) {
-                final result = await viewModel.useJoker('first_guess');
-                if (result == null) {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      backgroundColor: const Color(0xFF23232A),
-                      title: const Text('Yetersiz Jeton', style: TextStyle(color: Colors.white)),
-                      content: const Text('Bu jokeri kullanmak için yeterli jetonun yok.', style: TextStyle(color: Colors.white70)),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Tamam'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-              }
-            },
+            onTap: viewModel.isFirstGuessJokerUsed
+                ? () {}
+                : () {
+                    () async {
+                      final confirmed = await _showJokerConfirmDialog(
+                        context,
+                        '🔍 İlk Tahmin Jokeri',
+                        'Rakibin ilk tahminini görmek için 8 jeton harcanacak. Emin misin?',
+                        '8💰',
+                      );
+                      if (confirmed == true) {
+                        final result = await viewModel.useJoker('first_guess');
+                        if (result == null) {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              backgroundColor: const Color(0xFF23232A),
+                              title: const Text('Yetersiz Jeton', style: TextStyle(color: Colors.white)),
+                              content: const Text('Bu jokeri kullanmak için yeterli jetonun yok.', style: TextStyle(color: Colors.white70)),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Tamam'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      }
+                    }();
+                  },
+            extra: viewModel.isFirstGuessJokerUsed ? 'Kullanıldı' : null,
           ),
         ],
       ),
@@ -557,38 +567,42 @@ class _DuelGamePageState extends State<DuelGamePage> {
     required VoidCallback onTap,
     String? extra,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFF3A3A3C),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              emoji,
-              style: const TextStyle(fontSize: 16),
-            ),
-            if (extra != null) ...[
+    final isDisabled = extra == 'Kullanıldı';
+    return Opacity(
+      opacity: isDisabled ? 0.5 : 1.0,
+      child: GestureDetector(
+        onTap: isDisabled ? null : onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF3A3A3C),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                emoji,
+                style: const TextStyle(fontSize: 16),
+              ),
+              if (extra != null) ...[
+                const SizedBox(width: 4),
+                Text(
+                  extra,
+                  style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ],
               const SizedBox(width: 4),
               Text(
-                extra,
-                style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13),
+                cost,
+                style: const TextStyle(
+                  color: Color(0xFFCEB458),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
-            const SizedBox(width: 4),
-            Text(
-              cost,
-              style: const TextStyle(
-                color: Color(0xFFCEB458),
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

@@ -72,6 +72,15 @@ class DuelViewModel extends ChangeNotifier {
   int letterHintUsedCount = 0;
   final int maxLetterHint = 3;
 
+  // first_guess jokeri için kullanım kontrolü
+  bool _isFirstGuessJokerUsed = false;
+  bool get isFirstGuessJokerUsed => _isFirstGuessJokerUsed;
+
+  // letter_hint ve opponent_words jokerleri için disable kontrolü
+  bool get isLetterHintJokerDisabled => letterHintUsedCount >= maxLetterHint;
+  bool _isOpponentWordsJokerUsed = false;
+  bool get isOpponentWordsJokerDisabled => _isOpponentWordsJokerUsed;
+
   // Oyuncu getters
   DuelPlayer? get currentPlayer {
     if (_currentGame == null || _currentPlayerId == null) return null;
@@ -378,6 +387,18 @@ class DuelViewModel extends ChangeNotifier {
         }
         return null;
       }
+      // first_guess jokeri sadece bir kez kullanılabilir
+      if (jokerType == 'first_guess') {
+        if (_isFirstGuessJokerUsed) {
+          return null;
+        }
+      }
+      // opponent_words jokeri sadece bir kez kullanılabilir
+      if (jokerType == 'opponent_words') {
+        if (_isOpponentWordsJokerUsed) {
+          return null;
+        }
+      }
       // Diğer jokerler için eski akış
       tokens = await DuelService.getTokens();
       notifyListeners();
@@ -392,9 +413,14 @@ class DuelViewModel extends ChangeNotifier {
       await DuelService.useJoker(_gameId!, jokerType);
       if (jokerType == 'opponent_words') {
         _isOpponentRevealed = true;
+        _isOpponentWordsJokerUsed = true;
         tokens = await DuelService.getTokens();
         notifyListeners(); // ANINDA UI güncelle
         return null;
+      }
+      if (jokerType == 'first_guess') {
+        _isFirstGuessJokerUsed = true;
+        notifyListeners();
       }
       // Eğer first_guess için de anında bir state gerekiyorsa burada ekle
       tokens = await DuelService.getTokens();
@@ -464,6 +490,8 @@ class DuelViewModel extends ChangeNotifier {
       _showLoseAnimation = false;
       _startTime = null;
       _endTime = null;
+      _isFirstGuessJokerUsed = false;
+      _isOpponentWordsJokerUsed = false;
     } catch (e) {
       print('❌ Temizlik hatası: $e');
     }

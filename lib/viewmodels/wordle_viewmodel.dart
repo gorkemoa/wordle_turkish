@@ -142,6 +142,14 @@ class WordleViewModel extends ChangeNotifier {
   int get timeRushSeconds => _timeRushSeconds;
   bool get timeRushActive => _timeRushActive;
 
+  int get secondsUntilNextChallengeMode {
+    if (_lastChallengeModePlay == null) return 0;
+    final now = DateTime.now();
+    final difference = now.difference(_lastChallengeModePlay!);
+    final secondsLeft = 24 * 3600 - difference.inSeconds;
+    return secondsLeft > 0 ? secondsLeft : 0;
+  }
+
   // Kazanma durumu kontrol edicisi
   bool get isWinner {
     if (!_gameOver) return false;
@@ -427,7 +435,7 @@ class WordleViewModel extends ChangeNotifier {
         
         // Zorlu mod için son oyun zamanını kaydet
         if (_gameMode == GameMode.challenge) {
-          _saveLastChallengeModePlay();
+          saveLastChallengeModePlay();
         }
         
         notifyListeners();
@@ -441,7 +449,7 @@ class WordleViewModel extends ChangeNotifier {
         
         // Zorlu mod için son oyun zamanını kaydet (kaybedilen oyunlarda da)
         if (_gameMode == GameMode.challenge) {
-          _saveLastChallengeModePlay();
+          saveLastChallengeModePlay();
         }
         
         notifyListeners();
@@ -460,7 +468,7 @@ class WordleViewModel extends ChangeNotifier {
       // Son seviye tamamlandı, oyun bitti
       _gameOver = true;
       _updateHighScores();
-      _saveLastChallengeModePlay();
+      saveLastChallengeModePlay();
       notifyListeners();
     } else {
       // Sonraki seviyeye geç
@@ -591,7 +599,7 @@ class WordleViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _saveLastChallengeModePlay() async {
+  Future<void> saveLastChallengeModePlay() async {
     final prefs = await SharedPreferences.getInstance();
     _lastChallengeModePlay = DateTime.now();
     await prefs.setInt('lastChallengeModePlay', _lastChallengeModePlay!.millisecondsSinceEpoch);
