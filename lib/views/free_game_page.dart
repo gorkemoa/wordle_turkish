@@ -5,9 +5,10 @@ import '../viewmodels/wordle_viewmodel.dart';
 import '../widgets/shake_widget.dart';
 import '../widgets/keyboard_widget.dart';
 import '../widgets/guess_grid.dart';
-import '../widgets/game_stats.dart';
 import '../services/firebase_service.dart';
 import 'wordle_result_page.dart';
+import 'free_game_settings_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Serbest oyun sayfası
 
@@ -44,8 +45,16 @@ class _FreeGamePageState extends State<FreeGamePage> {
       }
     };
     _viewModel.addListener(_listener);
-    
-    // Serbest mod ayarını yap
+    _loadSavedSettingsAndStartGame();
+  }
+
+  Future<void> _loadSavedSettingsAndStartGame() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _wordLength = prefs.getInt('free_word_length') ?? _wordLength;
+      _isTimerEnabled = prefs.getBool('free_is_timer_enabled') ?? _isTimerEnabled;
+      _timerDuration = prefs.getInt('free_timer_duration') ?? _timerDuration;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _viewModel.resetGame(
         mode: GameMode.unlimited,
@@ -210,7 +219,25 @@ class _FreeGamePageState extends State<FreeGamePage> {
               // Ayarlar butonu
               IconButton(
                 icon: const Icon(Icons.settings_rounded),
-                onPressed: () => _showGameSettings(viewModel),
+                onPressed: () async {
+                  final result = await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => FreeGameSettingsPage(
+                        initialWordLength: _wordLength,
+                        initialIsTimerEnabled: _isTimerEnabled,
+                        initialTimerDuration: _timerDuration,
+                      ),
+                    ),
+                  );
+                  if (result != null && result is Map<String, dynamic>) {
+                    setState(() {
+                      _wordLength = result['wordLength'] as int;
+                      _isTimerEnabled = result['isTimerEnabled'] as bool;
+                      _timerDuration = result['timerDuration'] as int;
+                    });
+                    _applyGameSettings(_viewModel);
+                  }
+                },
                 tooltip: 'Oyun Ayarları',
               ),
               // Yenile butonu
@@ -569,32 +596,6 @@ class _FreeGamePageState extends State<FreeGamePage> {
         );
       },
     );
-  }
-
-  /// Reklam izleyerek jeton kazan
-  Future<void> _watchAdForTokens(WordleViewModel viewModel) async {
-    bool success = await viewModel.watchAdForTokens();
-    if (success) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🎉 1 jeton kazandınız!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ Reklam şu anda mevcut değil!'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    }
   }
 
   /// Oyun ayarları dialog'unu göster

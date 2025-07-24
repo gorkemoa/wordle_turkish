@@ -6,11 +6,13 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'services/firebase_service.dart';
-import 'services/presence_service.dart';
 import 'services/ad_service.dart';
 import 'services/haptic_service.dart';
+import 'services/duel_service.dart';
 import 'viewmodels/wordle_viewmodel.dart';
 import 'viewmodels/leaderboard_viewmodel.dart';
+import 'viewmodels/duel_viewmodel.dart';
+import 'viewmodels/matchmaking_viewmodel.dart';
 import 'views/home_page.dart';
 import 'views/login_page.dart';
 import 'views/wordle_page.dart';
@@ -45,11 +47,20 @@ void main() async {
   // Titreşim ayarlarını yükle
   await HapticService.loadHapticSettings();
   
+  // DuelService'i başlat
+  try {
+    await DuelService.initialize();
+  } catch (e) {
+    print('DuelService başlatılamadı: $e');
+  }
+  
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => WordleViewModel()),
         ChangeNotifierProvider(create: (_) => LeaderboardViewModel()),
+        ChangeNotifierProvider(create: (_) => DuelViewModel()),
+        ChangeNotifierProvider(create: (_) => MatchmakingViewModel()),
       ],
       child: const MyApp(),
     ),
@@ -76,7 +87,6 @@ class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     // Uygulama kapatılırken presence servisini temizle
-    PresenceService.dispose();
     super.dispose();
   }
 
@@ -134,8 +144,6 @@ class _MyAppState extends State<MyApp> {
           if (snapshot.hasData && snapshot.data != null) {
             // Kullanıcı giriş yaptığında online durumunu ayarla
             FirebaseService.setUserOnline();
-            // Yeni presence servisini başlat
-            PresenceService.initialize();
             return HomePage(toggleTheme: _toggleTheme);
           } else {
             return const LoginPage();

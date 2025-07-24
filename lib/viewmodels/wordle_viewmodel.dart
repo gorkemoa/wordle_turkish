@@ -529,8 +529,15 @@ class WordleViewModel extends ChangeNotifier {
 
   // Toplam oyun zamanlayıcı yöntemleri
   void _startTotalTimer({int? customDuration}) {
+    if (customDuration == null) {
+      _totalTimer?.cancel();
+      _totalTimerRunning = false;
+      _totalRemainingSeconds = totalGameSeconds;
+      notifyListeners();
+      return; // Timer başlatma!
+    }
     _totalTimerRunning = true;
-    _totalRemainingSeconds = customDuration ?? totalGameSeconds;
+    _totalRemainingSeconds = customDuration;
     notifyListeners();
 
     _totalTimer?.cancel();

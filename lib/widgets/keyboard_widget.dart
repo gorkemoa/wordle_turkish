@@ -3,19 +3,30 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/wordle_viewmodel.dart';
+import '../viewmodels/duel_viewmodel.dart';
 
 class KeyboardWidget extends StatelessWidget {
-  const KeyboardWidget({Key? key}) : super(key: key);
+  final bool isDuelMode;
+  
+  const KeyboardWidget({Key? key, this.isDuelMode = false}) : super(key: key);
 
   // Türkçe harfleri içeren klavye satırları
   final List<List<String>> keyboardRows = const [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'Ğ', 'Ü'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ş', 'İ'],
-    ['Z', 'X', 'C', 'V', 'B', 'N', 'M', 'Ö', 'Ç', 'BACK'],
+    ['Z', 'X', 'C', 'V', 'B', 'N', 'M', 'Ö', 'Ç', 'CLEAR', 'BACK'],
   ];
 
   @override
   Widget build(BuildContext context) {
+    if (isDuelMode) {
+      return _buildDuelKeyboard(context);
+    } else {
+      return _buildWordleKeyboard(context);
+    }
+  }
+
+  Widget _buildWordleKeyboard(BuildContext context) {
     final viewModel = Provider.of<WordleViewModel>(context);
     final keyboardColors = viewModel.keyboardColors;
 
@@ -38,19 +49,23 @@ class KeyboardWidget extends StatelessWidget {
                       },
                       color: Colors.redAccent,
                     );
-                  } else if (key == 'SUBMIT') {
+                  } else if (key == 'CLEAR') {
                     return _buildSpecialKey(
                       context,
-                      label: 'SUBMIT',
+                      icon: Icons.close_rounded,
                       onTap: () {
                         if (viewModel.gameOver) return;
-                        viewModel.onEnter();
+                        for (int i = 0; i < viewModel.currentColumn; i++) {
+                          viewModel.onBackspace();
+                        }
                       },
-                      color: Colors.blue.shade700,
-                      flex: 2, // Submit butonu genişletildi
+                      color: Colors.orange.shade700,
                     );
                   } else {
-                    return _buildLetterKey(context, key, keyboardColors[key] ?? Colors.grey.shade800);
+                    return _buildLetterKey(context, key, keyboardColors[key] ?? Colors.grey.shade800, () {
+                      if (viewModel.gameOver) return;
+                      viewModel.onKeyTap(key);
+                    });
                   }
                 }).toList(),
               ),
@@ -61,16 +76,98 @@ class KeyboardWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildLetterKey(BuildContext context, String key, Color color) {
-    final viewModel = Provider.of<WordleViewModel>(context, listen: false);
+  Widget _buildDuelKeyboard(BuildContext context) {
+    final viewModel = Provider.of<DuelViewModel>(context);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            // İlk satır
+            Flexible(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: keyboardRows[0].map((key) {
+                  return _buildLetterKey(context, key, Colors.grey.shade800, () {
+                    if (viewModel.isGameFinished) return;
+                    viewModel.addLetter(key);
+                    if (viewModel.currentGuess.length == 5) {
+                      viewModel.submitGuess();
+                    }
+                  });
+                }).toList(),
+              ),
+            ),
+            // İkinci satır
+            Flexible(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: keyboardRows[1].map((key) {
+                  return _buildLetterKey(context, key, Colors.grey.shade800, () {
+                    if (viewModel.isGameFinished) return;
+                    viewModel.addLetter(key);
+                    if (viewModel.currentGuess.length == 5) {
+                      viewModel.submitGuess();
+                    }
+                  });
+                }).toList(),
+              ),
+            ),
+            // Üçüncü satır - harfler, CLEAR, BACK
+            Flexible(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Harfler (CLEAR ve BACK hariç)
+                  ...keyboardRows[2].where((key) => key != 'BACK' && key != 'CLEAR').map((key) {
+                    return _buildLetterKey(context, key, Colors.grey.shade800, () {
+                      if (viewModel.isGameFinished) return;
+                      viewModel.addLetter(key);
+                      if (viewModel.currentGuess.length == 5) {
+                        viewModel.submitGuess();
+                      }
+                    });
+                  }),
+                  // CLEAR butonu
+                  _buildSpecialKey(
+                    context,
+                    icon: Icons.close_rounded,
+                    onTap: () {
+                      if (viewModel.isGameFinished) return;
+                      while (viewModel.currentGuess.isNotEmpty) {
+                        viewModel.removeLetter();
+                      }
+                    },
+                    color: Colors.orange.shade700,
+                    flex: 2,
+                  ),
+                  // BACK butonu
+                  _buildSpecialKey(
+                    context,
+                    icon: Icons.backspace_rounded,
+                    onTap: () {
+                      if (viewModel.isGameFinished) return;
+                      viewModel.removeLetter();
+                    },
+                    color: Colors.redAccent,
+                    flex: 2,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLetterKey(BuildContext context, String key, Color color, VoidCallback onTap) {
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 2.0),
         child: GestureDetector(
-          onTap: () {
-            if (viewModel.gameOver) return;
-            viewModel.onKeyTap(key);
-          },
+          onTap: onTap,
           child: Container(
             decoration: BoxDecoration(
               color: color,
@@ -109,10 +206,12 @@ class KeyboardWidget extends StatelessWidget {
             child: label != null
                 ? Text(
                     label,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: 10,
+                      height: 1.4,
                     ),
                   )
                 : Icon(icon, color: Colors.white, size: 20),

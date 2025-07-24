@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../viewmodels/wordle_viewmodel.dart';
 import '../widgets/shake_widget.dart';
 import '../widgets/keyboard_widget.dart';
 import '../widgets/guess_grid.dart';
-import '../widgets/game_stats.dart';
-import '../services/firebase_service.dart';
 import 'wordle_result_page.dart';
 
 // Zamana karşı oyun sayfası
@@ -173,39 +170,46 @@ class _TimeRushGamePageState extends State<TimeRushGamePage> with TickerProvider
           child: Scaffold(
           backgroundColor: Colors.grey.shade900,
           appBar: AppBar(
-            backgroundColor: Colors.grey.shade900,
-            title: const Text('⏰ ZAMANA KARŞI'),
+            title: const Text('⏰ Zamana Karşı'),
             centerTitle: true,
             actions: [
-              // Jeton göstergesi
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                padding: const EdgeInsets.only(right: 12.0),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.monetization_on, color: Colors.amber, size: 20),
-                    const SizedBox(width: 4),
-                    Text('${viewModel.userTokens}'),
-                  ],
-                ),
-              ),
-              // Zamanlayıcı
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade600,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${viewModel.timeRushSeconds}s',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                    SizedBox(
+                      width: 60,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.monetization_on, size: 20),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${viewModel.userTokens}',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 60,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.timer_outlined, size: 20),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${viewModel.timeRushSeconds}s',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

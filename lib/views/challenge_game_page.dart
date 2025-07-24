@@ -5,7 +5,6 @@ import '../viewmodels/wordle_viewmodel.dart';
 import '../widgets/shake_widget.dart';
 import '../widgets/keyboard_widget.dart';
 import '../widgets/guess_grid.dart';
-import '../widgets/game_stats.dart';
 import '../services/firebase_service.dart';
 import 'wordle_result_page.dart';
 

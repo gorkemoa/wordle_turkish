@@ -14,12 +14,12 @@ import 'token_shop_page.dart';
 import 'free_game_page.dart';
 import 'challenge_game_page.dart';
 import 'time_rush_page.dart';
-import 'themed_game_page.dart';
 import 'themed_mode_page.dart';
 import '../viewmodels/wordle_viewmodel.dart';
+import '../viewmodels/matchmaking_viewmodel.dart';
+import 'duel_matchmaking_page.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'multiplayer_game_page.dart';
 
 // Ana sayfa
 
@@ -239,6 +239,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _navigateToFreeWordle() => Navigator.push(context, MaterialPageRoute(builder: (context) => FreeGamePage(toggleTheme: widget.toggleTheme ?? () {})));
   void _navigateToTimeRush() => Navigator.push(context, MaterialPageRoute(builder: (context) => TimeRushGamePage(toggleTheme: widget.toggleTheme ?? () {})));
   void _navigateToThemed() => Navigator.push(context, MaterialPageRoute(builder: (context) => ThemedModePage(toggleTheme: widget.toggleTheme ?? () {})));
+  void _navigateToDuel() {
+    // Reset matchmaking viewmodel
+    final matchmakingViewModel = Provider.of<MatchmakingViewModel>(context, listen: false);
+    matchmakingViewModel.reset();
+    
+    Navigator.push(
+      context, 
+      MaterialPageRoute(
+        builder: (context) => const DuelMatchmakingPage(),
+      ),
+    );
+  }
   void _navigateToChallenge() async {
     final viewModel = Provider.of<WordleViewModel>(context, listen: false);
     await viewModel.refreshTokens(); // Jeton sayısını güncelle
@@ -251,141 +263,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _showChallengeModeWarningDialog();
   }
 
-  void _startDuel() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final tokens = await FirebaseService.getUserTokens(user.uid);
-      if (tokens < 2) {
-        _showDuelTokenDialog(context, tokens);
-        return;
-      }
-    }
-    // MultiplayerGameWrapper sayfasına yönlendir
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const MultiplayerGameWrapper(),
-      ),
-    );
-  }
-
-  void _showDuelTokenDialog(BuildContext context, int currentTokens) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1D),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(_screenWidth * 0.05),
-            side: BorderSide(color: Colors.red.shade400, width: 2),
-          ),
-          title: Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(_screenWidth * 0.02),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.red.shade400, Colors.red.shade600],
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.warning_amber, color: Colors.white),
-              ),
-              SizedBox(width: _screenWidth * 0.03),
-              Text(
-                'Yetersiz Jeton', 
-                style: TextStyle(
-                  color: Colors.white, 
-                  fontSize: _getResponsiveFontSize(18), 
-                  fontWeight: FontWeight.bold
-                )
-              ),
-            ],
-          ),
-          content: Container(
-            padding: EdgeInsets.all(_screenWidth * 0.04),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF2A2A2A),
-                  const Color(0xFF1A1A1D),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(_screenWidth * 0.03),
-            ),
-            child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                  'Düello için 2 jetona ihtiyacın var.\nMevcut jetonun: $currentTokens 🪙',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9), 
-                    fontSize: _getResponsiveFontSize(16)
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: _screenHeight * 0.02),
-              Container(
-                padding: EdgeInsets.all(_screenWidth * 0.03),
-                decoration: BoxDecoration(
-                    color: const Color(0xFF538D4E).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(_screenWidth * 0.02),
-                    border: Border.all(color: const Color(0xFF538D4E), width: 1),
-                  ),
-                  child: const Text(
-                    '💡 Kazanan 4 jeton alır!',
-                    style: TextStyle(color: Color(0xFF538D4E), fontWeight: FontWeight.bold),
-                  ),
-                    ),
-                  ],
-                ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.symmetric(
-                  horizontal: _screenWidth * 0.05, 
-                  vertical: _screenHeight * 0.015
-                ),
-              ),
-              child: Text(
-                'İptal', 
-                style: TextStyle(
-                  color: Colors.grey, 
-                  fontSize: _getResponsiveFontSize(16)
-                )
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _navigateToTokenShop();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF538D4E),
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(
-                  horizontal: _screenWidth * 0.06, 
-                  vertical: _screenHeight * 0.015
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(_screenWidth * 0.03)
-                ),
-              ),
-              child: Text(
-                'Jeton Al', 
-                style: TextStyle(
-                  fontSize: _getResponsiveFontSize(16), 
-                  fontWeight: FontWeight.bold
-                )
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   void _showChallengeModeLockedDialog(int hoursLeft) {
     showDialog(
@@ -644,6 +521,88 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
                 )
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Bakımda uyarısı için fonksiyon ekle
+  void _showMaintenanceDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1D),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_screenWidth * 0.05),
+            side: BorderSide(color: Colors.purple.shade400, width: 2),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(_screenWidth * 0.02),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple.shade400, Colors.purple.shade600],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.build, color: Colors.white),
+              ),
+              SizedBox(width: _screenWidth * 0.03),
+              Text(
+                'Bakımda',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: _getResponsiveFontSize(18),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Container(
+            padding: EdgeInsets.all(_screenWidth * 0.04),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF2A2A2A),
+                  const Color(0xFF1A1A1D),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(_screenWidth * 0.03),
+            ),
+            child: Text(
+              'Tema Modu şu anda bakımda. Yakında tekrar aktif olacaktır.',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: _getResponsiveFontSize(16),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple.shade600,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: _screenWidth * 0.06,
+                  vertical: _screenHeight * 0.015,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(_screenWidth * 0.03),
+                ),
+              ),
+              child: Text(
+                'Tamam',
+                style: TextStyle(
+                  fontSize: _getResponsiveFontSize(16),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -1090,10 +1049,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             Expanded(
               child: _buildGameModeCard(
                 title: 'TEMA MODU',
-                subtitle: 'Kategoriye özel kelimeler',
+                subtitle: 'Bakımda - Yakında',
                 icon: Icons.category_outlined,
                 color: const Color(0xFF8E44AD),
-                onTap: _navigateToThemed,
+                onTap: () {
+                  HapticService.triggerErrorHaptic();
+                  _showMaintenanceDialog();
+                },
+                notification: false,
               ),
             ),
           ],
@@ -1103,12 +1066,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           children: [
             Expanded(
               child: _buildGameModeCard(
-                title: 'DÜELLO',
-                subtitle: '$activeUsers oyuncu aktif',
-                icon: Icons.people_alt_outlined,
-                color: const Color(0xFFC9B458),
-                onTap: _startDuel,
-                notification: activeUsers > 5,
+                title: 'ONLINE DÜELLO',
+                subtitle: '1vs1 gerçek zamanlı',
+                icon: Icons.sports_kabaddi,
+                color: Colors.yellow,
+                onTap: _navigateToDuel,
               ),
             ),
             SizedBox(width: _screenWidth * 0.04),
@@ -1396,7 +1358,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             border: Border.all(color: Colors.orange.shade400, width: 2),
             boxShadow: [
               BoxShadow(
-                color: Colors.red.shade400.withOpacity(0.4),
+                color: const Color.fromARGB(255, 46, 44, 205).withOpacity(0.4),
                 blurRadius: _screenWidth * 0.03,
                 spreadRadius: _screenWidth * 0.0025,
                 offset: Offset(0, _screenHeight * 0.005),
@@ -1553,7 +1515,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       vertical: _screenHeight * 0.005,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade900.withOpacity(0.7),
+                      color: const Color.fromARGB(255, 28, 44, 183).withOpacity(0.7),
                       borderRadius: BorderRadius.circular(_screenWidth * 0.03),
                     ),
                     child: Text(
